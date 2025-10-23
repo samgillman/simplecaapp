@@ -169,5 +169,6 @@ mod_metrics_server <- function(id, rv) {
       }
     )
     
+    list(plot = metrics_plot_obj)
   })
 }

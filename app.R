@@ -431,16 +431,16 @@ server <- function(input, output, session) {
     
     # Analysis modules  
     mod_time_course_server("time_course", rv)
-    mod_heatmap_server("heatmap", rv)
-    mod_metrics_server("metrics", rv)
+    heatmap_outputs <- mod_heatmap_server("heatmap", rv)
+    metrics_outputs <- mod_metrics_server("metrics", rv)
     mod_metrics_explained_server("metrics_explained", rv)
     
     # Data output modules
     mod_tables_server("tables", rv)
     
-    # Export module with simple reactive wrappers
-    metrics_plot_reactive <- reactive({ NULL })
-    heatmap_plot_reactive <- reactive({ NULL })
+    # Export module with reactive plot objects sourced from feature modules
+    metrics_plot_reactive <- metrics_outputs$plot %||% reactive({ NULL })
+    heatmap_plot_reactive <- heatmap_outputs$plot %||% reactive({ NULL })
     
     mod_export_server("export", rv, 
                       metrics_plot_reactive = metrics_plot_reactive,
