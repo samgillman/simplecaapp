@@ -194,6 +194,16 @@ get_unified_theme_css <- function() {
       color: var(--color-white) !important;
     }}
 
+    /* Ensure box titles are white text */
+    .box-header > .box-title {{
+      color: var(--color-white) !important;
+    }}
+
+    .box.box-solid.box-primary > .box-header > .box-title,
+    .box.box-primary > .box-header > .box-title {{
+      color: var(--color-white) !important;
+    }}
+
     /* ==================== Buttons ==================== */
 
     .btn {{
@@ -386,17 +396,10 @@ get_unified_theme_css <- function() {
     .content-wrapper {{
       background-color: var(--color-gray-50);
       margin-left: 250px !important;
-      min-height: 100vh;
     }}
 
     .content {{
       padding: 20px;
-      padding-bottom: 20px;
-    }}
-
-    /* Reduce excessive whitespace below content */
-    .content-wrapper, .content {{
-      max-height: none;
     }}
 
     /* Ensure fluidRow has no weird margins */
