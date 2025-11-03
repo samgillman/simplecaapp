@@ -44,15 +44,15 @@ mod_load_data_ui <- function(id) {
               width = 6,
               box(title = "At a glance", status = "primary", solidHeader = TRUE, width = 12, collapsible = FALSE,
                   div(style = "padding: 5px;",
-                      div(class = "stat-card", style = "background: var(--secondary-color); color: white; text-align: center; display:flex; align-items:center; justify-content:center; flex-direction: column; padding:16px 0;",
+                      div(class = "stat-card", style = "background: var(--color-info); color: white; text-align: center; display:flex; align-items:center; justify-content:center; flex-direction: column; padding:16px 0;",
                           h3(textOutput(ns("n_files_text"), inline = TRUE)),
                           p("Files loaded")
                       ),
-                      div(class = "stat-card", style = "background: var(--primary-color); color: white; text-align: center; display:flex; align-items:center; justify-content:center; flex-direction: column; padding:16px 0;",
+                      div(class = "stat-card", style = "background: var(--color-primary-blue); color: white; text-align: center; display:flex; align-items:center; justify-content:center; flex-direction: column; padding:16px 0;",
                           h3(textOutput(ns("n_cells_text"), inline = TRUE)),
                           p("Total cells")
                       ),
-                      div(class = "stat-card", style = "background: #339966; color: white; text-align: center; display:flex; align-items:center; justify-content:center; flex-direction: column; padding:16px 0;",
+                      div(class = "stat-card", style = "background: var(--color-success); color: white; text-align: center; display:flex; align-items:center; justify-content:center; flex-direction: column; padding:16px 0;",
                           h3(textOutput(ns("n_timepoints_text"), inline = TRUE)),
                           p("Total timepoints")
                       )
@@ -62,24 +62,24 @@ mod_load_data_ui <- function(id) {
                   div(style = "padding: 10px;",
                       fluidRow(
                         column(3, align = "center",
-                               icon("file-import", class = "fa-2x", style = "color: #5bc0de; margin-bottom: 8px;"),
+                               icon("file-import", class = "fa-2x", style = "color: var(--color-info); margin-bottom: 8px;"),
                                h5("Files Loaded", style = "margin: 5px 0; font-weight: 600;"),
-                               textOutput(ns("status_files_loaded"), container = function(...) div(..., style = "font-size: 13px; color: #666;"))
+                               textOutput(ns("status_files_loaded"), container = function(...) div(..., style = "font-size: 13px; color: var(--color-gray-600);"))
                         ),
                         column(3, align = "center",
-                               icon("check-circle", class = "fa-2x", style = "color: #5cb85c; margin-bottom: 8px;"),
+                               icon("check-circle", class = "fa-2x", style = "color: var(--color-success); margin-bottom: 8px;"),
                                h5("Processing", style = "margin: 5px 0; font-weight: 600;"),
-                               textOutput(ns("status_processing"), container = function(...) div(..., style = "font-size: 13px; color: #666;"))
+                               textOutput(ns("status_processing"), container = function(...) div(..., style = "font-size: 13px; color: var(--color-gray-600);"))
                         ),
                         column(3, align = "center",
-                               icon("calculator", class = "fa-2x", style = "color: #f0ad4e; margin-bottom: 8px;"),
+                               icon("calculator", class = "fa-2x", style = "color: var(--color-warning); margin-bottom: 8px;"),
                                h5("Metrics", style = "margin: 5px 0; font-weight: 600;"),
-                               textOutput(ns("status_metrics"), container = function(...) div(..., style = "font-size: 13px; color: #666;"))
+                               textOutput(ns("status_metrics"), container = function(...) div(..., style = "font-size: 13px; color: var(--color-gray-600);"))
                         ),
                         column(3, align = "center",
-                               icon("chart-line", class = "fa-2x", style = "color: #9b59b6; margin-bottom: 8px;"),
+                               icon("chart-line", class = "fa-2x", style = "color: var(--color-primary-blue); margin-bottom: 8px;"),
                                h5("Ready", style = "margin: 5px 0; font-weight: 600;"),
-                               textOutput(ns("status_ready"), container = function(...) div(..., style = "font-size: 13px; color: #666;"))
+                               textOutput(ns("status_ready"), container = function(...) div(..., style = "font-size: 13px; color: var(--color-gray-600);"))
                         )
                       )
                   )
