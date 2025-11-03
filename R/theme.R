@@ -185,8 +185,13 @@ get_unified_theme_css <- function() {
 
     /* Override shinydashboard box colors for consistency */
     .box.box-solid.box-primary > .box-header {{
-      background: var(--color-primary-dark);
-      color: var(--color-white);
+      background: var(--color-primary-dark) !important;
+      color: var(--color-white) !important;
+    }}
+
+    .box.box-primary > .box-header {{
+      background: var(--color-primary-dark) !important;
+      color: var(--color-white) !important;
     }}
 
     /* ==================== Buttons ==================== */
@@ -258,25 +263,26 @@ get_unified_theme_css <- function() {
     /* ==================== Sidebar ==================== */
 
     .sidebar {{
-      background: var(--color-white);
+      background: var(--color-white) !important;
       border-right: 1px solid var(--color-gray-100);
     }}
 
     .sidebar-menu > li > a {{
-      color: var(--color-gray-900);
+      color: var(--color-gray-900) !important;
       font-weight: {weight_regular};
       padding: var(--spacing-sm) var(--spacing-md);
     }}
 
     .sidebar-menu > li.active > a {{
-      background-color: var(--color-primary-light);
-      color: var(--color-primary-dark);
+      background-color: var(--color-primary-light) !important;
+      color: var(--color-primary-dark) !important;
       font-weight: {weight_medium};
-      border-left: 3px solid var(--color-primary-blue);
+      border-left: 3px solid var(--color-primary-blue) !important;
     }}
 
     .sidebar-menu > li > a:hover {{
-      background-color: var(--color-gray-50);
+      background-color: var(--color-gray-50) !important;
+      color: var(--color-gray-900) !important;
     }}
 
     /* ==================== Dashboard Header ==================== */

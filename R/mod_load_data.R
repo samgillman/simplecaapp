@@ -42,7 +42,7 @@ mod_load_data_ui <- function(id) {
             # Right Column: At a glance and Processing Status
             column(
               width = 6,
-              box(title = "At a glance", status = "info", solidHeader = TRUE, width = 12, collapsible = FALSE,
+              box(title = "At a glance", status = "primary", solidHeader = TRUE, width = 12, collapsible = FALSE,
                   div(style = "padding: 5px;",
                       div(class = "stat-card", style = "background: var(--secondary-color); color: white; text-align: center; display:flex; align-items:center; justify-content:center; flex-direction: column; padding:16px 0;",
                           h3(textOutput(ns("n_files_text"), inline = TRUE)),
@@ -58,7 +58,7 @@ mod_load_data_ui <- function(id) {
                       )
                   )
               ),
-              box(title = "Processing Status", status = "info", solidHeader = TRUE, width = 12, collapsible = FALSE,
+              box(title = "Processing Status", status = "primary", solidHeader = TRUE, width = 12, collapsible = FALSE,
                   div(style = "padding: 10px;",
                       fluidRow(
                         column(3, align = "center",
