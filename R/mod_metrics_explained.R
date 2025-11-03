@@ -294,7 +294,30 @@ mod_metrics_explained_server <- function(id, rv) {
       req(rv$metrics)
       cell_choices <- rv$metrics$Cell_ID
       names(cell_choices) <- paste(rv$metrics$Group, "-", rv$metrics$Cell_Label)
-      selectInput(ns("selected_cell"), "Select a Cell to Visualize:", choices = cell_choices, selected = cell_choices[1])
+
+      # Ensure proper initialization by returning the select input with explicit ID
+      selectInput(
+        inputId = ns("selected_cell"),
+        label = "Select a Cell to Visualize:",
+        choices = cell_choices,
+        selected = cell_choices[1],
+        width = "100%"
+      )
+    })
+
+    # Also update the selector when metrics change to ensure binding
+    observe({
+      req(rv$metrics)
+      cell_choices <- rv$metrics$Cell_ID
+      names(cell_choices) <- paste(rv$metrics$Group, "-", rv$metrics$Cell_Label)
+
+      # Use updateSelectInput to ensure proper binding even in accordion
+      updateSelectInput(
+        session = session,
+        inputId = "selected_cell",
+        choices = cell_choices,
+        selected = isolate(input$selected_cell) %||% cell_choices[1]
+      )
     })
 
     selected_cell_data <- reactive({
