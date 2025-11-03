@@ -504,7 +504,7 @@ get_unified_theme_css <- function() {
       border: 1px solid var(--color-gray-100);
       border-radius: var(--radius-md);
       background: var(--color-white);
-      overflow: hidden;
+      /* Don't use overflow hidden - it clips dropdown menus */
     }}
 
     .accordion-header {{
@@ -518,6 +518,7 @@ get_unified_theme_css <- function() {
       transition: background-color 150ms ease;
       font-weight: {weight_medium};
       color: var(--color-gray-900);
+      border-radius: var(--radius-md) var(--radius-md) 0 0;
     }}
 
     .accordion-header:hover {{
@@ -547,11 +548,13 @@ get_unified_theme_css <- function() {
     .accordion-body.collapsed {{
       max-height: 0 !important;
       padding: 0 !important;
+      overflow: hidden;
     }}
 
     .accordion-body.expanded {{
       max-height: 2000px;
       padding: var(--spacing-md);
+      overflow: visible;
     }}
 
     .accordion-content {{
@@ -565,6 +568,22 @@ get_unified_theme_css <- function() {
 
     .accordion-content .form-group:last-child {{
       margin-bottom: 0;
+    }}
+
+    /* Ensure select dropdowns in accordions appear above other content */
+    .accordion-content .selectize-dropdown,
+    .accordion-content select {{
+      z-index: 1000;
+    }}
+
+    .accordion-content .form-group {{
+      position: relative;
+      z-index: auto;
+    }}
+
+    /* Shiny selectInput dropdown positioning */
+    .selectize-dropdown {{
+      z-index: 1050 !important;
     }}
   ")
 }
