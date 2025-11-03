@@ -224,16 +224,31 @@ mod_metrics_explained_ui <- function(id) {
                 p("The calcium entry rate is calculated as the slope between the 10% and 90% points:"),
                 uiOutput(ns("ca_calculation_ui"))
               ),
-              
-              hr(),
-              h4("Explore a Single Cell"),
-              uiOutput(ns("cell_selector_ui")),
-              hr(),
-              # Simple download section matching other tabs
-              fluidRow(
-                column(6, selectInput(ns("dl_format"), "Format", c("PNG"="png", "PDF"="pdf", "SVG"="svg", "TIFF"="tiff"), "png")),
-                column(3, numericInput(ns("dl_dpi"), "DPI", 300, 72, 600, 5)),
-                column(3, div(style = "margin-top:25px;", downloadButton(ns("dl_plot"), "Download Plot", class = "btn-primary")))
+
+              # Cell Selection Accordion
+              accordion(
+                id = ns("cell_selection_accordion"),
+                title = "Cell Selection",
+                icon = "flask",
+                expanded = TRUE,
+                content = div(
+                  uiOutput(ns("cell_selector_ui"))
+                )
+              ),
+
+              # Download Options Accordion
+              accordion(
+                id = ns("download_accordion"),
+                title = "Download Options",
+                icon = "download",
+                expanded = FALSE,
+                content = div(
+                  fluidRow(
+                    column(6, selectInput(ns("dl_format"), "Format", c("PNG"="png", "PDF"="pdf", "SVG"="svg", "TIFF"="tiff"), "png")),
+                    column(6, numericInput(ns("dl_dpi"), "DPI", 300, 72, 600, 5))
+                  ),
+                  downloadButton(ns("dl_plot"), "Download Plot", class = "btn-primary", style = "width: 100%; margin-top: 10px;")
+                )
               )
             ),
 
