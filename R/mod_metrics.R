@@ -36,7 +36,7 @@ mod_metrics_ui <- function(id) {
                   )
                 )
             ),
-            box(title = "Metrics Plot", solidHeader = TRUE, width = 8,
+            box(title = "Metrics Plot", status = "primary", solidHeader = TRUE, width = 8,
                 withSpinner(plotOutput(ns("metrics_plot"), height = "640px"), type = 4),
                 tags$hr(),
                 fluidRow(

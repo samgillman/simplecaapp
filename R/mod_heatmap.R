@@ -38,7 +38,7 @@ mod_heatmap_ui <- function(id) {
                   )
                 )
             ),
-            box(title = "Heatmap", solidHeader = TRUE, width = 8, collapsible = FALSE,
+            box(title = "Heatmap", status = "primary", solidHeader = TRUE, width = 8, collapsible = FALSE,
                 withSpinner(plotOutput(ns("heatmap_plot"), height = "760px"), type = 4),
                 tags$hr(),
                 fluidRow(
