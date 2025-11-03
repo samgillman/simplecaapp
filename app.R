@@ -356,8 +356,32 @@ ui <- dashboardPage(
           padding: 10px;
           margin-top: 10px;
           background-color: #fafafa;
+          overflow: visible !important;
+          position: relative;
+          z-index: 1;
         }
-        
+
+        details[open] {
+          overflow: visible !important;
+          z-index: 100;
+        }
+
+        details > div {
+          overflow: visible !important;
+        }
+
+        /* Ensure dropdowns in accordions can overflow */
+        details .shiny-input-container,
+        details .selectize-control,
+        details .selectize-dropdown {
+          overflow: visible !important;
+          position: relative;
+        }
+
+        details .selectize-dropdown {
+          z-index: 1000;
+        }
+
         summary {
           cursor: pointer;
           font-weight: 600;
@@ -365,7 +389,7 @@ ui <- dashboardPage(
           outline: none;
           padding: 5px 0;
         }
-        
+
         summary:hover {
           color: var(--dark-blue);
         }
