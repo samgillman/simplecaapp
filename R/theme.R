@@ -291,12 +291,20 @@ get_unified_theme_css <- function() {
       background-color: var(--color-primary-blue);
       color: var(--color-white);
       font-weight: {weight_semibold};
+      width: 250px;
       text-align: center;
       padding: 15px;
+      float: left;
     }}
 
     .main-header .navbar {{
       background-color: var(--color-primary-blue);
+      margin-left: 250px;
+    }}
+
+    /* Hide the sidebar toggle button */
+    .sidebar-toggle {{
+      display: none !important;
     }}
 
     /* ==================== Content & Layout Alignment ==================== */
