@@ -5,36 +5,63 @@ mod_heatmap_ui <- function(id) {
   tabItem(tabName = "heatmap",
           fluidRow(
             box(title = "Controls", status = "primary", solidHeader = TRUE, width = 4, collapsible = FALSE,
-                selectInput(ns("hm_sort"),"Sort cells by", choices = c("Time to Peak"="tpeak","Peak Amplitude"="amp","Original"="orig"), selected="tpeak"),
-                selectInput(ns("hm_palette"),"Color palette", choices = c("plasma","viridis","magma","inferno","cividis"), selected = "plasma"),
-                tags$hr(),
-                
-                # --- Scale Control ---
-                sliderInput(ns("hm_scale_step"), "Scale step size", 
-                           min = 0.1, max = 1.0, value = 0.5, step = 0.1,
-                           helpText("Controls legend interval spacing")),
-                tags$hr(),
-                
-                # --- Title and Labels ---
-                textInput(ns("hm_title"),"Plot title","Population Heatmap"),
-                checkboxInput(ns("hm_center_title"), "Center title", value = TRUE),
-                textInput(ns("hm_x_label"),"X label","Time (s)"),
-                textInput(ns("hm_y_label"),"Y label","Cell"),
-                tags$details(
-                  tags$summary(style = "cursor:pointer; font-weight:600; color:#0072B2;", "Appearance & Typography"),
-                  div(style = "margin-top:8px;",
-                      h6("Typography & Sizing", style = "font-weight: bold; margin-top: 15px;"),
-                      sliderInput(ns("hm_title_size"),"Title size", 10, 24, 16, 1),
-                      checkboxInput(ns("hm_bold_title"), "Bold title", value = TRUE),
-                      sliderInput(ns("hm_axis_title_size"),"Axis title size", 8, 24, 14, 1),
-                      checkboxInput(ns("hm_bold_axis_title"), "Bold axis titles", value = TRUE),
-                      sliderInput(ns("hm_axis_text_size"),"Axis text size", 8, 24, 12, 1),
-                      checkboxInput(ns("hm_bold_axis_text"), "Bold axis text", value = FALSE),
-                      sliderInput(ns("hm_legend_text_size"),"Legend text size", min = 6, max = 24, value = 10, step = 1),
-                      checkboxInput(ns("hm_bold_legend_text"), "Bold legend text", value = FALSE),
-                      selectInput(ns("hm_font"), "Font", 
-                                  choices = c("Arial", "Helvetica", "Times", "Courier"), 
-                                  selected = "Arial")
+                # Basic Options Accordion
+                accordion(
+                  id = ns("basic_accordion"),
+                  title = "Display & Sorting",
+                  icon = "th",
+                  expanded = TRUE,
+                  content = div(
+                    selectInput(ns("hm_sort"), "Sort cells by",
+                                choices = c("Time to Peak" = "tpeak", "Peak Amplitude" = "amp", "Original" = "orig"),
+                                selected = "tpeak"),
+                    selectInput(ns("hm_palette"), "Color palette",
+                                choices = c("plasma", "viridis", "magma", "inferno", "cividis"),
+                                selected = "plasma"),
+                    tags$hr(style = "margin: 12px 0;"),
+                    h6("Legend Scale", style = "font-weight: 600; margin-bottom: 8px;"),
+                    sliderInput(ns("hm_scale_step"), "Scale step size",
+                                min = 0.1, max = 1.0, value = 0.5, step = 0.1)
+                  )
+                ),
+
+                # Labels Accordion
+                accordion(
+                  id = ns("labels_accordion"),
+                  title = "Labels",
+                  icon = "tag",
+                  expanded = FALSE,
+                  content = div(
+                    textInput(ns("hm_title"), "Plot title", "Population Heatmap"),
+                    checkboxInput(ns("hm_center_title"), "Center title", value = TRUE),
+                    textInput(ns("hm_x_label"), "X label", "Time (s)"),
+                    textInput(ns("hm_y_label"), "Y label", "Cell")
+                  )
+                ),
+
+                # Typography Accordion
+                accordion(
+                  id = ns("typography_accordion"),
+                  title = "Typography",
+                  icon = "font",
+                  expanded = FALSE,
+                  content = div(
+                    h6("Title & Axes", style = "font-weight: 600; margin-bottom: 8px;"),
+                    sliderInput(ns("hm_title_size"), "Title size", 10, 24, 16, 1),
+                    checkboxInput(ns("hm_bold_title"), "Bold title", value = TRUE),
+                    sliderInput(ns("hm_axis_title_size"), "Axis title size", 8, 24, 14, 1),
+                    checkboxInput(ns("hm_bold_axis_title"), "Bold axis titles", value = TRUE),
+                    sliderInput(ns("hm_axis_text_size"), "Axis text size", 8, 24, 12, 1),
+                    checkboxInput(ns("hm_bold_axis_text"), "Bold axis text", value = FALSE),
+                    tags$hr(style = "margin: 12px 0;"),
+                    h6("Legend", style = "font-weight: 600; margin-bottom: 8px;"),
+                    sliderInput(ns("hm_legend_text_size"), "Legend text size", min = 6, max = 24, value = 10, step = 1),
+                    checkboxInput(ns("hm_bold_legend_text"), "Bold legend text", value = FALSE),
+                    tags$hr(style = "margin: 12px 0;"),
+                    h6("Font Family", style = "font-weight: 600; margin-bottom: 8px;"),
+                    selectInput(ns("hm_font"), "Font",
+                                choices = c("Arial", "Helvetica", "Times", "Courier"),
+                                selected = "Arial")
                   )
                 )
             ),

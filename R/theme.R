@@ -344,5 +344,107 @@ get_unified_theme_css <- function() {
     .shadow {{
       box-shadow: var(--shadow-level-1);
     }}
+
+    /* ==================== Accordion Component ==================== */
+
+    .accordion-section {{
+      margin-bottom: var(--spacing-md);
+      border: 1px solid var(--color-gray-100);
+      border-radius: var(--radius-md);
+      background: var(--color-white);
+      overflow: hidden;
+    }}
+
+    .accordion-header {{
+      padding: var(--spacing-sm) var(--spacing-md);
+      background: var(--color-gray-50);
+      cursor: pointer;
+      user-select: none;
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-sm);
+      transition: background-color 150ms ease;
+      font-weight: {weight_medium};
+      color: var(--color-gray-900);
+    }}
+
+    .accordion-header:hover {{
+      background: var(--color-primary-light);
+    }}
+
+    .accordion-header:active {{
+      background: var(--color-gray-100);
+    }}
+
+    .accordion-title {{
+      flex: 1;
+      font-size: var(--type-body);
+    }}
+
+    .accordion-chevron {{
+      transition: transform 200ms ease;
+      color: var(--color-gray-600);
+      font-size: 12px;
+    }}
+
+    .accordion-body {{
+      transition: max-height 300ms ease, padding 300ms ease;
+      overflow: hidden;
+    }}
+
+    .accordion-body.collapsed {{
+      max-height: 0 !important;
+      padding: 0 !important;
+    }}
+
+    .accordion-body.expanded {{
+      max-height: 2000px;
+      padding: var(--spacing-md);
+    }}
+
+    .accordion-content {{
+      /* Content wrapper for additional spacing/styling */
+    }}
+
+    /* Nested input styling within accordions */
+    .accordion-content .form-group {{
+      margin-bottom: var(--spacing-sm);
+    }}
+
+    .accordion-content .form-group:last-child {{
+      margin-bottom: 0;
+    }}
+  ")
+}
+
+#' Get the JavaScript for accordion functionality
+#'
+#' @return Character string with accordion JavaScript
+get_accordion_js <- function() {
+  HTML("
+  <script>
+  function toggleAccordion(id) {
+    // Find the accordion elements
+    const body = document.querySelector(`[data-accordion-id='${id}'] .accordion-body`);
+    const chevron = document.querySelector(`[data-accordion-id='${id}'] .accordion-chevron`);
+
+    if (!body || !chevron) return;
+
+    // Toggle collapsed/expanded classes
+    const isCollapsed = body.classList.contains('collapsed');
+
+    if (isCollapsed) {
+      // Expand
+      body.classList.remove('collapsed');
+      body.classList.add('expanded');
+      chevron.style.transform = 'rotate(180deg)';
+    } else {
+      // Collapse
+      body.classList.remove('expanded');
+      body.classList.add('collapsed');
+      chevron.style.transform = 'rotate(0deg)';
+    }
+  }
+  </script>
   ")
 }

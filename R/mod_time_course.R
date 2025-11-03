@@ -69,21 +69,10 @@ mod_time_course_server <- function(id, rv) {
     
     # Reactive values for UI state
     settings_visible <- reactiveVal(FALSE)
-    typography_visible <- reactiveVal(FALSE)
-    advanced_visible <- reactiveVal(FALSE)
-    
+
     # Toggle settings visibility
     observeEvent(input$toggle_settings, {
       settings_visible(!settings_visible())
-    })
-    
-    # Toggle buttons for collapsible sections
-    observeEvent(input$toggle_typography, {
-      typography_visible(!typography_visible())
-    })
-    
-    observeEvent(input$toggle_advanced, {
-      advanced_visible(!advanced_visible())
     })
     
     # Store the last known groups to detect actual changes
@@ -129,93 +118,132 @@ mod_time_course_server <- function(id, rv) {
     # Render settings panel based on visibility state
     output$settings_panel <- renderUI({
       if (!settings_visible()) return(NULL)
-      
+
       ns <- session$ns
-      
-      wellPanel(style = "background-color: #f8f9fa; margin-bottom: 20px;",
-                fluidRow(
-                  column(width = 3,
-                         h5("Display Options", style = "font-weight: bold; color: #333;"),
-                         switchInput(ns("tc_show_traces"),"Show individual traces", value = isolate(input$tc_show_traces) %||% TRUE, size = "mini"),
-                         sliderInput(ns("tc_trace_transparency"),"Trace transparency (%)", 0, 100, isolate(input$tc_trace_transparency) %||% 50, 1, width = "100%"),
-                         switchInput(ns("tc_show_ribbon"),"Show SEM ribbon", value = isTRUE(isolate(input$tc_show_ribbon) %||% TRUE), size = "mini"),
-                         sliderInput(ns("tc_line_width"),"Line width", 0.5, 4, isolate(input$tc_line_width) %||% 1.6, 0.1, width = "100%"),
-                         tags$hr(),
-                         h6("Y-Axis Scale", style = "font-weight: bold; margin-top: 10px;"),
-                         sliderInput(ns("tc_scale_step"), "Y-axis step size", 
-                                    min = 0.1, max = 1.0, value = isolate(input$tc_scale_step) %||% 0.5, step = 0.1,
-                                    helpText("Controls Y-axis tick spacing"))
-                  ),
-                  column(width = 3,
-                         h5("Colors & Style", style = "font-weight: bold; color: #333;"),
-                         colourpicker::colourInput(ns("tc_line_color"),"Line color", value = isolate(input$tc_line_color) %||% "#000000"),
-                         selectInput(ns("tc_legend_pos"),"Legend position", 
-                                     choices = c("none","bottom","right","top","left"), 
-                                     selected = isolate(input$tc_legend_pos) %||% "none"),
-                         selectInput(ns("tc_theme"),"Theme", 
-                                     choices=c("classic","minimal","light","dark"), 
-                                     selected = isolate(input$tc_theme) %||% "classic"),
-                         checkboxInput(ns("tc_grid_major"),"Major gridlines", isTRUE(isolate(input$tc_grid_major))),
-                         checkboxInput(ns("tc_grid_minor"),"Minor gridlines", isTRUE(isolate(input$tc_grid_minor)))
-                  ),
-                  column(width = 3,
-                         h5("Labels", style = "font-weight: bold; color: #333;"),
-                         div(style = "display: flex; align-items: center; gap: 8px;",
-                             textInput(ns("tc_title"),"Title", isolate(input$tc_title) %||% "", width = "calc(100% - 80px)"),
-                             actionButton(ns("reset_title"), "Reset", 
-                                        style = "height: 38px; margin-top: 20px; padding: 6px 12px; font-size: 12px;",
-                                        title = "Reset title to default (group names)")
-                          ),
-                         textInput(ns("tc_x"),"X axis label", isolate(input$tc_x) %||% "Time (s)"),
-                         textInput(ns("tc_y"), "Y axis label", isolate(input$tc_y) %||% "ΔF/F₀"),
-                         checkboxInput(ns("tc_log_y"),"Log10 Y axis", isTRUE(isolate(input$tc_log_y)))
-                  ),
-                  column(width = 3,
-                         # Typography & Axes collapsible section
-                         div(class = "collapsible-section",
-                             div(class = "collapsible-header",
-                                 actionButton(ns("toggle_typography"), 
-                                              ifelse(typography_visible(), "▲ Typography & Axes", "▼ Typography & Axes"),
-                                              class = "btn btn-link",
-                                              style = "padding: 0; color: #0072B2; font-weight: 600; text-decoration: none;")),
-                             uiOutput(ns("typography_panel"))
-                         )
+
+      wellPanel(style = "background-color: #f8f9fa; margin-bottom: 20px; padding: 20px;",
+                # Display Options Accordion
+                accordion(
+                  id = ns("display_accordion"),
+                  title = "Display Options",
+                  icon = "eye",
+                  expanded = TRUE,
+                  content = div(
+                    switchInput(ns("tc_show_traces"), "Show individual traces",
+                                value = isolate(input$tc_show_traces) %||% TRUE, size = "mini"),
+                    sliderInput(ns("tc_trace_transparency"), "Trace transparency (%)",
+                                0, 100, isolate(input$tc_trace_transparency) %||% 50, 1, width = "100%"),
+                    switchInput(ns("tc_show_ribbon"), "Show SEM ribbon",
+                                value = isTRUE(isolate(input$tc_show_ribbon) %||% TRUE), size = "mini"),
+                    sliderInput(ns("tc_line_width"), "Line width",
+                                0.5, 4, isolate(input$tc_line_width) %||% 1.6, 0.1, width = "100%"),
+                    tags$hr(style = "margin: 12px 0;"),
+                    h6("Y-Axis Scale", style = "font-weight: 600; margin-bottom: 8px;"),
+                    sliderInput(ns("tc_scale_step"), "Y-axis step size",
+                                min = 0.1, max = 1.0, value = isolate(input$tc_scale_step) %||% 0.5, step = 0.1)
                   )
                 ),
-                
-                # Custom axis limits section
-                div(style = "margin-top: 15px;",
-                    checkboxInput(ns("tc_limits"),"Custom axis limits", isTRUE(isolate(input$tc_limits)))
+
+                # Colors & Style Accordion
+                accordion(
+                  id = ns("colors_accordion"),
+                  title = "Colors & Style",
+                  icon = "palette",
+                  expanded = FALSE,
+                  content = div(
+                    colourpicker::colourInput(ns("tc_line_color"), "Line color",
+                                              value = isolate(input$tc_line_color) %||% "#000000"),
+                    selectInput(ns("tc_legend_pos"), "Legend position",
+                                choices = c("none", "bottom", "right", "top", "left"),
+                                selected = isolate(input$tc_legend_pos) %||% "none"),
+                    selectInput(ns("tc_theme"), "Theme",
+                                choices = c("classic", "minimal", "light", "dark"),
+                                selected = isolate(input$tc_theme) %||% "classic"),
+                    checkboxInput(ns("tc_grid_major"), "Major gridlines",
+                                  isTRUE(isolate(input$tc_grid_major))),
+                    checkboxInput(ns("tc_grid_minor"), "Minor gridlines",
+                                  isTRUE(isolate(input$tc_grid_minor)))
+                  )
                 ),
-                uiOutput(ns("limits_panel")),
-                
-                # Advanced Options collapsible section
-                div(class = "collapsible-section", style = "margin-top: 10px;",
-                    div(class = "collapsible-header",
-                        actionButton(ns("toggle_advanced"), 
-                                     ifelse(advanced_visible(), "▲ Advanced Options", "▼ Advanced Options"),
-                                     class = "btn btn-link",
-                                     style = "padding: 0; color: #0072B2; font-weight: 600; text-decoration: none;")),
-                    uiOutput(ns("advanced_panel"))
+
+                # Labels Accordion
+                accordion(
+                  id = ns("labels_accordion"),
+                  title = "Labels",
+                  icon = "tag",
+                  expanded = FALSE,
+                  content = div(
+                    div(style = "display: flex; align-items: flex-start; gap: 8px;",
+                        div(style = "flex: 1;",
+                            textInput(ns("tc_title"), "Title", isolate(input$tc_title) %||% "")
+                        ),
+                        actionButton(ns("reset_title"), "Reset",
+                                     class = "btn-default",
+                                     style = "margin-top: 25px; height: 38px; padding: 6px 12px; font-size: 12px;",
+                                     title = "Reset title to default (group names)")
+                    ),
+                    textInput(ns("tc_x"), "X axis label", isolate(input$tc_x) %||% "Time (s)"),
+                    textInput(ns("tc_y"), "Y axis label", isolate(input$tc_y) %||% "ΔF/F₀"),
+                    checkboxInput(ns("tc_log_y"), "Log10 Y axis", isTRUE(isolate(input$tc_log_y)))
+                  )
+                ),
+
+                # Typography Accordion
+                accordion(
+                  id = ns("typography_accordion"),
+                  title = "Typography",
+                  icon = "font",
+                  expanded = FALSE,
+                  content = div(
+                    sliderInput(ns("tc_title_size"), "Title size", 10, 24,
+                                isolate(input$tc_title_size) %||% 18, 1, width = "100%"),
+                    checkboxInput(ns("tc_bold_title"), "Bold title",
+                                  value = isTRUE(isolate(input$tc_bold_title) %||% TRUE)),
+                    sliderInput(ns("tc_axis_title_size"), "Axis title size", 8, 24,
+                                isolate(input$tc_axis_title_size) %||% 14, 1, width = "100%"),
+                    checkboxInput(ns("tc_bold_axis_title"), "Bold axis titles",
+                                  value = isTRUE(isolate(input$tc_bold_axis_title) %||% TRUE)),
+                    sliderInput(ns("tc_axis_size"), "Axis text size", 8, 24,
+                                isolate(input$tc_axis_size) %||% 12, 1, width = "100%"),
+                    checkboxInput(ns("tc_bold_axis_text"), "Bold axis text",
+                                  value = isTRUE(isolate(input$tc_bold_axis_text) %||% FALSE)),
+                    selectInput(ns("tc_font"), "Font",
+                                choices = c("Arial", "Helvetica", "Times", "Courier"),
+                                selected = isolate(input$tc_font) %||% "Arial")
+                  )
+                ),
+
+                # Axis Limits Accordion
+                accordion(
+                  id = ns("limits_accordion"),
+                  title = "Axis Limits",
+                  icon = "arrows-alt",
+                  expanded = FALSE,
+                  content = div(
+                    checkboxInput(ns("tc_limits"), "Enable custom axis limits",
+                                  isTRUE(isolate(input$tc_limits))),
+                    uiOutput(ns("limits_panel"))
+                  )
+                ),
+
+                # Advanced Options Accordion
+                accordion(
+                  id = ns("advanced_accordion"),
+                  title = "Advanced Options",
+                  icon = "cog",
+                  expanded = FALSE,
+                  content = div(
+                    h6("Axis Breaks", style = "font-weight: 600; margin-bottom: 8px;"),
+                    textInput(ns("tc_x_breaks"), "X axis breaks (comma-separated)",
+                              isolate(input$tc_x_breaks) %||% ""),
+                    textInput(ns("tc_y_breaks"), "Y axis breaks (comma-separated)",
+                              isolate(input$tc_y_breaks) %||% ""),
+                    h6("Tick Format", style = "font-weight: 600; margin-top: 12px; margin-bottom: 8px;"),
+                    selectInput(ns("tc_tick_format"), "Tick format",
+                                choices = c("number", "scientific", "percent"),
+                                selected = isolate(input$tc_tick_format) %||% "number")
+                  )
                 )
-      )
-    })
-    
-    # Render typography panel
-    output$typography_panel <- renderUI({
-      if (!typography_visible()) return(NULL)
-      
-      ns <- session$ns
-      div(style = "margin-top: 8px; margin-left: 16px; border-left: 2px solid #eee; padding-left: 15px;",
-          sliderInput(ns("tc_title_size"),"Title size", 10, 24, isolate(input$tc_title_size) %||% 18, 1, width = "100%"),
-          checkboxInput(ns("tc_bold_title"), "Bold title", value = isTRUE(isolate(input$tc_bold_title) %||% TRUE)),
-          sliderInput(ns("tc_axis_title_size"),"Axis title size", 8, 24, isolate(input$tc_axis_title_size) %||% 14, 1, width = "100%"),
-          checkboxInput(ns("tc_bold_axis_title"), "Bold axis titles", value = isTRUE(isolate(input$tc_bold_axis_title) %||% TRUE)),
-          sliderInput(ns("tc_axis_size"),"Axis text size", 8, 24, isolate(input$tc_axis_size) %||% 12, 1, width = "100%"),
-          checkboxInput(ns("tc_bold_axis_text"), "Bold axis text", value = isTRUE(isolate(input$tc_bold_axis_text) %||% FALSE)),
-          selectInput(ns("tc_font"),"Font", 
-                      choices=c("Arial","Helvetica","Times","Courier"), 
-                      selected = isolate(input$tc_font) %||% "Arial")
       )
     })
     
@@ -229,28 +257,6 @@ mod_time_course_server <- function(id, rv) {
         column(3, numericInput(ns("tc_xmax"),"X max", isolate(input$tc_xmax) %||% NA_real_)),
         column(3, numericInput(ns("tc_ymin"),"Y min", isolate(input$tc_ymin) %||% NA_real_)),
         column(3, numericInput(ns("tc_ymax"),"Y max", isolate(input$tc_ymax) %||% NA_real_))
-      )
-    })
-    
-    # Render advanced panel
-    output$advanced_panel <- renderUI({
-      if (!advanced_visible()) return(NULL)
-      
-      ns <- session$ns
-      div(style = "margin-top: 10px; margin-left: 16px; border-left: 2px solid #eee; padding-left: 15px;",
-          fluidRow(
-            column(width = 6,
-                   h5("Axis Breaks"),
-                   textInput(ns("tc_x_breaks"),"X axis breaks (comma-separated)", isolate(input$tc_x_breaks) %||% ""),
-                   textInput(ns("tc_y_breaks"),"Y axis breaks (comma-separated)", isolate(input$tc_y_breaks) %||% "")
-            ),
-            column(width = 6,
-                   h5("Tick Format"),
-                   selectInput(ns("tc_tick_format"),"Tick format", 
-                               choices=c("number","scientific","percent"), 
-                               selected = isolate(input$tc_tick_format) %||% "number")
-            )
-          )
       )
     })
     

@@ -5,34 +5,63 @@ mod_metrics_ui <- function(id) {
   tabItem(tabName = "metrics",
           fluidRow(
             box(title = "Controls", status = "primary", solidHeader = TRUE, width = 4,
-                selectInput(ns("metric_name"),"Metric",
-                            choices = c("Peak ΔF/F₀"="Peak_dFF0","Time to Peak (s)"="Time_to_Peak",
-                                        "Time to 25% Peak (s)"="Time_to_25_Peak","Time to 50% Peak (s)"="Time_to_50_Peak",
-                                        "Time to 75% Peak (s)"="Time_to_75_Peak","Rise Time (s)"="Rise_Time",
-                                        "FWHM (s)"="FWHM",
-                                        "Half Width (HWHM)"="Half_Width",
-                                        "Ca²⁺ Entry Rate (ΔF/F₀/s)"="Calcium_Entry_Rate","AUC"="AUC",
-                                        "SNR"="SNR"),
-                            selected="Peak_dFF0"),
-                selectInput(ns("metric_plot_style"), "Plot style",
-                            choices = c("Box + swarm" = "boxswarm", "Bars" = "bars", "Violin" = "violin"),
-                            selected = "bars"),
-                conditionalPanel(paste0("input['", ns("metric_plot_style"), "'] == 'bars'"),
-                  colourpicker::colourInput(ns("metric_bar_color"), "Bar color", value = "#B3B3B3", allowTransparent = FALSE)
+                # Metric Selection Accordion
+                accordion(
+                  id = ns("metric_accordion"),
+                  title = "Metric & Display",
+                  icon = "chart-bar",
+                  expanded = TRUE,
+                  content = div(
+                    selectInput(ns("metric_name"), "Metric",
+                                choices = c("Peak ΔF/F₀" = "Peak_dFF0", "Time to Peak (s)" = "Time_to_Peak",
+                                            "Time to 25% Peak (s)" = "Time_to_25_Peak", "Time to 50% Peak (s)" = "Time_to_50_Peak",
+                                            "Time to 75% Peak (s)" = "Time_to_75_Peak", "Rise Time (s)" = "Rise_Time",
+                                            "FWHM (s)" = "FWHM",
+                                            "Half Width (HWHM)" = "Half_Width",
+                                            "Ca²⁺ Entry Rate (ΔF/F₀/s)" = "Calcium_Entry_Rate", "AUC" = "AUC",
+                                            "SNR" = "SNR"),
+                                selected = "Peak_dFF0"),
+                    selectInput(ns("metric_plot_style"), "Plot style",
+                                choices = c("Box + swarm" = "boxswarm", "Bars" = "bars", "Violin" = "violin"),
+                                selected = "bars"),
+                    conditionalPanel(paste0("input['", ns("metric_plot_style"), "'] == 'bars'"),
+                                     colourpicker::colourInput(ns("metric_bar_color"), "Bar color", value = "#B3B3B3", allowTransparent = FALSE)
+                    ),
+                    checkboxInput(ns("metric_sort_cells"), "Sort cell bars within group", TRUE),
+                    checkboxInput(ns("metric_show_summary"), "Show mean ± SEM", TRUE)
+                  )
                 ),
-                checkboxInput(ns("metric_sort_cells"),"Sort cell bars within group", TRUE),
-                textInput(ns("metric_title"),"Custom title (optional)",""),
-                checkboxInput(ns("metric_auto_y"),"Auto y-label (use metric units)", TRUE),
-                conditionalPanel(paste0("!input['", ns("metric_auto_y"), "']"), textInput(ns("metric_y_label"),"Y label","Value")),
-                tags$details(
-                  tags$summary(style = "cursor:pointer; font-weight:600; color:#0072B2;", "Appearance & Typography"),
-                  div(style = "margin-top:8px;",
-                      sliderInput(ns("metric_inset_scale"),"Inset size", min = 0.5, max = 3, value = 1, step = 0.1),
-                      checkboxInput(ns("metric_bold_axes"), "Bold axis titles", TRUE),
-                      selectInput(ns("metric_font"), "Font Family", choices = c("Sans-Serif" = "sans", "Serif" = "serif", "Monospace" = "mono"), selected = "sans"),
-                      sliderInput(ns("metric_size"),"Base font size", 8, 22, 14, 1),
-                      checkboxInput(ns("metric_show_summary"), "Show mean ± SEM", TRUE),
-                      numericInput(ns("metric_highlight_k"), "Highlight top/bottom K", 0, min = 0, max = 100, step = 1)
+
+                # Labels Accordion
+                accordion(
+                  id = ns("labels_accordion"),
+                  title = "Labels",
+                  icon = "tag",
+                  expanded = FALSE,
+                  content = div(
+                    textInput(ns("metric_title"), "Custom title (optional)", ""),
+                    checkboxInput(ns("metric_auto_y"), "Auto y-label (use metric units)", TRUE),
+                    conditionalPanel(paste0("!input['", ns("metric_auto_y"), "']"),
+                                     textInput(ns("metric_y_label"), "Y label", "Value"))
+                  )
+                ),
+
+                # Appearance Accordion
+                accordion(
+                  id = ns("appearance_accordion"),
+                  title = "Appearance",
+                  icon = "paint-brush",
+                  expanded = FALSE,
+                  content = div(
+                    sliderInput(ns("metric_inset_scale"), "Inset size", min = 0.5, max = 3, value = 1, step = 0.1),
+                    numericInput(ns("metric_highlight_k"), "Highlight top/bottom K", 0, min = 0, max = 100, step = 1),
+                    tags$hr(style = "margin: 12px 0;"),
+                    h6("Typography", style = "font-weight: 600; margin-bottom: 8px;"),
+                    checkboxInput(ns("metric_bold_axes"), "Bold axis titles", TRUE),
+                    selectInput(ns("metric_font"), "Font Family",
+                                choices = c("Sans-Serif" = "sans", "Serif" = "serif", "Monospace" = "mono"),
+                                selected = "sans"),
+                    sliderInput(ns("metric_size"), "Base font size", 8, 22, 14, 1)
                   )
                 )
             ),

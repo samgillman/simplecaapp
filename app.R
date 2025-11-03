@@ -86,6 +86,9 @@ ui <- dashboardPage(
       # Inject unified theme CSS
       tags$style(HTML(get_unified_theme_css())),
 
+      # Inject accordion JavaScript
+      get_accordion_js(),
+
       # Keep existing custom CSS for specific overrides
       tags$style(HTML("
         /* Hide all top-right Shiny interface elements */
