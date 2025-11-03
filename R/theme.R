@@ -262,9 +262,17 @@ get_unified_theme_css <- function() {
 
     /* ==================== Sidebar ==================== */
 
+    .main-sidebar {{
+      background: var(--color-white) !important;
+      width: 250px !important;
+      position: fixed !important;
+      top: 50px !important;
+    }}
+
     .sidebar {{
       background: var(--color-white) !important;
       border-right: 1px solid var(--color-gray-100);
+      padding-bottom: 0 !important;
     }}
 
     .sidebar-menu > li > a {{
@@ -283,6 +291,11 @@ get_unified_theme_css <- function() {
     .sidebar-menu > li > a:hover {{
       background-color: var(--color-gray-50) !important;
       color: var(--color-gray-900) !important;
+    }}
+
+    /* Remove any sidebar footer or extra elements */
+    .sidebar-footer {{
+      display: none !important;
     }}
 
     /* ==================== Dashboard Header ==================== */
@@ -313,13 +326,6 @@ get_unified_theme_css <- function() {
     /* Hide the sidebar toggle button */
     .sidebar-toggle {{
       display: none !important;
-    }}
-
-    /* Ensure sidebar stays at correct width and position */
-    .main-sidebar {{
-      width: 250px !important;
-      position: fixed !important;
-      top: 50px !important;
     }}
 
     /* ==================== Content & Layout Alignment ==================== */
