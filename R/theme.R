@@ -330,12 +330,22 @@ get_unified_theme_css <- function() {
       width: 250px !important;
       position: fixed !important;
       top: 50px !important;
+      padding-top: 0 !important;
+      margin-top: 0 !important;
     }}
 
     .sidebar {{
       background: var(--color-white) !important;
       border-right: 1px solid var(--color-gray-100);
       padding-bottom: 0 !important;
+      padding-top: 0 !important;
+      margin-top: 0 !important;
+    }}
+
+    /* Remove any top spacing from sidebar menu */
+    .sidebar-menu {{
+      padding-top: 0 !important;
+      margin-top: 0 !important;
     }}
 
     .sidebar-menu > li > a {{
