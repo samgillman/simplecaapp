@@ -288,18 +288,26 @@ get_unified_theme_css <- function() {
     /* ==================== Dashboard Header ==================== */
 
     .main-header .logo {{
-      background-color: var(--color-primary-blue);
-      color: var(--color-white);
+      background-color: var(--color-primary-blue) !important;
+      color: var(--color-white) !important;
       font-weight: {weight_semibold};
-      width: 250px;
+      width: 250px !important;
+      max-width: 250px !important;
+      min-width: 250px !important;
       text-align: center;
-      padding: 15px;
-      float: left;
+      padding: 15px !important;
+      float: left !important;
+      position: fixed !important;
+      left: 0 !important;
+      top: 0 !important;
+      height: 50px !important;
+      line-height: 20px !important;
+      z-index: 1000;
     }}
 
     .main-header .navbar {{
-      background-color: var(--color-primary-blue);
-      margin-left: 250px;
+      background-color: var(--color-primary-blue) !important;
+      margin-left: 250px !important;
     }}
 
     /* Hide the sidebar toggle button */
@@ -307,10 +315,18 @@ get_unified_theme_css <- function() {
       display: none !important;
     }}
 
+    /* Ensure sidebar stays at correct width and position */
+    .main-sidebar {{
+      width: 250px !important;
+      position: fixed !important;
+      top: 50px !important;
+    }}
+
     /* ==================== Content & Layout Alignment ==================== */
 
     .content-wrapper {{
       background-color: var(--color-gray-50);
+      margin-left: 250px !important;
     }}
 
     .content {{
