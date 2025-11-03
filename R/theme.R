@@ -172,7 +172,7 @@ get_unified_theme_css <- function() {
     }}
 
     .box-header {{
-      background: var(--color-primary-dark);
+      background: var(--color-primary-blue);
       color: var(--color-white);
       font-weight: {weight_semibold};
       padding: var(--spacing-md);
@@ -185,12 +185,12 @@ get_unified_theme_css <- function() {
 
     /* Override shinydashboard box colors for consistency */
     .box.box-solid.box-primary > .box-header {{
-      background: var(--color-primary-dark) !important;
+      background: var(--color-primary-blue) !important;
       color: var(--color-white) !important;
     }}
 
     .box.box-primary > .box-header {{
-      background: var(--color-primary-dark) !important;
+      background: var(--color-primary-blue) !important;
       color: var(--color-white) !important;
     }}
 
