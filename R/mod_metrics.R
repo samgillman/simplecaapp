@@ -47,7 +47,7 @@ mod_metrics_ui <- function(id) {
                 ),
                 fluidRow(
                   column(3, numericInput(ns("dl_dpi"), "DPI", 300, 72, 600, 5)),
-                  column(9, div(style = "margin-top:10px; text-align:right;", downloadButton(ns("dl_plot"), "Download Plot")))
+                  column(9, div(style = "margin-top:10px; text-align:right;", downloadButton(ns("dl_plot"), "Download Plot", class = "btn-primary")))
                 )
             )
           )

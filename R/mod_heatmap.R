@@ -49,7 +49,7 @@ mod_heatmap_ui <- function(id) {
                 ),
                 fluidRow(
                   column(3, numericInput(ns("hm_dl_dpi"),"DPI", 300, min = 72, max = 600)),
-                  column(9, div(style = "text-align:right; margin-top:6px;", downloadButton(ns("dl_heatmap_plot_local"),"Download Heatmap")))
+                  column(9, div(style = "text-align:right; margin-top:6px;", downloadButton(ns("dl_heatmap_plot_local"),"Download Heatmap", class = "btn-primary")))
                 )
             )
           )

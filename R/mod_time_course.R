@@ -8,8 +8,9 @@ mod_time_course_ui <- function(id) {
                    box(title = "Time Course", status = "primary", solidHeader = TRUE, width = 12,
                        fluidRow(
                          column(8,
-                                actionButton(ns("toggle_settings"), "⚙️ Graph Settings", 
-                                             style = "margin-bottom: 15px; background-color: #3c8dbc; color: white;")
+                                actionButton(ns("toggle_settings"), "⚙️ Graph Settings",
+                                             class = "btn-primary",
+                                             style = "margin-bottom: 15px;")
                          ),
                          column(4, align = "right",
                                 radioGroupButtons(
@@ -46,9 +47,9 @@ mod_time_course_ui <- function(id) {
                        fluidRow(
                          column(3, numericInput(ns("tc_dl_dpi"),"DPI", 300, min = 72, max = 600))
                        ),
-                       div(style = "margin-top: 10px;", 
-                           downloadButton(ns("dl_timecourse_plot_local"),"Download Time Course", 
-                                          class = "btn btn-success"))
+                       div(style = "margin-top: 10px;",
+                           downloadButton(ns("dl_timecourse_plot_local"),"Download Time Course",
+                                          class = "btn-primary"))
                    )
             )
           ),
