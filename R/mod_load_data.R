@@ -44,17 +44,17 @@ mod_load_data_ui <- function(id) {
               width = 6,
               box(title = "At a glance", status = "primary", solidHeader = TRUE, width = 12, collapsible = FALSE,
                   div(style = "padding: 5px;",
-                      div(class = "stat-card", style = "background: var(--color-info); color: white; text-align: center; display:flex; align-items:center; justify-content:center; flex-direction: column; padding:16px 0;",
-                          h3(textOutput(ns("n_files_text"), inline = TRUE)),
-                          p("Files loaded")
+                      div(class = "stat-card", style = "background: linear-gradient(135deg, #4DD0E1 0%, #26C6DA 100%); color: white; text-align: center; display:flex; align-items:center; justify-content:center; flex-direction: column; padding:20px 0; border-radius: 8px; margin-bottom: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);",
+                          h3(textOutput(ns("n_files_text"), inline = TRUE), style = "margin: 8px 0; font-size: 36px; font-weight: 700;"),
+                          p("Files loaded", style = "margin: 0; font-size: 14px; opacity: 0.95;")
                       ),
-                      div(class = "stat-card", style = "background: var(--color-primary-blue); color: white; text-align: center; display:flex; align-items:center; justify-content:center; flex-direction: column; padding:16px 0;",
-                          h3(textOutput(ns("n_cells_text"), inline = TRUE)),
-                          p("Total cells")
+                      div(class = "stat-card", style = "background: linear-gradient(135deg, #42A5F5 0%, #1E88E5 100%); color: white; text-align: center; display:flex; align-items:center; justify-content:center; flex-direction: column; padding:20px 0; border-radius: 8px; margin-bottom: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);",
+                          h3(textOutput(ns("n_cells_text"), inline = TRUE), style = "margin: 8px 0; font-size: 36px; font-weight: 700;"),
+                          p("Total cells", style = "margin: 0; font-size: 14px; opacity: 0.95;")
                       ),
-                      div(class = "stat-card", style = "background: var(--color-success); color: white; text-align: center; display:flex; align-items:center; justify-content:center; flex-direction: column; padding:16px 0;",
-                          h3(textOutput(ns("n_timepoints_text"), inline = TRUE)),
-                          p("Total timepoints")
+                      div(class = "stat-card", style = "background: linear-gradient(135deg, #66BB6A 0%, #43A047 100%); color: white; text-align: center; display:flex; align-items:center; justify-content:center; flex-direction: column; padding:20px 0; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);",
+                          h3(textOutput(ns("n_timepoints_text"), inline = TRUE), style = "margin: 8px 0; font-size: 36px; font-weight: 700;"),
+                          p("Total timepoints", style = "margin: 0; font-size: 14px; opacity: 0.95;")
                       )
                   )
               ),
