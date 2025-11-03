@@ -4,124 +4,8 @@ mod_time_course_ui <- function(id) {
   ns <- NS(id)
   tabItem(tabName = "time",
           fluidRow(
-            column(width = 12,
-                   box(title = "Time Course", status = "primary", solidHeader = TRUE, width = 12,
-                       fluidRow(
-                         column(8,
-                                actionButton(ns("toggle_settings"), "⚙️ Graph Settings",
-                                             class = "btn-primary",
-                                             style = "margin-bottom: 15px;")
-                         ),
-                         column(4, align = "right",
-                                radioGroupButtons(
-                                  inputId = ns("plot_type_toggle"),
-                                  label = NULL,
-                                  choices = c("Static", "Interactive"),
-                                  selected = "Static",
-                                  status = "primary",
-                                  size = "sm"
-                                )
-                         )
-                       ),
-                       
-                       # Settings panel - controlled by reactive visibility
-                       uiOutput(ns("settings_panel")),
-                       
-                       conditionalPanel(paste0("input['", ns("plot_type_toggle"), "'] == 'Static'"),
-                                        withSpinner(plotOutput(ns("timecourse_plot"), height = "620px"), type = 4)
-                       ),
-                       conditionalPanel(paste0("input['", ns("plot_type_toggle"), "'] == 'Interactive'"),
-                                        withSpinner(plotlyOutput(ns("timecourse_plotly"), height = "620px"), type = 4)
-                       ),
-                       
-                       tags$hr(),
-                       h5("Export Options", style = "font-weight: bold; margin-bottom: 15px;"),
-                       fluidRow(
-                         column(3, selectInput(ns("tc_dl_fmt"),"Format", 
-                                               choices = c("PNG"="png","PDF"="pdf","TIFF"="tiff","SVG"="svg"), 
-                                               selected = "png")),
-                         column(3, selectInput(ns("tc_size_preset"), "Size", choices = c("6x4 in"="6x4","7x5 in"="7x5","8x6 in"="8x6","10x7.5 in"="10x7.5","12x8 in"="12x8"), selected = "8x6")),
-                         column(3, numericInput(ns("tc_dl_w"),"Width (in)", 8, min = 4, max = 30)),
-                         column(3, numericInput(ns("tc_dl_h"),"Height (in)", 6, min = 4, max = 30))
-                       ),
-                       fluidRow(
-                         column(3, numericInput(ns("tc_dl_dpi"),"DPI", 300, min = 72, max = 600))
-                       ),
-                       div(style = "margin-top: 10px;",
-                           downloadButton(ns("dl_timecourse_plot_local"),"Download Time Course",
-                                          class = "btn-primary"))
-                   )
-            )
-          ),
-          
-          fluidRow(
-            column(width = 12,
-                   box(title = "Time Course Summary Statistics", status = "info", solidHeader = TRUE, width = 12,
-                       htmlOutput(ns("tc_summary_table"))
-                   )
-            )
-          )
-  )
-}
-
-mod_time_course_server <- function(id, rv) {
-  moduleServer(id, function(input, output, session) {
-    
-    # Reactive values for UI state
-    settings_visible <- reactiveVal(FALSE)
-
-    # Toggle settings visibility
-    observeEvent(input$toggle_settings, {
-      settings_visible(!settings_visible())
-    })
-    
-    # Store the last known groups to detect actual changes
-    last_groups <- reactiveVal(NULL)
-    
-    # Only auto-update title when groups actually change (new data loaded)
-    observeEvent(rv$groups, {
-      req(rv$groups)
-      current_groups <- paste(rv$groups, collapse = ", ")
-      
-      # Check if this is a real change in groups (new data loaded)
-      if (!is.null(last_groups()) && last_groups() != current_groups) {
-        # Only update title if it's currently empty or matches the old groups
-        current_title <- isolate(input$tc_title)
-        if (is.null(current_title) || nchar(trimws(current_title)) == 0 || current_title == last_groups()) {
-          updateTextInput(session, "tc_title", value = current_groups)
-        }
-      } else if (is.null(last_groups())) {
-        # First time - set initial title
-        updateTextInput(session, "tc_title", value = current_groups)
-      }
-      
-      # Update our stored groups
-      last_groups(current_groups)
-    }, ignoreInit = FALSE)
-    
-    # Handle title reset button
-    observeEvent(input$reset_title, {
-      req(rv$groups)
-      if (length(rv$groups) > 0) {
-        default_title <- paste(rv$groups, collapse = ", ")
-        updateTextInput(session, "tc_title", value = default_title)
-      }
-    })
-    
-    # Debug: Print when groups change to help troubleshoot
-    observeEvent(rv$groups, {
-      cat("DEBUG: Groups changed to:", paste(rv$groups, collapse = ", "), "\n")
-      cat("DEBUG: Last groups:", last_groups(), "\n")
-      cat("DEBUG: Current title:", isolate(input$tc_title), "\n")
-    }, ignoreInit = FALSE)
-    
-    # Render settings panel based on visibility state
-    output$settings_panel <- renderUI({
-      if (!settings_visible()) return(NULL)
-
-      ns <- session$ns
-
-      wellPanel(style = "background-color: #f8f9fa; margin-bottom: 20px; padding: 20px;",
+            # Left: Controls (always visible)
+            box(title = "Controls", status = "primary", solidHeader = TRUE, width = 4, collapsible = FALSE,
                 # Display Options Accordion
                 accordion(
                   id = ns("display_accordion"),
@@ -130,17 +14,17 @@ mod_time_course_server <- function(id, rv) {
                   expanded = TRUE,
                   content = div(
                     switchInput(ns("tc_show_traces"), "Show individual traces",
-                                value = isolate(input$tc_show_traces) %||% TRUE, size = "mini"),
+                                value = TRUE, size = "mini"),
                     sliderInput(ns("tc_trace_transparency"), "Trace transparency (%)",
-                                0, 100, isolate(input$tc_trace_transparency) %||% 50, 1, width = "100%"),
+                                0, 100, 50, 1, width = "100%"),
                     switchInput(ns("tc_show_ribbon"), "Show SEM ribbon",
-                                value = isTRUE(isolate(input$tc_show_ribbon) %||% TRUE), size = "mini"),
+                                value = TRUE, size = "mini"),
                     sliderInput(ns("tc_line_width"), "Line width",
-                                0.5, 4, isolate(input$tc_line_width) %||% 1.6, 0.1, width = "100%"),
+                                0.5, 4, 1.6, 0.1, width = "100%"),
                     tags$hr(style = "margin: 12px 0;"),
                     h6("Y-Axis Scale", style = "font-weight: 600; margin-bottom: 8px;"),
                     sliderInput(ns("tc_scale_step"), "Y-axis step size",
-                                min = 0.1, max = 1.0, value = isolate(input$tc_scale_step) %||% 0.5, step = 0.1)
+                                min = 0.1, max = 1.0, value = 0.5, step = 0.1)
                   )
                 ),
 
@@ -152,17 +36,17 @@ mod_time_course_server <- function(id, rv) {
                   expanded = FALSE,
                   content = div(
                     colourpicker::colourInput(ns("tc_line_color"), "Line color",
-                                              value = isolate(input$tc_line_color) %||% "#000000"),
+                                              value = "#000000"),
                     selectInput(ns("tc_legend_pos"), "Legend position",
                                 choices = c("none", "bottom", "right", "top", "left"),
-                                selected = isolate(input$tc_legend_pos) %||% "none"),
+                                selected = "none"),
                     selectInput(ns("tc_theme"), "Theme",
                                 choices = c("classic", "minimal", "light", "dark"),
-                                selected = isolate(input$tc_theme) %||% "classic"),
+                                selected = "classic"),
                     checkboxInput(ns("tc_grid_major"), "Major gridlines",
-                                  isTRUE(isolate(input$tc_grid_major))),
+                                  FALSE),
                     checkboxInput(ns("tc_grid_minor"), "Minor gridlines",
-                                  isTRUE(isolate(input$tc_grid_minor)))
+                                  FALSE)
                   )
                 ),
 
@@ -175,16 +59,16 @@ mod_time_course_server <- function(id, rv) {
                   content = div(
                     div(style = "display: flex; align-items: flex-start; gap: 8px;",
                         div(style = "flex: 1;",
-                            textInput(ns("tc_title"), "Title", isolate(input$tc_title) %||% "")
+                            textInput(ns("tc_title"), "Title", "")
                         ),
                         actionButton(ns("reset_title"), "Reset",
                                      class = "btn-default",
                                      style = "margin-top: 25px; height: 38px; padding: 6px 12px; font-size: 12px;",
                                      title = "Reset title to default (group names)")
                     ),
-                    textInput(ns("tc_x"), "X axis label", isolate(input$tc_x) %||% "Time (s)"),
-                    textInput(ns("tc_y"), "Y axis label", isolate(input$tc_y) %||% "ΔF/F₀"),
-                    checkboxInput(ns("tc_log_y"), "Log10 Y axis", isTRUE(isolate(input$tc_log_y)))
+                    textInput(ns("tc_x"), "X axis label", "Time (s)"),
+                    textInput(ns("tc_y"), "Y axis label", "ΔF/F₀"),
+                    checkboxInput(ns("tc_log_y"), "Log10 Y axis", FALSE)
                   )
                 ),
 
@@ -196,20 +80,20 @@ mod_time_course_server <- function(id, rv) {
                   expanded = FALSE,
                   content = div(
                     sliderInput(ns("tc_title_size"), "Title size", 10, 24,
-                                isolate(input$tc_title_size) %||% 18, 1, width = "100%"),
+                                18, 1, width = "100%"),
                     checkboxInput(ns("tc_bold_title"), "Bold title",
-                                  value = isTRUE(isolate(input$tc_bold_title) %||% TRUE)),
+                                  value = TRUE),
                     sliderInput(ns("tc_axis_title_size"), "Axis title size", 8, 24,
-                                isolate(input$tc_axis_title_size) %||% 14, 1, width = "100%"),
+                                14, 1, width = "100%"),
                     checkboxInput(ns("tc_bold_axis_title"), "Bold axis titles",
-                                  value = isTRUE(isolate(input$tc_bold_axis_title) %||% TRUE)),
+                                  value = TRUE),
                     sliderInput(ns("tc_axis_size"), "Axis text size", 8, 24,
-                                isolate(input$tc_axis_size) %||% 12, 1, width = "100%"),
+                                12, 1, width = "100%"),
                     checkboxInput(ns("tc_bold_axis_text"), "Bold axis text",
-                                  value = isTRUE(isolate(input$tc_bold_axis_text) %||% FALSE)),
+                                  value = FALSE),
                     selectInput(ns("tc_font"), "Font",
                                 choices = c("Arial", "Helvetica", "Times", "Courier"),
-                                selected = isolate(input$tc_font) %||% "Arial")
+                                selected = "Arial")
                   )
                 ),
 
@@ -221,7 +105,7 @@ mod_time_course_server <- function(id, rv) {
                   expanded = FALSE,
                   content = div(
                     checkboxInput(ns("tc_limits"), "Enable custom axis limits",
-                                  isTRUE(isolate(input$tc_limits))),
+                                  FALSE),
                     uiOutput(ns("limits_panel"))
                   )
                 ),
@@ -235,16 +119,109 @@ mod_time_course_server <- function(id, rv) {
                   content = div(
                     h6("Axis Breaks", style = "font-weight: 600; margin-bottom: 8px;"),
                     textInput(ns("tc_x_breaks"), "X axis breaks (comma-separated)",
-                              isolate(input$tc_x_breaks) %||% ""),
+                              ""),
                     textInput(ns("tc_y_breaks"), "Y axis breaks (comma-separated)",
-                              isolate(input$tc_y_breaks) %||% ""),
+                              ""),
                     h6("Tick Format", style = "font-weight: 600; margin-top: 12px; margin-bottom: 8px;"),
                     selectInput(ns("tc_tick_format"), "Tick format",
                                 choices = c("number", "scientific", "percent"),
-                                selected = isolate(input$tc_tick_format) %||% "number")
+                                selected = "number")
+                  )
+                ),
+
+                # Export Options Accordion
+                accordion(
+                  id = ns("export_accordion"),
+                  title = "Export Options",
+                  icon = "download",
+                  expanded = FALSE,
+                  content = div(
+                    fluidRow(
+                      column(6, selectInput(ns("tc_dl_fmt"),"Format",
+                                            choices = c("PNG"="png","PDF"="pdf","TIFF"="tiff","SVG"="svg"),
+                                            selected = "png")),
+                      column(6, selectInput(ns("tc_size_preset"), "Size",
+                                            choices = c("6x4 in"="6x4","7x5 in"="7x5","8x6 in"="8x6","10x7.5 in"="10x7.5","12x8 in"="12x8"),
+                                            selected = "8x6"))
+                    ),
+                    fluidRow(
+                      column(6, numericInput(ns("tc_dl_w"),"Width (in)", 8, min = 4, max = 30)),
+                      column(6, numericInput(ns("tc_dl_h"),"Height (in)", 6, min = 4, max = 30))
+                    ),
+                    numericInput(ns("tc_dl_dpi"),"DPI", 300, min = 72, max = 600),
+                    downloadButton(ns("dl_timecourse_plot_local"),"Download Time Course",
+                                   class = "btn-primary", style = "width: 100%; margin-top: 10px;")
                   )
                 )
-      )
+            ),
+
+            # Right: Plot
+            box(title = "Time Course", status = "primary", solidHeader = TRUE, width = 8, collapsible = FALSE,
+                fluidRow(
+                  column(12, align = "right",
+                         radioGroupButtons(
+                           inputId = ns("plot_type_toggle"),
+                           label = NULL,
+                           choices = c("Static", "Interactive"),
+                           selected = "Static",
+                           status = "primary",
+                           size = "sm"
+                         )
+                  )
+                ),
+                conditionalPanel(paste0("input['", ns("plot_type_toggle"), "'] == 'Static'"),
+                                 withSpinner(plotOutput(ns("timecourse_plot"), height = "760px"), type = 4)
+                ),
+                conditionalPanel(paste0("input['", ns("plot_type_toggle"), "'] == 'Interactive'"),
+                                 withSpinner(plotlyOutput(ns("timecourse_plotly"), height = "760px"), type = 4)
+                )
+            )
+          ),
+
+          fluidRow(
+            column(width = 12,
+                   box(title = "Time Course Summary Statistics", status = "info", solidHeader = TRUE, width = 12,
+                       htmlOutput(ns("tc_summary_table"))
+                   )
+            )
+          )
+  )
+}
+
+mod_time_course_server <- function(id, rv) {
+  moduleServer(id, function(input, output, session) {
+
+    # Store the last known groups to detect actual changes
+    last_groups <- reactiveVal(NULL)
+
+    # Only auto-update title when groups actually change (new data loaded)
+    observeEvent(rv$groups, {
+      req(rv$groups)
+      current_groups <- paste(rv$groups, collapse = ", ")
+
+      # Check if this is a real change in groups (new data loaded)
+      if (!is.null(last_groups()) && last_groups() != current_groups) {
+        # Only update title if it's currently empty or matches the old groups
+        current_title <- isolate(input$tc_title)
+        if (is.null(current_title) || nchar(trimws(current_title)) == 0 || current_title == last_groups()) {
+          updateTextInput(session, "tc_title", value = current_groups)
+        }
+      } else if (is.null(last_groups())) {
+        # First time - set initial title
+        updateTextInput(session, "tc_title", value = current_groups)
+      }
+
+      # Update our stored groups
+      last_groups(current_groups)
+    }, ignoreInit = FALSE)
+
+    # Handle title reset button
+    observeEvent(input$reset_title, {
+      req(rv$groups)
+      if (length(rv$groups) > 0) {
+        default_title <- paste(rv$groups, collapse = ", ")
+        updateTextInput(session, "tc_title", value = default_title)
+      }
     })
     
     # Render limits panel (numeric inputs) — isolate defaults to avoid re-render loops
@@ -264,12 +241,11 @@ mod_time_course_server <- function(id, rv) {
     build_timecourse_plot <- function() {
       req(rv$summary)
       p <- ggplot()
-      
-      # Add individual traces if requested (default to TRUE when settings panel is hidden)
-      show_traces <- if (is.null(input$tc_show_traces)) TRUE else input$tc_show_traces
-      if (isTRUE(show_traces) && !is.null(rv$long) && nrow(rv$long) > 0) {
-        # Calculate alpha with proper default when settings panel is hidden
-        transparency_pct <- if (is.null(input$tc_trace_transparency)) 50 else as.numeric(input$tc_trace_transparency)
+
+      # Add individual traces if requested
+      if (isTRUE(input$tc_show_traces) && !is.null(rv$long) && nrow(rv$long) > 0) {
+        # Calculate alpha
+        transparency_pct <- as.numeric(input$tc_trace_transparency %||% 50)
         # Make traces slightly darker overall while keeping smooth control
         alpha_raw <- (100 - transparency_pct) / 100
         alpha_traces <- max(0.08, min(1.0, alpha_raw^1.5))
@@ -298,7 +274,7 @@ mod_time_course_server <- function(id, rv) {
         geom_ribbon(data=rv$summary,
                     aes(x=Time, ymin=mean_dFF0 - sem_dFF0, ymax=mean_dFF0 + sem_dFF0),
                     fill=ribbon_fill,
-                    alpha=if (is.null(input$tc_show_ribbon) || isTRUE(input$tc_show_ribbon)) 0.25 else 0, color=NA)
+                    alpha=if (isTRUE(input$tc_show_ribbon %||% TRUE)) 0.25 else 0, color=NA)
 
       # Mean line: default black; if a custom color is chosen, map to Group so picker applies
       if (isTRUE(has_line_color)) {
@@ -381,24 +357,24 @@ mod_time_course_server <- function(id, rv) {
       
       p <- p + base_theme + theme(
         plot.title = element_text(
-          hjust=0.5, 
-          size=input$tc_title_size %||% 18, 
-          face=if(!is.null(input$tc_bold_title) && isTRUE(input$tc_bold_title)) "bold" else "plain", 
+          hjust=0.5,
+          size=input$tc_title_size %||% 18,
+          face=if(isTRUE(input$tc_bold_title)) "bold" else "plain",
           family=input$tc_font %||% "Arial"
         ),
         plot.subtitle = element_text(
-          hjust=0.5, 
-          size=max(8, (input$tc_title_size %||% 18) - 4), 
+          hjust=0.5,
+          size=max(8, (input$tc_title_size %||% 18) - 4),
           family=input$tc_font %||% "Arial"
         ),
         axis.title = element_text(
-          size=input$tc_axis_title_size %||% 14, 
-          face=if(!is.null(input$tc_bold_axis_title) && isTRUE(input$tc_bold_axis_title)) "bold" else "plain", 
+          size=input$tc_axis_title_size %||% 14,
+          face=if(isTRUE(input$tc_bold_axis_title)) "bold" else "plain",
           family=input$tc_font %||% "Arial"
         ),
         axis.text = element_text(
-          size=input$tc_axis_size %||% 12, 
-          face=if(!is.null(input$tc_bold_axis_text) && isTRUE(input$tc_bold_axis_text)) "bold" else "plain", 
+          size=input$tc_axis_size %||% 12,
+          face=if(isTRUE(input$tc_bold_axis_text)) "bold" else "plain",
           family=input$tc_font %||% "Arial"
         ),
         legend.position = input$tc_legend_pos %||% "none"
@@ -431,25 +407,25 @@ mod_time_course_server <- function(id, rv) {
         }
       } else {
         # Use scale step slider to generate Y-axis breaks
-        if (!is.null(input$tc_scale_step) && !(!is.null(input$tc_log_y) && isTRUE(input$tc_log_y))) {
+        if (!is.null(input$tc_scale_step) && !isTRUE(input$tc_log_y)) {
           # Get data range for Y-axis
           y_range <- range(rv$summary$mean_dFF0, na.rm = TRUE)
           if (length(y_range) == 2 && is.finite(y_range[1]) && is.finite(y_range[2])) {
             scale_step <- input$tc_scale_step
-            
+
             # Create more sensible breaks
             y_min <- min(0, y_range[1])  # Start from 0 or data minimum, whichever is lower
             y_max <- y_range[2]
-            
+
             # Round the maximum up to a nice number based on the step size
             y_max_rounded <- ceiling(y_max / scale_step) * scale_step
-            
+
             # Create breaks from 0 to the rounded maximum
             y_breaks <- seq(0, y_max_rounded, by = scale_step)
-            
+
             # Remove any breaks that are way beyond the data range (keep some buffer)
             y_breaks <- y_breaks[y_breaks <= (y_max + scale_step)]
-            
+
             if (length(y_breaks) > 1) {
               y_lab_fun <- function(x) format(x, trim = TRUE, scientific = FALSE)
             }
@@ -458,15 +434,14 @@ mod_time_course_server <- function(id, rv) {
       }
       
       # Grid lines
-      if ((!is.null(input$tc_grid_major) && isTRUE(input$tc_grid_major)) || 
-          (!is.null(input$tc_grid_minor) && isTRUE(input$tc_grid_minor))) {
+      if (isTRUE(input$tc_grid_major) || isTRUE(input$tc_grid_minor)) {
         p <- p + theme(
-          panel.grid.major = if (!is.null(input$tc_grid_major) && isTRUE(input$tc_grid_major)) {
+          panel.grid.major = if (isTRUE(input$tc_grid_major)) {
             element_line(color="grey90", linewidth=0.3)
           } else {
             element_blank()
           },
-          panel.grid.minor = if (!is.null(input$tc_grid_minor) && isTRUE(input$tc_grid_minor)) {
+          panel.grid.minor = if (isTRUE(input$tc_grid_minor)) {
             element_line(color="grey95", linewidth=0.2)
           } else {
             element_blank()
@@ -477,24 +452,24 @@ mod_time_course_server <- function(id, rv) {
       }
       
       # Custom axis limits
-      if (!is.null(input$tc_limits) && isTRUE(input$tc_limits)) {
+      if (isTRUE(input$tc_limits)) {
         xlims <- ylims <- NULL
-        
+
         # Read limits from numeric inputs
-        if (!is.null(input$tc_xmin) && !is.null(input$tc_xmax) && 
+        if (!is.null(input$tc_xmin) && !is.null(input$tc_xmax) &&
             !is.na(input$tc_xmin) && !is.na(input$tc_xmax)) {
           xlims <- c(input$tc_xmin, input$tc_xmax)
         }
-        
-        if (!is.null(input$tc_ymin) && !is.null(input$tc_ymax) && 
+
+        if (!is.null(input$tc_ymin) && !is.null(input$tc_ymax) &&
             !is.na(input$tc_ymin) && !is.na(input$tc_ymax)) {
           ylims <- c(input$tc_ymin, input$tc_ymax)
         }
-        
+
         # If Y limits are set and the user is not providing custom Y breaks,
         # regenerate breaks from the limits so the upper bound (e.g., 2) appears.
         if (!is.null(ylims) && (is.null(input$tc_y_breaks) || is.na(input$tc_y_breaks) || !nzchar(input$tc_y_breaks))) {
-          if (!is.null(input$tc_scale_step) && !(!is.null(input$tc_log_y) && isTRUE(input$tc_log_y))) {
+          if (!is.null(input$tc_scale_step) && !isTRUE(input$tc_log_y)) {
             step <- as.numeric(input$tc_scale_step)
             if (is.finite(step) && step > 0) {
               y_breaks <- seq(from = ylims[1], to = ylims[2], by = step)

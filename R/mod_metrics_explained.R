@@ -937,17 +937,43 @@ mod_metrics_explained_server <- function(id, rv) {
 
     output$explanation_plotly <- plotly::renderPlotly({
       req(explanation_plot_obj())
-      plotly::ggplotly(explanation_plot_obj(), tooltip = c("x", "y", "text")) %>%
-        plotly::layout(
-          hoverlabel = list(bgcolor = "white"),
-          xaxis = list(fixedrange = FALSE),
-          yaxis = list(fixedrange = FALSE)
-        ) %>%
-        plotly::config(
-          displayModeBar = TRUE,
-          displaylogo = FALSE,
-          modeBarButtonsToRemove = c("lasso2d", "select2d")
-        )
+
+      # Try to convert to plotly, but warn if annotations are lost
+      p <- tryCatch({
+        plotly::ggplotly(explanation_plot_obj(), tooltip = "text") %>%
+          plotly::layout(
+            hoverlabel = list(bgcolor = "white"),
+            xaxis = list(fixedrange = FALSE, title = "Time (s)"),
+            yaxis = list(fixedrange = FALSE, title = "ΔF/F₀"),
+            # Add note about annotations
+            annotations = list(
+              list(
+                x = 0.5, y = -0.15, xref = "paper", yref = "paper",
+                text = "Note: Some labels and annotations may not display in interactive mode. Use Static view for complete annotations.",
+                showarrow = FALSE,
+                font = list(size = 10, color = "gray"),
+                xanchor = "center"
+              )
+            )
+          ) %>%
+          plotly::config(
+            displayModeBar = TRUE,
+            displaylogo = FALSE,
+            modeBarButtonsToRemove = c("lasso2d", "select2d")
+          )
+      }, error = function(e) {
+        # If conversion fails completely, show message
+        plotly::plot_ly() %>%
+          plotly::add_text(x = 0.5, y = 0.5,
+                          text = "Interactive view not available for this plot.\nPlease use Static view.",
+                          textfont = list(size = 16, color = "gray")) %>%
+          plotly::layout(
+            xaxis = list(showgrid = FALSE, showticklabels = FALSE, zeroline = FALSE),
+            yaxis = list(showgrid = FALSE, showticklabels = FALSE, zeroline = FALSE)
+          )
+      })
+
+      p
     })
 
     output$dl_plot <- downloadHandler(
