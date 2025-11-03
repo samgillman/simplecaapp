@@ -260,6 +260,58 @@ get_unified_theme_css <- function() {
       padding-right: 32px;
     }}
 
+    /* File Input Styling */
+    .form-group.shiny-input-container {{
+      margin-bottom: var(--spacing-md);
+    }}
+
+    input[type="file"] {{
+      display: flex;
+      align-items: center;
+      width: 100%;
+      padding: 0;
+      border: none;
+      background: transparent;
+      color: var(--color-gray-600);
+      font-size: var(--type-body);
+    }}
+
+    /* Style the file input button */
+    input[type="file"]::file-selector-button {{
+      background-color: var(--color-primary-blue);
+      color: var(--color-white);
+      border: none;
+      border-radius: var(--radius-sm);
+      padding: 6px 16px;
+      font-size: var(--type-body);
+      font-weight: {weight_medium};
+      cursor: pointer;
+      margin-right: 12px;
+      transition: background-color 150ms ease;
+    }}
+
+    input[type="file"]::file-selector-button:hover {{
+      background-color: var(--color-primary-dark);
+    }}
+
+    /* For WebKit browsers (Chrome, Safari, Edge) */
+    input[type="file"]::-webkit-file-upload-button {{
+      background-color: var(--color-primary-blue);
+      color: var(--color-white);
+      border: none;
+      border-radius: var(--radius-sm);
+      padding: 6px 16px;
+      font-size: var(--type-body);
+      font-weight: {weight_medium};
+      cursor: pointer;
+      margin-right: 12px;
+      transition: background-color 150ms ease;
+    }}
+
+    input[type="file"]::-webkit-file-upload-button:hover {{
+      background-color: var(--color-primary-dark);
+    }}
+
     /* ==================== Sidebar ==================== */
 
     .main-sidebar {{
