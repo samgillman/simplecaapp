@@ -236,10 +236,27 @@ mod_metrics_explained_ui <- function(id) {
                 column(3, div(style = "margin-top:25px;", downloadButton(ns("dl_plot"), "Download Plot", class = "btn-primary")))
               )
             ),
-            
+
             # Right Column: The plot itself (dynamically updated)
             column(width = 7,
-              plotOutput(ns("explanation_plot"), height = "600px")
+              fluidRow(
+                column(12, align = "right",
+                       radioGroupButtons(
+                         inputId = ns("plot_type_toggle"),
+                         label = NULL,
+                         choices = c("Static", "Interactive"),
+                         selected = "Static",
+                         status = "primary",
+                         size = "sm"
+                       )
+                )
+              ),
+              conditionalPanel(paste0("input['", ns("plot_type_toggle"), "'] == 'Static'"),
+                               plotOutput(ns("explanation_plot"), height = "600px")
+              ),
+              conditionalPanel(paste0("input['", ns("plot_type_toggle"), "'] == 'Interactive'"),
+                               plotlyOutput(ns("explanation_plotly"), height = "600px")
+              )
             )
           )
   )
@@ -879,7 +896,22 @@ mod_metrics_explained_server <- function(id, rv) {
     output$explanation_plot <- renderPlot({
       explanation_plot_obj()
     }, res = 96)
-    
+
+    output$explanation_plotly <- plotly::renderPlotly({
+      req(explanation_plot_obj())
+      plotly::ggplotly(explanation_plot_obj(), tooltip = c("x", "y", "text")) %>%
+        plotly::layout(
+          hoverlabel = list(bgcolor = "white"),
+          xaxis = list(fixedrange = FALSE),
+          yaxis = list(fixedrange = FALSE)
+        ) %>%
+        plotly::config(
+          displayModeBar = TRUE,
+          displaylogo = FALSE,
+          modeBarButtonsToRemove = c("lasso2d", "select2d")
+        )
+    })
+
     output$dl_plot <- downloadHandler(
       filename = function() {
         req(input$metric_to_explain, selected_cell_data())

@@ -66,7 +66,24 @@ mod_heatmap_ui <- function(id) {
                 )
             ),
             box(title = "Heatmap", status = "primary", solidHeader = TRUE, width = 8, collapsible = FALSE,
-                withSpinner(plotOutput(ns("heatmap_plot"), height = "760px"), type = 4),
+                fluidRow(
+                  column(12, align = "right",
+                         radioGroupButtons(
+                           inputId = ns("plot_type_toggle"),
+                           label = NULL,
+                           choices = c("Static", "Interactive"),
+                           selected = "Static",
+                           status = "primary",
+                           size = "sm"
+                         )
+                  )
+                ),
+                conditionalPanel(paste0("input['", ns("plot_type_toggle"), "'] == 'Static'"),
+                                 withSpinner(plotOutput(ns("heatmap_plot"), height = "760px"), type = 4)
+                ),
+                conditionalPanel(paste0("input['", ns("plot_type_toggle"), "'] == 'Interactive'"),
+                                 withSpinner(plotlyOutput(ns("heatmap_plotly"), height = "760px"), type = 4)
+                ),
                 tags$hr(),
                 fluidRow(
                   column(3, selectInput(ns("hm_dl_fmt"),"Format", choices = c("PNG"="png","PDF"="pdf","TIFF"="tiff","SVG"="svg"), selected = "png")),
@@ -214,7 +231,22 @@ mod_heatmap_server <- function(id, rv) {
     output$heatmap_plot <- renderPlot({
       heatmap_plot_reactive()
     })
-    
+
+    output$heatmap_plotly <- plotly::renderPlotly({
+      req(heatmap_plot_reactive())
+      plotly::ggplotly(heatmap_plot_reactive(), tooltip = c("x", "y", "fill")) %>%
+        plotly::layout(
+          hoverlabel = list(bgcolor = "white", font = list(family = input$hm_font %||% "Arial")),
+          xaxis = list(fixedrange = FALSE),
+          yaxis = list(fixedrange = FALSE)
+        ) %>%
+        plotly::config(
+          displayModeBar = TRUE,
+          displaylogo = FALSE,
+          modeBarButtonsToRemove = c("lasso2d", "select2d")
+        )
+    })
+
     output$dl_heatmap_plot_local <- downloadHandler(
       filename = function() sprintf("heatmap_%s.%s", Sys.Date(), input$hm_dl_fmt),
       content = function(file) {

@@ -66,7 +66,24 @@ mod_metrics_ui <- function(id) {
                 )
             ),
             box(title = "Metrics Plot", status = "primary", solidHeader = TRUE, width = 8,
-                withSpinner(plotOutput(ns("metrics_plot"), height = "640px"), type = 4),
+                fluidRow(
+                  column(12, align = "right",
+                         radioGroupButtons(
+                           inputId = ns("plot_type_toggle"),
+                           label = NULL,
+                           choices = c("Static", "Interactive"),
+                           selected = "Static",
+                           status = "primary",
+                           size = "sm"
+                         )
+                  )
+                ),
+                conditionalPanel(paste0("input['", ns("plot_type_toggle"), "'] == 'Static'"),
+                                 withSpinner(plotOutput(ns("metrics_plot"), height = "640px"), type = 4)
+                ),
+                conditionalPanel(paste0("input['", ns("plot_type_toggle"), "'] == 'Interactive'"),
+                                 withSpinner(plotlyOutput(ns("metrics_plotly"), height = "640px"), type = 4)
+                ),
                 tags$hr(),
                 fluidRow(
                   column(3, selectInput(ns("dl_format"), "Format", c("PNG"="png", "PDF"="pdf", "SVG"="svg", "TIFF"="tiff"), "png")),
@@ -174,7 +191,22 @@ mod_metrics_server <- function(id, rv) {
     })
     
     output$metrics_plot <- renderPlot({ metrics_plot_obj() })
-    
+
+    output$metrics_plotly <- plotly::renderPlotly({
+      req(metrics_plot_obj())
+      plotly::ggplotly(metrics_plot_obj(), tooltip = c("x", "y", "text")) %>%
+        plotly::layout(
+          hoverlabel = list(bgcolor = "white", font = list(family = input$metric_font %||% "sans")),
+          xaxis = list(fixedrange = FALSE),
+          yaxis = list(fixedrange = FALSE)
+        ) %>%
+        plotly::config(
+          displayModeBar = TRUE,
+          displaylogo = FALSE,
+          modeBarButtonsToRemove = c("lasso2d", "select2d")
+        )
+    })
+
     observeEvent(input$metric_size_preset, {
       preset <- input$metric_size_preset
       dims <- switch(preset,
