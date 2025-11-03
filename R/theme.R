@@ -260,56 +260,57 @@ get_unified_theme_css <- function() {
       padding-right: 32px;
     }}
 
-    /* File Input Styling */
+    /* File Input Styling - Shiny specific */
     .form-group.shiny-input-container {{
       margin-bottom: var(--spacing-md);
     }}
 
-    input[type='file'] {{
+    /* Target Shiny's file input wrapper */
+    .shiny-input-container:has(input[type='file']) {{
+      display: block;
+    }}
+
+    /* Style the input group for file inputs */
+    .input-group {{
       display: flex;
-      align-items: center;
+      align-items: stretch;
       width: 100%;
-      padding: 0;
-      border: none;
-      background: transparent;
+    }}
+
+    /* Style the file input button (Shiny wraps it in a label with btn class) */
+    .input-group .btn-file {{
+      background-color: var(--color-primary-blue) !important;
+      border-color: var(--color-primary-blue) !important;
+      color: var(--color-white) !important;
+      border-radius: var(--radius-sm);
+      padding: 6px 16px;
+      font-size: var(--type-body);
+      font-weight: {weight_medium};
+      cursor: pointer;
+      transition: background-color 150ms ease;
+      white-space: nowrap;
+    }}
+
+    .input-group .btn-file:hover {{
+      background-color: var(--color-primary-dark) !important;
+      border-color: var(--color-primary-dark) !important;
+    }}
+
+    /* Style the text input showing filename */
+    .input-group input[type='text'][readonly] {{
+      background-color: var(--color-gray-50);
+      border: 1px solid var(--color-gray-100);
+      border-left: none;
+      border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+      padding: 6px 12px;
+      font-size: var(--type-body);
       color: var(--color-gray-600);
-      font-size: var(--type-body);
+      flex: 1;
     }}
 
-    /* Style the file input button */
-    input[type='file']::file-selector-button {{
-      background-color: var(--color-primary-blue);
-      color: var(--color-white);
-      border: none;
-      border-radius: var(--radius-sm);
-      padding: 6px 16px;
-      font-size: var(--type-body);
-      font-weight: {weight_medium};
-      cursor: pointer;
-      margin-right: 12px;
-      transition: background-color 150ms ease;
-    }}
-
-    input[type='file']::file-selector-button:hover {{
-      background-color: var(--color-primary-dark);
-    }}
-
-    /* For WebKit browsers (Chrome, Safari, Edge) */
-    input[type='file']::-webkit-file-upload-button {{
-      background-color: var(--color-primary-blue);
-      color: var(--color-white);
-      border: none;
-      border-radius: var(--radius-sm);
-      padding: 6px 16px;
-      font-size: var(--type-body);
-      font-weight: {weight_medium};
-      cursor: pointer;
-      margin-right: 12px;
-      transition: background-color 150ms ease;
-    }}
-
-    input[type='file']::-webkit-file-upload-button:hover {{
-      background-color: var(--color-primary-dark);
+    /* Remove margin between button and text input */
+    .input-group .btn-file + input[type='text'] {{
+      margin-left: 0 !important;
     }}
 
     /* ==================== Sidebar ==================== */
@@ -385,10 +386,17 @@ get_unified_theme_css <- function() {
     .content-wrapper {{
       background-color: var(--color-gray-50);
       margin-left: 250px !important;
+      min-height: 100vh;
     }}
 
     .content {{
       padding: 20px;
+      padding-bottom: 20px;
+    }}
+
+    /* Reduce excessive whitespace below content */
+    .content-wrapper, .content {{
+      max-height: none;
     }}
 
     /* Ensure fluidRow has no weird margins */
