@@ -299,11 +299,29 @@ get_unified_theme_css <- function() {
       cursor: pointer;
       transition: background-color 150ms ease;
       white-space: nowrap;
+      position: relative;
+      display: inline-block;
     }}
 
     .input-group .btn-file:hover {{
       background-color: var(--color-primary-dark) !important;
       border-color: var(--color-primary-dark) !important;
+    }}
+
+    /* Ensure the hidden file input is positioned correctly for clicking */
+    .input-group .btn-file input[type='file'] {{
+      position: absolute;
+      top: 0;
+      right: 0;
+      min-width: 100%;
+      min-height: 100%;
+      font-size: 100px;
+      text-align: right;
+      filter: alpha(opacity=0);
+      opacity: 0;
+      outline: none;
+      cursor: pointer;
+      display: block;
     }}
 
     /* Style the text input showing filename */
@@ -316,6 +334,13 @@ get_unified_theme_css <- function() {
       font-size: var(--type-body);
       color: var(--color-gray-600);
       flex: 1;
+      cursor: default;
+    }}
+
+    /* Make the filename display area also clickable */
+    .input-group input[type='text'][readonly]:hover {{
+      background-color: var(--color-gray-100);
+      cursor: pointer;
     }}
 
     /* Remove margin between button and text input */

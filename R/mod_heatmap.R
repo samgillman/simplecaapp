@@ -234,17 +234,40 @@ mod_heatmap_server <- function(id, rv) {
 
     output$heatmap_plotly <- plotly::renderPlotly({
       req(heatmap_plot_reactive())
-      plotly::ggplotly(heatmap_plot_reactive(), tooltip = c("x", "y", "fill")) %>%
-        plotly::layout(
-          hoverlabel = list(bgcolor = "white", font = list(family = input$hm_font %||% "Arial")),
-          xaxis = list(fixedrange = FALSE),
-          yaxis = list(fixedrange = FALSE)
-        ) %>%
-        plotly::config(
-          displayModeBar = TRUE,
-          displaylogo = FALSE,
-          modeBarButtonsToRemove = c("lasso2d", "select2d")
-        )
+
+      # Try to convert ggplot to plotly
+      p <- tryCatch({
+        plotly::ggplotly(heatmap_plot_reactive(), tooltip = c("x", "y", "fill")) %>%
+          plotly::layout(
+            hoverlabel = list(bgcolor = "white", font = list(family = input$hm_font %||% "Arial")),
+            xaxis = list(fixedrange = FALSE, title = input$hm_x_label %||% "Time (s)"),
+            yaxis = list(fixedrange = FALSE, title = input$hm_y_label %||% "Cell"),
+            title = list(text = input$hm_title %||% "Population Heatmap")
+          ) %>%
+          plotly::config(
+            displayModeBar = TRUE,
+            displaylogo = FALSE,
+            modeBarButtonsToRemove = c("lasso2d", "select2d"),
+            toImageButtonOptions = list(
+              format = "png",
+              filename = "heatmap",
+              width = 1200,
+              height = 800
+            )
+          )
+      }, error = function(e) {
+        # If conversion fails, show message
+        plotly::plot_ly() %>%
+          plotly::add_text(x = 0.5, y = 0.5,
+                          text = "Interactive heatmap view not available.\nPlease use Static view.",
+                          textfont = list(size = 16, color = "gray")) %>%
+          plotly::layout(
+            xaxis = list(showgrid = FALSE, showticklabels = FALSE, zeroline = FALSE),
+            yaxis = list(showgrid = FALSE, showticklabels = FALSE, zeroline = FALSE)
+          )
+      })
+
+      p
     })
 
     output$dl_heatmap_plot_local <- downloadHandler(
