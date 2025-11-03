@@ -8,35 +8,39 @@ mod_load_data_ui <- function(id) {
             column(
               width = 6,
               box(title = "Load Data", status = "primary", solidHeader = TRUE, width = 12, collapsible = FALSE,
-                  fileInput(ns("data_files"),"Upload CSV or Excel (wide; first column = Time)", multiple = TRUE,
-                            accept = c(".csv",".xlsx",".xls"))
+                  div(style = "padding: 12px;",
+                      fileInput(ns("data_files"),"Upload CSV or Excel (wide; first column = Time)", multiple = TRUE,
+                                accept = c(".csv",".xlsx",".xls"))
+                  )
               ),
               box(title = "Processing Options", status = "primary", solidHeader = TRUE, width = 12, collapsible = FALSE,
-                  # Basic processing controls (always visible)
-                  selectInput(ns("pp_baseline_method"),"Baseline (F₀) method",
-                              choices = c("Frame Range"="frame_range","Rolling minimum"="rolling_min","Percentile"="percentile"),
-                              selected="frame_range"),
-                  conditionalPanel(paste0("input['", ns("pp_baseline_method"), "'] == 'frame_range'"),
-                                   sliderInput(ns("pp_baseline_frames"),"Baseline Frame Range:", min = 1, max = 100, value = c(1, 20), step = 1)
-                  ),
-                  conditionalPanel(paste0("input['", ns("pp_baseline_method"), "'] == 'rolling_min'"),
-                                   numericInput(ns("pp_window_size"),"Rolling window (frames)", value=50, min=5, step=1)
-                  ),
-                  conditionalPanel(paste0("input['", ns("pp_baseline_method"), "'] == 'percentile'"),
-                                   numericInput(ns("pp_percentile"),"Baseline percentile", value=10, min=1, max=50, step=1)
-                  ),
-                  
-                  # Advanced controls in a simple div (not collapsible)
-                  div(style = "margin-top: 15px; padding-top: 15px; border-top: 1px solid #eee;",
-                      h5("Advanced Options", style = "font-weight: 600; color: #333; margin-bottom: 10px;"),
-                      numericInput(ns("pp_sampling_rate"),"Sampling rate (Hz) if Time missing/invalid", value=1, min=0.0001, step=0.1)
-                  ),
-                  
-                  # Right-aligned Process button and help text
-                  div(style = "margin-top: 16px; text-align: right;",
-                      actionButton(ns("load_btn"),"Process Data", class = "btn-primary", style = "margin-bottom: 8px;")
-                  ),
-                  div(class="small-help", style = "text-align: center; font-style: italic;","ΔF/F₀ = (F - F₀)/F₀. Operations apply per uploaded file.")
+                  div(style = "padding: 12px;",
+                      # Basic processing controls (always visible)
+                      selectInput(ns("pp_baseline_method"),"Baseline (F₀) method",
+                                  choices = c("Frame Range"="frame_range","Rolling minimum"="rolling_min","Percentile"="percentile"),
+                                  selected="frame_range"),
+                      conditionalPanel(paste0("input['", ns("pp_baseline_method"), "'] == 'frame_range'"),
+                                       sliderInput(ns("pp_baseline_frames"),"Baseline Frame Range:", min = 1, max = 100, value = c(1, 20), step = 1)
+                      ),
+                      conditionalPanel(paste0("input['", ns("pp_baseline_method"), "'] == 'rolling_min'"),
+                                       numericInput(ns("pp_window_size"),"Rolling window (frames)", value=50, min=5, step=1)
+                      ),
+                      conditionalPanel(paste0("input['", ns("pp_baseline_method"), "'] == 'percentile'"),
+                                       numericInput(ns("pp_percentile"),"Baseline percentile", value=10, min=1, max=50, step=1)
+                      ),
+
+                      # Advanced controls in a simple div (not collapsible)
+                      div(style = "margin-top: 15px; padding-top: 15px; border-top: 1px solid var(--color-gray-100);",
+                          h5("Advanced Options", style = "font-weight: 600; color: var(--color-gray-900); margin-bottom: 10px;"),
+                          numericInput(ns("pp_sampling_rate"),"Sampling rate (Hz) if Time missing/invalid", value=1, min=0.0001, step=0.1)
+                      ),
+
+                      # Right-aligned Process button and help text
+                      div(style = "margin-top: 16px; text-align: right;",
+                          actionButton(ns("load_btn"),"Process Data", class = "btn-primary", style = "margin-bottom: 8px;")
+                      ),
+                      div(class="small-help", style = "text-align: center; font-style: italic; color: var(--color-gray-600);","ΔF/F₀ = (F - F₀)/F₀. Operations apply per uploaded file.")
+                  )
               )
             ),
             # Right Column: At a glance and Processing Status

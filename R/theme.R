@@ -291,10 +291,34 @@ get_unified_theme_css <- function() {
       background-color: var(--color-primary-blue);
       color: var(--color-white);
       font-weight: {weight_semibold};
+      text-align: center;
+      padding: 15px;
     }}
 
     .main-header .navbar {{
       background-color: var(--color-primary-blue);
+    }}
+
+    /* ==================== Content & Layout Alignment ==================== */
+
+    .content-wrapper {{
+      background-color: var(--color-gray-50);
+    }}
+
+    .content {{
+      padding: 20px;
+    }}
+
+    /* Ensure fluidRow has no weird margins */
+    .row {{
+      margin-left: 0;
+      margin-right: 0;
+    }}
+
+    /* Make sure columns don't have excessive padding */
+    .col-sm-6 {{
+      padding-left: 7.5px;
+      padding-right: 7.5px;
     }}
 
     /* ==================== Tables ==================== */
