@@ -265,7 +265,7 @@ get_unified_theme_css <- function() {
       margin-bottom: var(--spacing-md);
     }}
 
-    input[type="file"] {{
+    input[type='file'] {{
       display: flex;
       align-items: center;
       width: 100%;
@@ -277,7 +277,7 @@ get_unified_theme_css <- function() {
     }}
 
     /* Style the file input button */
-    input[type="file"]::file-selector-button {{
+    input[type='file']::file-selector-button {{
       background-color: var(--color-primary-blue);
       color: var(--color-white);
       border: none;
@@ -290,12 +290,12 @@ get_unified_theme_css <- function() {
       transition: background-color 150ms ease;
     }}
 
-    input[type="file"]::file-selector-button:hover {{
+    input[type='file']::file-selector-button:hover {{
       background-color: var(--color-primary-dark);
     }}
 
     /* For WebKit browsers (Chrome, Safari, Edge) */
-    input[type="file"]::-webkit-file-upload-button {{
+    input[type='file']::-webkit-file-upload-button {{
       background-color: var(--color-primary-blue);
       color: var(--color-white);
       border: none;
@@ -308,7 +308,7 @@ get_unified_theme_css <- function() {
       transition: background-color 150ms ease;
     }}
 
-    input[type="file"]::-webkit-file-upload-button:hover {{
+    input[type='file']::-webkit-file-upload-button:hover {{
       background-color: var(--color-primary-dark);
     }}
 
