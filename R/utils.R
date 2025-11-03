@@ -301,10 +301,14 @@ metric_label <- function(metric) {
          Rise_Time = "Rise Time (s)",
          FWHM = "FWHM (s)",
          Half_Width = "Half-Width (s)",
-         AUC = "AUC", 
-         SNR = "SNR", 
+         AUC = expression("AUC ("*Delta*"F/F"[0]*" × s)"),
+         SNR = "SNR (unitless)",
          Time_to_Peak = "Time to Peak (s)",
+         Time_to_25_Peak = "Time to 25% Peak (s)",
+         Time_to_50_Peak = "Time to 50% Peak (s)",
+         Time_to_75_Peak = "Time to 75% Peak (s)",
          Calcium_Entry_Rate = expression("Rate ("*Delta*"F/F"[0]*"/s)"),
+         Baseline_SD = expression("Baseline SD ("*Delta*"F/F"[0]*")"),
          metric)
 }
 
@@ -318,9 +322,13 @@ metric_title <- function(metric) {
          Rise_Time = "Rise Time (10-90%) (s)",
          FWHM = "FWHM (s)",
          Half_Width = "Half Width (HWHM, s)",
-         AUC = "Area Under Curve (AUC)", 
-         SNR = "Signal-to-Noise Ratio (SNR)",
+         AUC = expression("Area Under Curve ("*Delta*"F/F"[0]*" × s)"),
+         SNR = "Signal-to-Noise Ratio (unitless)",
          Time_to_Peak = "Time to Peak (s)",
+         Time_to_25_Peak = "Time to 25% Peak (s)",
+         Time_to_50_Peak = "Time to 50% Peak (s)",
+         Time_to_75_Peak = "Time to 75% Peak (s)",
          Calcium_Entry_Rate = expression("Calcium Entry Rate ("*Delta*"F/F"[0]*"/s)"),
+         Baseline_SD = expression("Baseline SD ("*Delta*"F/F"[0]*")"),
          metric)
 }

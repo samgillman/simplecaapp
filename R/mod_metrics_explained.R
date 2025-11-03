@@ -10,8 +10,10 @@ mod_metrics_explained_ui <- function(id) {
           # Selector for which metric to explain
           selectInput(ns("metric_to_explain"), "Select Metric to Explain:",
                       choices = c("Peak ΔF/F₀" = "peak_dff0",
+                                  "Response Amplitude" = "response_amplitude",
                                   "Time to Peak" = "time_to_peak",
                                   "Signal-to-Noise Ratio (SNR)" = "snr",
+                                  "Baseline Standard Deviation" = "baseline_sd",
                                   "Rise Time (10-90%)" = "rise_time",
                                   "Time to % Peak" = "time_to_percent_peak",
                                   "FWHM & Half-Width" = "fwhm",
@@ -50,7 +52,34 @@ mod_metrics_explained_ui <- function(id) {
                 helpText("$$ \\text{Peak } \\Delta F/F_0 = \\max\\left(\\frac{F(t) - F_0}{F_0}\\right) $$"),
                 uiOutput(ns("peak_calculation_ui"))
               ),
-              
+
+              # --- UI for Response Amplitude Explanation ---
+              conditionalPanel(
+                condition = paste0("input['", ns("metric_to_explain"), "'] == 'response_amplitude'"),
+                h4("Definition", style = "color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 5px;"),
+                p("Response Amplitude measures the magnitude of the cellular response from the baseline (resting state) to the peak fluorescence. In ΔF/F₀ normalized data, this is equivalent to the Peak ΔF/F₀ value, as the baseline is set to zero during normalization."),
+
+                h4("Key Terms", style = "color: #2c3e50; margin-top: 20px;"),
+                tags$ul(
+                  tags$li(HTML("<b>Baseline (F₀):</b> The resting fluorescence level before stimulation")),
+                  tags$li(HTML("<b>Peak Response:</b> The maximum fluorescence value reached")),
+                  tags$li(HTML("<b>Response Amplitude:</b> The difference between peak and baseline")),
+                  tags$li(HTML("<b>Normalized Data:</b> After ΔF/F₀ transformation, baseline = 0"))
+                ),
+
+                h4("For This Cell", style = "color: #2c3e50; margin-top: 20px;"),
+                uiOutput(ns("response_amp_data_points_ui")),
+
+                h4("Calculation", style = "color: #2c3e50; margin-top: 20px;"),
+                withMathJax(),
+                p("Response Amplitude is calculated as the peak value minus the baseline:"),
+                helpText("$$ \\text{Response Amplitude} = \\text{Peak} - \\text{Baseline} $$"),
+                p("For ΔF/F₀ normalized data where baseline = 0:"),
+                helpText("$$ \\text{Response Amplitude} = \\text{Peak } \\Delta F/F_0 - 0 = \\text{Peak } \\Delta F/F_0 $$"),
+                p("Units: ΔF/F₀ (unitless)"),
+                uiOutput(ns("response_amp_calculation_ui"))
+              ),
+
               # --- UI for Time to Peak Explanation ---
               conditionalPanel(
                 condition = paste0("input['", ns("metric_to_explain"), "'] == 'time_to_peak'"),
@@ -98,7 +127,33 @@ mod_metrics_explained_ui <- function(id) {
                 helpText("$$ \\text{SNR} = \\frac{\\text{Response Amplitude}}{\\text{Baseline Standard Deviation}} $$"),
                 uiOutput(ns("snr_calculation_ui"))
               ),
-              
+
+              # --- UI for Baseline SD Explanation ---
+              conditionalPanel(
+                condition = paste0("input['", ns("metric_to_explain"), "'] == 'baseline_sd'"),
+                h4("Definition", style = "color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 5px;"),
+                p("Baseline Standard Deviation (Baseline SD) quantifies the level of noise or random fluctuation in the fluorescence signal during the resting state before stimulation. It represents the inherent variability of the measurement system and is crucial for assessing signal quality."),
+
+                h4("Key Terms", style = "color: #2c3e50; margin-top: 20px;"),
+                tags$ul(
+                  tags$li(HTML("<b>Baseline Period:</b> The time window before stimulation when the cell is at rest")),
+                  tags$li(HTML("<b>Standard Deviation (SD):</b> A measure of variability or spread in the data")),
+                  tags$li(HTML("<b>Noise Floor:</b> The minimum detectable signal change above background fluctuations")),
+                  tags$li(HTML("<b>Signal Quality:</b> Lower baseline SD indicates cleaner, more reliable measurements"))
+                ),
+
+                h4("For This Cell", style = "color: #2c3e50; margin-top: 20px;"),
+                uiOutput(ns("baseline_sd_data_points_ui")),
+
+                h4("Calculation", style = "color: #2c3e50; margin-top: 20px;"),
+                withMathJax(),
+                p("Baseline SD is the standard deviation of the ΔF/F₀ values during the baseline period:"),
+                helpText("$$ \\text{Baseline SD} = \\sqrt{\\frac{1}{n-1} \\sum_{i=1}^{n} \\left(x_i - \\bar{x}\\right)^2} $$"),
+                p("where x₁, x₂, ..., xₙ are the ΔF/F₀ values during the baseline frames and x̄ is their mean."),
+                p("Units: ΔF/F₀ (unitless)"),
+                uiOutput(ns("baseline_sd_calculation_ui"))
+              ),
+
               # --- UI for Rise Time Explanation ---
               conditionalPanel(
                 condition = paste0("input['", ns("metric_to_explain"), "'] == 'rise_time'"),
@@ -355,7 +410,74 @@ mod_metrics_explained_server <- function(id, rv) {
         )
       ))
     })
-    
+
+    output$response_amp_data_points_ui <- renderUI({
+      req(selected_cell_data())
+      data <- selected_cell_data()
+
+      div(style = "background-color: #f8f9fa; padding: 15px; border-radius: 5px; border-left: 4px solid #3498db;",
+        tags$ul(style = "margin-bottom: 0;",
+          tags$li(sprintf("Peak ΔF/F₀: %.3f", data$metric$Peak_dFF0)),
+          tags$li(sprintf("Baseline value: 0 (after normalization)")),
+          tags$li(sprintf("Response Amplitude: %.3f ΔF/F₀", data$metric$Response_Amplitude))
+        )
+      )
+    })
+
+    output$response_amp_calculation_ui <- renderUI({
+      req(selected_cell_data())
+      data <- selected_cell_data()
+
+      withMathJax(tagList(
+        p("For this cell:"),
+        helpText(sprintf("$$ \\text{Response Amplitude} = \\text{Peak } \\Delta F/F_0 - \\text{Baseline} $$")),
+        helpText(sprintf("$$ = %.3f - 0 = %.3f $$", data$metric$Peak_dFF0, data$metric$Response_Amplitude)),
+        div(style = "background-color: #d4edda; padding: 10px; border-radius: 5px; margin-top: 10px; border: 1px solid #c3e6cb;",
+          h5("Result:", style = "margin: 0; color: #155724;"),
+          p(sprintf("Response Amplitude = %.3f ΔF/F₀", data$metric$Response_Amplitude),
+            style = "margin: 5px 0 0 0; font-weight: bold; color: #155724;")
+        )
+      ))
+    })
+
+    output$baseline_sd_data_points_ui <- renderUI({
+      req(selected_cell_data())
+      data <- selected_cell_data()
+
+      baseline_vals <- data$processed_trace$dFF0[rv$baseline_frames[1]:rv$baseline_frames[2]]
+      n_frames <- length(baseline_vals)
+
+      div(style = "background-color: #f8f9fa; padding: 15px; border-radius: 5px; border-left: 4px solid #3498db;",
+        tags$ul(style = "margin-bottom: 0;",
+          tags$li(sprintf("Baseline frames: %d to %d", rv$baseline_frames[1], rv$baseline_frames[2])),
+          tags$li(sprintf("Number of baseline points: %d", n_frames)),
+          tags$li(sprintf("Mean baseline ΔF/F₀: %.4f", mean(baseline_vals, na.rm = TRUE))),
+          tags$li(sprintf("Baseline SD: %.4f ΔF/F₀", data$metric$Baseline_SD))
+        )
+      )
+    })
+
+    output$baseline_sd_calculation_ui <- renderUI({
+      req(selected_cell_data())
+      data <- selected_cell_data()
+
+      baseline_vals <- data$processed_trace$dFF0[rv$baseline_frames[1]:rv$baseline_frames[2]]
+      n_frames <- length(baseline_vals)
+
+      withMathJax(tagList(
+        p("For this cell, using baseline frames:"),
+        helpText(sprintf("$$ n = %d \\text{ frames} $$", n_frames)),
+        helpText(sprintf("$$ \\bar{x} = %.4f $$", mean(baseline_vals, na.rm = TRUE))),
+        helpText("$$ \\text{SD} = \\sqrt{\\frac{1}{n-1} \\sum_{i=1}^{n} (x_i - \\bar{x})^2} $$"),
+        helpText(sprintf("$$ \\text{Baseline SD} = %.4f $$", data$metric$Baseline_SD)),
+        div(style = "background-color: #d4edda; padding: 10px; border-radius: 5px; margin-top: 10px; border: 1px solid #c3e6cb;",
+          h5("Result:", style = "margin: 0; color: #155724;"),
+          p(sprintf("Baseline SD = %.4f ΔF/F₀", data$metric$Baseline_SD),
+            style = "margin: 5px 0 0 0; font-weight: bold; color: #155724;")
+        )
+      ))
+    })
+
     output$rise_time_data_points_ui <- renderUI({
       req(selected_cell_data())
       data <- selected_cell_data()
@@ -666,11 +788,11 @@ mod_metrics_explained_server <- function(id, rv) {
     # A single reactive expression to generate the correct plot based on the user's selection
     explanation_plot_obj <- reactive({
       req(selected_cell_data(), input$metric_to_explain)
-      
+
       data <- selected_cell_data()
       trace <- data$processed_trace
       metric <- data$metric
-      
+
       # Use a switch to return the correct ggplot object
       switch(input$metric_to_explain,
         "peak_dff0" = {
@@ -708,21 +830,74 @@ mod_metrics_explained_server <- function(id, rv) {
             explanation_theme() +
             coord_cartesian(ylim = c(plot_ymin - y_range * 0.15, NA), clip = "off")
         },
+        "response_amplitude" = {
+          y_range <- diff(range(trace$dFF0, na.rm = TRUE))
+
+          p <- ggplot(trace, aes(x = Time, y = dFF0)) +
+            geom_line(color = "gray50", linewidth = 1)
+          if (identical(rv$baseline_method, "frame_range") && !is.null(rv$baseline_frames)) {
+            b_start <- trace$Time[min(rv$baseline_frames[1], nrow(trace))]
+            b_end <- trace$Time[min(rv$baseline_frames[2], nrow(trace))]
+            p <- p + annotate("rect", xmin = b_start, xmax = b_end, ymin = -Inf, ymax = Inf, fill = "grey95", alpha = 0.5)
+          }
+          p + geom_hline(yintercept = 0, color = "darkgreen", linetype = "dashed", linewidth = 1) +
+            annotate("text", x = min(trace$Time), y = 0, label = "Baseline (0)", vjust = -0.5, color = "darkgreen", fontface = "bold") +
+            geom_segment(data = metric, aes(x = Time_to_Peak, xend = Time_to_Peak, y = 0, yend = Peak_dFF0),
+                         color = "blue", linewidth = 1.5, arrow = arrow(length = unit(0.3, "cm"), ends = "both")) +
+            geom_point(data = metric, aes(x = Time_to_Peak, y = Peak_dFF0), color = "red", size = 4) +
+            annotate("text", x = metric$Time_to_Peak, y = metric$Response_Amplitude / 2,
+                     label = sprintf("Amplitude = %.3f", metric$Response_Amplitude),
+                     hjust = -0.1, color = "blue", fontface = "bold", size = 4.5) +
+            labs(title = metric$Cell_Label, x = "Time (s)", y = expression(Delta*F/F[0])) +
+            explanation_theme() + coord_cartesian(clip = "off")
+        },
         "snr" = {
           b_end_time <- trace$Time[min(rv$baseline_frames[2], nrow(trace))]
           y_range <- diff(range(trace$dFF0, na.rm = TRUE))
           x_range <- diff(range(trace$Time, na.rm = TRUE))
           noise_label_x <- min(trace$Time) + x_range * 0.02
-          
+
+          # Pre-calculate values to avoid scoping issues
+          baseline_sd <- metric$Baseline_SD
+          baseline_trace <- trace %>%
+            dplyr::filter(Time <= b_end_time) %>%
+            dplyr::mutate(ymin = -baseline_sd, ymax = baseline_sd)
+
           ggplot(trace, aes(x = Time, y = dFF0)) +
             geom_line(color = "gray50", linewidth = 1) +
-            geom_ribbon(aes(ymin = -metric$Baseline_SD, ymax = metric$Baseline_SD), 
-                        fill = "firebrick", alpha = 0.2, data = . %>% dplyr::filter(Time <= b_end_time)) +
-            geom_label(aes(x = noise_label_x, y = metric$Baseline_SD, label = "Baseline Noise (SD)"), 
-                       color = "firebrick", fontface = "bold", size = 4, hjust = 0, vjust = -0.5,
-                       fill = alpha("white", 0.7), label.size = NA) +
-            geom_point(data = metric, aes(x = Time_to_Peak, y = Peak_dFF0), color = "blue", size = 4) +
+            geom_ribbon(data = baseline_trace, aes(ymin = ymin, ymax = ymax),
+                        fill = "firebrick", alpha = 0.2) +
+            annotate("label", x = noise_label_x, y = baseline_sd, label = "Baseline Noise (SD)",
+                     color = "firebrick", fontface = "bold", size = 4, hjust = 0, vjust = -0.5,
+                     fill = alpha("white", 0.7), label.size = NA) +
+            annotate("point", x = metric$Time_to_Peak, y = metric$Peak_dFF0, color = "blue", size = 4) +
             annotate("text", x = metric$Time_to_Peak, y = metric$Peak_dFF0 + y_range * 0.1, label = "Signal", hjust = 0.5, color = "blue", fontface = "bold") +
+            labs(title = metric$Cell_Label, x = "Time (s)", y = expression(Delta*F/F[0])) +
+            explanation_theme() + coord_cartesian(clip = "off")
+        },
+        "baseline_sd" = {
+          b_end_time <- trace$Time[min(rv$baseline_frames[2], nrow(trace))]
+          baseline_mean <- mean(trace$dFF0[rv$baseline_frames[1]:rv$baseline_frames[2]], na.rm = TRUE)
+
+          # Pre-calculate values to avoid scoping issues
+          baseline_sd <- metric$Baseline_SD
+          baseline_trace <- trace %>% dplyr::filter(Time <= b_end_time)
+
+          ggplot(trace, aes(x = Time, y = dFF0)) +
+            geom_line(color = "gray50", linewidth = 1) +
+            geom_hline(yintercept = baseline_mean, color = "darkgreen", linetype = "solid", linewidth = 0.8) +
+            geom_ribbon(data = baseline_trace, aes(ymin = baseline_mean - baseline_sd, ymax = baseline_mean + baseline_sd),
+                        fill = "firebrick", alpha = 0.2) +
+            geom_hline(yintercept = baseline_mean + baseline_sd, color = "firebrick", linetype = "dashed", linewidth = 0.6) +
+            geom_hline(yintercept = baseline_mean - baseline_sd, color = "firebrick", linetype = "dashed", linewidth = 0.6) +
+            annotate("text", x = b_end_time / 2, y = baseline_mean + baseline_sd,
+                     label = sprintf("+1 SD (%.4f)", baseline_sd),
+                     vjust = -0.5, color = "firebrick", fontface = "bold", size = 4) +
+            annotate("text", x = b_end_time / 2, y = baseline_mean - baseline_sd,
+                     label = sprintf("-1 SD (%.4f)", baseline_sd),
+                     vjust = 1.5, color = "firebrick", fontface = "bold", size = 4) +
+            annotate("rect", xmin = min(trace$Time), xmax = b_end_time, ymin = -Inf, ymax = Inf,
+                     fill = "grey95", alpha = 0.3) +
             labs(title = metric$Cell_Label, x = "Time (s)", y = expression(Delta*F/F[0])) +
             explanation_theme() + coord_cartesian(clip = "off")
         },
