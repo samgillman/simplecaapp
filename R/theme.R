@@ -288,7 +288,7 @@ get_unified_theme_css <- function() {
     }}
 
     /* Style the file input button (Shiny wraps it in a label with btn class) */
-    .input-group .btn-file {{
+    .btn-file {{
       background-color: var(--color-primary-blue) !important;
       border-color: var(--color-primary-blue) !important;
       color: var(--color-white) !important;
@@ -296,29 +296,40 @@ get_unified_theme_css <- function() {
       padding: 6px 16px;
       font-size: var(--type-body);
       font-weight: {weight_medium};
-      cursor: pointer;
+      cursor: pointer !important;
       transition: background-color 150ms ease;
       white-space: nowrap;
       position: relative;
       display: inline-block;
-      z-index: 1;
     }}
 
-    .input-group .btn-file:hover {{
+    .btn-file:hover {{
       background-color: var(--color-primary-dark) !important;
       border-color: var(--color-primary-dark) !important;
     }}
 
+    /* Make the entire button clickable */
+    .btn-file label {{
+      cursor: pointer !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      display: block !important;
+      width: 100% !important;
+      height: 100% !important;
+    }}
+
     /* Ensure the hidden file input is positioned correctly for clicking */
-    .input-group .btn-file input[type='file'] {{
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      opacity: 0;
-      cursor: pointer;
-      z-index: 2;
+    .btn-file input[type='file'] {{
+      position: absolute !important;
+      top: 0 !important;
+      left: 0 !important;
+      right: 0 !important;
+      bottom: 0 !important;
+      width: 100% !important;
+      height: 100% !important;
+      opacity: 0 !important;
+      cursor: pointer !important;
+      z-index: 10 !important;
     }}
 
     /* Style the text input showing filename */
@@ -343,6 +354,21 @@ get_unified_theme_css <- function() {
     /* Remove margin between button and text input */
     .input-group .btn-file + input[type='text'] {{
       margin-left: 0 !important;
+    }}
+
+    /* Override any Shiny default styles that might block clicks */
+    .shiny-input-container .btn-file {{
+      pointer-events: auto !important;
+    }}
+
+    /* Ensure file input wrapper doesn't block clicks */
+    .shiny-input-container label[for*="data_files"] {{
+      pointer-events: none !important;
+    }}
+
+    /* Make sure the actual file input is always clickable */
+    input[type="file"] {{
+      pointer-events: auto !important;
     }}
 
     /* ==================== Sidebar ==================== */
@@ -614,44 +640,74 @@ get_accordion_js <- function() {
     }
   }
 
-  // Fix file input responsiveness on page load
+  // Fix file input responsiveness
+  function fixFileInputs() {
+    // Find all file input buttons
+    const fileButtons = document.querySelectorAll('.btn-file');
+
+    fileButtons.forEach(button => {
+      // Remove any blocking styles
+      button.style.pointerEvents = 'auto';
+      button.style.cursor = 'pointer';
+
+      // Find the file input inside
+      const fileInput = button.querySelector('input[type="file"]');
+      if (!fileInput) return;
+
+      // Make sure input covers the entire button
+      fileInput.style.position = 'absolute';
+      fileInput.style.top = '0';
+      fileInput.style.left = '0';
+      fileInput.style.width = '100%';
+      fileInput.style.height = '100%';
+      fileInput.style.opacity = '0';
+      fileInput.style.cursor = 'pointer';
+      fileInput.style.zIndex = '100';
+
+      // Remove any label wrapper interference
+      const labels = button.querySelectorAll('label');
+      labels.forEach(label => {
+        label.style.pointerEvents = 'none';
+      });
+
+      // Remove previous click handlers to avoid duplicates
+      const newButton = button.cloneNode(true);
+      button.parentNode.replaceChild(newButton, button);
+
+      // Re-get the file input from the new button
+      const newFileInput = newButton.querySelector('input[type="file"]');
+
+      // Ensure clicking anywhere on the button triggers the file input
+      newButton.addEventListener('click', function(e) {
+        // If click wasn't on the file input itself, trigger it
+        if (e.target !== newFileInput && newFileInput) {
+          e.preventDefault();
+          e.stopPropagation();
+          newFileInput.click();
+        }
+      }, true);
+    });
+  }
+
+  // Run on page load
   document.addEventListener('DOMContentLoaded', function() {
-    // Ensure file inputs are clickable with single click
-    const fileInputs = document.querySelectorAll('.btn-file input[type="file"]');
-    fileInputs.forEach(input => {
-      // Remove any existing event handlers that might interfere
-      const newInput = input.cloneNode(true);
-      input.parentNode.replaceChild(newInput, input);
-
-      // Make the parent button also trigger the file input
-      const btnFile = newInput.closest('.btn-file');
-      if (btnFile) {
-        btnFile.style.pointerEvents = 'auto';
-        btnFile.addEventListener('click', function(e) {
-          if (e.target !== newInput) {
-            e.preventDefault();
-            e.stopPropagation();
-            newInput.click();
-          }
-        });
-      }
-    });
-
-    // Re-apply fix when Shiny updates the DOM
-    $(document).on('shiny:value', function(event) {
-      if (event.name && event.name.includes('data_files')) {
-        setTimeout(function() {
-          const fileInput = document.querySelector(`#${event.name}`);
-          if (fileInput && fileInput.type === 'file') {
-            const btnFile = fileInput.closest('.btn-file');
-            if (btnFile) {
-              btnFile.style.pointerEvents = 'auto';
-            }
-          }
-        }, 100);
-      }
-    });
+    setTimeout(fixFileInputs, 500);
   });
+
+  // Run when Shiny initializes
+  if (window.Shiny) {
+    $(document).on('shiny:connected', function() {
+      setTimeout(fixFileInputs, 500);
+    });
+
+    // Run after Shiny updates
+    $(document).on('shiny:value shiny:updateinput', function() {
+      setTimeout(fixFileInputs, 100);
+    });
+  }
+
+  // Also run periodically to catch any dynamic changes
+  setInterval(fixFileInputs, 2000);
   </script>
   ")
 }
