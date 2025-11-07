@@ -60,9 +60,27 @@ mod_preproc_server <- function(id, rv) {
       
       df <- as.data.frame(do.call(rbind, sm), stringsAsFactors = FALSE)
       df$Mean <- as.numeric(df$Mean); df$SEM <- as.numeric(df$SEM); df$n <- as.integer(df$n)
-      datatable(df, 
+
+      # Create custom filename for export buttons
+      base_name <- if (!is.null(rv$files) && nrow(rv$files) > 0) {
+        tools::file_path_sans_ext(basename(rv$files$name[1]))
+      } else {
+        "data"
+      }
+      n_groups <- if (!is.null(rv$groups)) length(rv$groups) else 0
+      export_filename <- paste0(base_name, "_average_metrics_", n_groups, "_groups_", Sys.Date())
+
+      datatable(df,
                 extensions = "Buttons",
-                options=list(dom='Bti', buttons = c('copy', 'csv', 'excel'), pageLength = 15), 
+                options=list(
+                  dom='Bti',
+                  buttons = list(
+                    'copy',
+                    list(extend = 'csv', filename = export_filename),
+                    list(extend = 'excel', filename = export_filename)
+                  ),
+                  pageLength = 15
+                ),
                 rownames=FALSE) |>
         formatRound(c("Mean","SEM"), 4)
     })
