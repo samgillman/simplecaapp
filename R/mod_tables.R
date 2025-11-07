@@ -164,12 +164,32 @@ mod_tables_server <- function(id, rv) {
     })
     
     output$download_cell_metrics <- downloadHandler(
-      filename = function() { paste0("cell_metrics_", Sys.Date(), ".csv") },
-      content = function(file) { req(rv$metrics); write.csv(rv$metrics, file, row.names = FALSE) }
+      filename = function() {
+        base_name <- if (!is.null(rv$files) && nrow(rv$files) > 0) {
+          tools::file_path_sans_ext(basename(rv$files$name[1]))
+        } else {
+          "data"
+        }
+        n_cells <- if (!is.null(rv$metrics)) nrow(rv$metrics) else 0
+        paste0(base_name, "_cell_metrics_", n_cells, "_cells_", Sys.Date(), ".csv")
+      },
+      content = function(file) {
+        req(rv$metrics)
+        # Download ALL cells, not just what's displayed in the paginated table
+        write.csv(rv$metrics, file, row.names = FALSE)
+      }
     )
     
     output$download_summary <- downloadHandler(
-      filename = function() { paste0("summary_statistics_", Sys.Date(), ".csv") },
+      filename = function() {
+        base_name <- if (!is.null(rv$files) && nrow(rv$files) > 0) {
+          tools::file_path_sans_ext(basename(rv$files$name[1]))
+        } else {
+          "data"
+        }
+        n_groups <- if (!is.null(rv$groups)) length(rv$groups) else 0
+        paste0(base_name, "_summary_statistics_", n_groups, "_groups_", Sys.Date(), ".csv")
+      },
       content = function(file) {
         req(rv$metrics)
         df <- rv$metrics
@@ -190,7 +210,14 @@ mod_tables_server <- function(id, rv) {
     )
     
     output$download_timecourse <- downloadHandler(
-      filename = function() { paste0("timecourse_summary_", Sys.Date(), ".csv") },
+      filename = function() {
+        base_name <- if (!is.null(rv$files) && nrow(rv$files) > 0) {
+          tools::file_path_sans_ext(basename(rv$files$name[1]))
+        } else {
+          "data"
+        }
+        paste0(base_name, "_timecourse_summary_", Sys.Date(), ".csv")
+      },
       content = function(file) {
         req(rv$summary)
         s <- rv$summary %>% dplyr::transmute(Group, Time, Mean = mean_dFF0, SD = sd_dFF0, SEM = sem_dFF0, N = n_cells)
@@ -199,8 +226,19 @@ mod_tables_server <- function(id, rv) {
     )
     
     output$download_raw <- downloadHandler(
-      filename = function() { paste0("processed_data_", input$processed_data_group %||% "dataset", "_", Sys.Date(), ".csv") },
-      content = function(file) { req(rv$dts, input$processed_data_group); write.csv(rv$dts[[input$processed_data_group]], file, row.names = FALSE) }
+      filename = function() {
+        base_name <- if (!is.null(rv$files) && nrow(rv$files) > 0) {
+          tools::file_path_sans_ext(basename(rv$files$name[1]))
+        } else {
+          "data"
+        }
+        dataset_name <- input$processed_data_group %||% "dataset"
+        paste0(base_name, "_processed_", dataset_name, "_", Sys.Date(), ".csv")
+      },
+      content = function(file) {
+        req(rv$dts, input$processed_data_group)
+        write.csv(rv$dts[[input$processed_data_group]], file, row.names = FALSE)
+      }
     )
     
   })

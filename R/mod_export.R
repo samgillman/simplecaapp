@@ -36,17 +36,39 @@ mod_export_server <- function(id, rv, metrics_plot_reactive, heatmap_plot_reacti
     
     
     output$dl_processed_wide_exp <- downloadHandler(
-      filename = function() sprintf("processed_%s_%s.csv", input$exp_dl_group %||% "data", Sys.Date()),
+      filename = function() {
+        base_name <- if (!is.null(rv$files) && nrow(rv$files) > 0) {
+          tools::file_path_sans_ext(basename(rv$files$name[1]))
+        } else {
+          "data"
+        }
+        sprintf("%s_processed_%s_%s.csv", base_name, input$exp_dl_group %||% "data", Sys.Date())
+      },
       content = function(file) { req(rv$dts, input$exp_dl_group); data.table::fwrite(rv$dts[[input$exp_dl_group]], file) }
     )
-    
+
     output$dl_metrics_csv <- downloadHandler(
-      filename = function() sprintf("metrics_%s.csv", Sys.Date()),
+      filename = function() {
+        base_name <- if (!is.null(rv$files) && nrow(rv$files) > 0) {
+          tools::file_path_sans_ext(basename(rv$files$name[1]))
+        } else {
+          "data"
+        }
+        n_cells <- if (!is.null(rv$metrics)) nrow(rv$metrics) else 0
+        sprintf("%s_all_metrics_%d_cells_%s.csv", base_name, n_cells, Sys.Date())
+      },
       content = function(file) data.table::fwrite(rv$metrics, file)
     )
-    
+
     output$dl_summary_csv <- downloadHandler(
-      filename = function() sprintf("timecourse_summary_%s.csv", Sys.Date()),
+      filename = function() {
+        base_name <- if (!is.null(rv$files) && nrow(rv$files) > 0) {
+          tools::file_path_sans_ext(basename(rv$files$name[1]))
+        } else {
+          "data"
+        }
+        sprintf("%s_timecourse_summary_%s.csv", base_name, Sys.Date())
+      },
       content = function(file) data.table::fwrite(rv$summary, file)
     )
     
