@@ -106,7 +106,13 @@ mod_preproc_server <- function(id, rv) {
     
     output$dl_avg_metrics_img <- downloadHandler(
       filename = function() {
-        sprintf("average_metrics_%s.%s", Sys.Date(), input$dl_fmt)
+        base_name <- if (!is.null(rv$files) && nrow(rv$files) > 0) {
+          tools::file_path_sans_ext(basename(rv$files$name[1]))
+        } else {
+          "data"
+        }
+        n_groups <- if (!is.null(rv$groups)) length(rv$groups) else 0
+        sprintf("%s_average_metrics_%d_groups_%s.%s", base_name, n_groups, Sys.Date(), input$dl_fmt)
       },
       content = function(file) {
         req(avg_metrics_gt())
@@ -126,7 +132,14 @@ mod_preproc_server <- function(id, rv) {
     )
     
     output$dl_processed_wide <- downloadHandler(
-      filename = function() sprintf("processed_%s_%s.csv", input$pp_dl_group %||% "data", Sys.Date()),
+      filename = function() {
+        base_name <- if (!is.null(rv$files) && nrow(rv$files) > 0) {
+          tools::file_path_sans_ext(basename(rv$files$name[1]))
+        } else {
+          "data"
+        }
+        sprintf("%s_processed_%s_%s.csv", base_name, input$pp_dl_group %||% "data", Sys.Date())
+      },
       content = function(file) { req(rv$dts, input$pp_dl_group); data.table::fwrite(rv$dts[[input$pp_dl_group]], file) }
     )
     

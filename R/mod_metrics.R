@@ -221,7 +221,13 @@ mod_metrics_server <- function(id, rv) {
     
     output$dl_plot <- downloadHandler(
       filename = function() {
-        sprintf("metrics_plot_%s.%s", Sys.Date(), input$dl_format)
+        base_name <- if (!is.null(rv$files) && nrow(rv$files) > 0) {
+          tools::file_path_sans_ext(basename(rv$files$name[1]))
+        } else {
+          "data"
+        }
+        metric_name <- gsub(" ", "_", tolower(input$selected_metric %||% "metric"))
+        sprintf("%s_%s_plot_%s.%s", base_name, metric_name, Sys.Date(), input$dl_format)
       },
       content = function(file) {
         ggsave(file, plot = metrics_plot_obj(),
