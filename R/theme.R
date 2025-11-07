@@ -301,6 +301,7 @@ get_unified_theme_css <- function() {
       white-space: nowrap;
       position: relative;
       display: inline-block;
+      z-index: 1;
     }}
 
     .input-group .btn-file:hover {{
@@ -312,16 +313,12 @@ get_unified_theme_css <- function() {
     .input-group .btn-file input[type='file'] {{
       position: absolute;
       top: 0;
-      right: 0;
-      min-width: 100%;
-      min-height: 100%;
-      font-size: 100px;
-      text-align: right;
-      filter: alpha(opacity=0);
+      left: 0;
+      width: 100%;
+      height: 100%;
       opacity: 0;
-      outline: none;
       cursor: pointer;
-      display: block;
+      z-index: 2;
     }}
 
     /* Style the text input showing filename */
@@ -616,6 +613,45 @@ get_accordion_js <- function() {
       chevron.style.transform = 'rotate(0deg)';
     }
   }
+
+  // Fix file input responsiveness on page load
+  document.addEventListener('DOMContentLoaded', function() {
+    // Ensure file inputs are clickable with single click
+    const fileInputs = document.querySelectorAll('.btn-file input[type="file"]');
+    fileInputs.forEach(input => {
+      // Remove any existing event handlers that might interfere
+      const newInput = input.cloneNode(true);
+      input.parentNode.replaceChild(newInput, input);
+
+      // Make the parent button also trigger the file input
+      const btnFile = newInput.closest('.btn-file');
+      if (btnFile) {
+        btnFile.style.pointerEvents = 'auto';
+        btnFile.addEventListener('click', function(e) {
+          if (e.target !== newInput) {
+            e.preventDefault();
+            e.stopPropagation();
+            newInput.click();
+          }
+        });
+      }
+    });
+
+    // Re-apply fix when Shiny updates the DOM
+    $(document).on('shiny:value', function(event) {
+      if (event.name && event.name.includes('data_files')) {
+        setTimeout(function() {
+          const fileInput = document.querySelector(`#${event.name}`);
+          if (fileInput && fileInput.type === 'file') {
+            const btnFile = fileInput.closest('.btn-file');
+            if (btnFile) {
+              btnFile.style.pointerEvents = 'auto';
+            }
+          }
+        }, 100);
+      }
+    });
+  });
   </script>
   ")
 }
