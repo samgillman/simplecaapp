@@ -10,7 +10,51 @@ mod_load_data_ui <- function(id) {
               box(title = "Load Data", status = "primary", solidHeader = TRUE, width = 12, collapsible = FALSE,
                   div(style = "padding: 12px;",
                       fileInput(ns("data_files"),"Upload CSV or Excel (wide; first column = Time)", multiple = TRUE,
-                                accept = c(".csv",".xlsx",".xls"))
+                                accept = c(".csv",".xlsx",".xls")),
+                      # Add JavaScript to fix the file input after page loads
+                      tags$script(HTML(paste0("
+                        $(document).ready(function() {
+                          // Wait for Shiny to be fully connected
+                          $(document).on('shiny:connected', function() {
+                            setTimeout(function() {
+                              // Find the specific file input for this module
+                              var fileInput = $('#", ns("data_files"), "');
+                              var fileInputElement = fileInput[0];
+                              if (fileInputElement) {
+                                // Make the entire button area clickable
+                                var buttonArea = fileInput.closest('.form-group').find('.btn-file');
+                                var textArea = fileInput.closest('.form-group').find('input[type=\"text\"]');
+
+                                // Remove the display:none and make it cover the button
+                                fileInputElement.style.display = 'block';
+                                fileInputElement.style.position = 'absolute';
+                                fileInputElement.style.top = '0';
+                                fileInputElement.style.left = '0';
+                                fileInputElement.style.width = '100%';
+                                fileInputElement.style.height = '100%';
+                                fileInputElement.style.opacity = '0';
+                                fileInputElement.style.cursor = 'pointer';
+                                fileInputElement.style.zIndex = '1000';
+
+                                // Make the parent container relative
+                                var inputGroup = fileInput.closest('.input-group');
+                                if (inputGroup.length > 0) {
+                                  inputGroup[0].style.position = 'relative';
+                                }
+
+                                // Add click handler to the text field
+                                if (textArea.length > 0) {
+                                  textArea.css('cursor', 'pointer');
+                                  textArea.on('click', function(e) {
+                                    e.preventDefault();
+                                    fileInputElement.click();
+                                  });
+                                }
+                              }
+                            }, 1000);
+                          });
+                        });
+                      ")))
                   )
               ),
               box(title = "Processing Options", status = "primary", solidHeader = TRUE, width = 12, collapsible = FALSE,
