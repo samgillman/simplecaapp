@@ -319,6 +319,11 @@ get_unified_theme_css <- function() {
     }}
 
     /* Ensure the hidden file input is positioned correctly for clicking */
+    .btn-file {{
+      position: relative !important;
+      overflow: visible !important;
+    }}
+
     .btn-file input[type='file'] {{
       position: absolute !important;
       top: 0 !important;
@@ -329,7 +334,8 @@ get_unified_theme_css <- function() {
       height: 100% !important;
       opacity: 0 !important;
       cursor: pointer !important;
-      z-index: 10 !important;
+      z-index: 999 !important;
+      display: block !important; /* Override Shiny's display:none */
     }}
 
     /* Style the text input showing filename */
@@ -362,12 +368,12 @@ get_unified_theme_css <- function() {
     }}
 
     /* Ensure file input wrapper doesn't block clicks */
-    .shiny-input-container label[for*="data_files"] {{
+    .shiny-input-container label[for*='data_files'] {{
       pointer-events: none !important;
     }}
 
     /* Make sure the actual file input is always clickable */
-    input[type="file"] {{
+    input[type='file'] {{
       pointer-events: auto !important;
     }}
 
@@ -640,21 +646,17 @@ get_accordion_js <- function() {
     }
   }
 
-  // Fix file input responsiveness
+  // Fix file input responsiveness - Shiny specific solution
   function fixFileInputs() {
-    // Find all file input buttons
-    const fileButtons = document.querySelectorAll('.btn-file');
+    // Find all file input containers
+    const fileInputContainers = document.querySelectorAll('input[type=\"file\"]');
 
-    fileButtons.forEach(button => {
-      // Remove any blocking styles
-      button.style.pointerEvents = 'auto';
-      button.style.cursor = 'pointer';
+    fileInputContainers.forEach(fileInput => {
+      // Find the button span that contains this file input
+      let buttonSpan = fileInput.closest('.btn-file');
+      if (!buttonSpan) return;
 
-      // Find the file input inside
-      const fileInput = button.querySelector('input[type="file"]');
-      if (!fileInput) return;
-
-      // Make sure input covers the entire button
+      // Make the file input clickable by fixing its styles
       fileInput.style.position = 'absolute';
       fileInput.style.top = '0';
       fileInput.style.left = '0';
@@ -662,30 +664,36 @@ get_accordion_js <- function() {
       fileInput.style.height = '100%';
       fileInput.style.opacity = '0';
       fileInput.style.cursor = 'pointer';
-      fileInput.style.zIndex = '100';
+      fileInput.style.zIndex = '999';
+      fileInput.style.display = 'block'; // Override display:none
 
-      // Remove any label wrapper interference
-      const labels = button.querySelectorAll('label');
-      labels.forEach(label => {
-        label.style.pointerEvents = 'none';
-      });
+      // Ensure the button span is positioned relative
+      buttonSpan.style.position = 'relative';
+      buttonSpan.style.overflow = 'visible';
+      buttonSpan.style.cursor = 'pointer';
 
-      // Remove previous click handlers to avoid duplicates
-      const newButton = button.cloneNode(true);
-      button.parentNode.replaceChild(newButton, button);
+      // Make sure the button span is clickable
+      buttonSpan.style.pointerEvents = 'auto';
 
-      // Re-get the file input from the new button
-      const newFileInput = newButton.querySelector('input[type="file"]');
+      // Add a click handler to the button span as fallback
+      // Remove existing listeners first
+      const newButtonSpan = buttonSpan.cloneNode(true);
+      const newFileInput = newButtonSpan.querySelector('input[type=\"file\"]');
 
-      // Ensure clicking anywhere on the button triggers the file input
-      newButton.addEventListener('click', function(e) {
-        // If click wasn't on the file input itself, trigger it
-        if (e.target !== newFileInput && newFileInput) {
-          e.preventDefault();
-          e.stopPropagation();
-          newFileInput.click();
-        }
-      }, true);
+      if (newFileInput) {
+        // Re-apply styles to the cloned input
+        newFileInput.style.position = 'absolute';
+        newFileInput.style.top = '0';
+        newFileInput.style.left = '0';
+        newFileInput.style.width = '100%';
+        newFileInput.style.height = '100%';
+        newFileInput.style.opacity = '0';
+        newFileInput.style.cursor = 'pointer';
+        newFileInput.style.zIndex = '999';
+        newFileInput.style.display = 'block';
+      }
+
+      buttonSpan.parentNode.replaceChild(newButtonSpan, buttonSpan);
     });
   }
 
