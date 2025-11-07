@@ -1,4 +1,7 @@
 # =============================== Load Libraries ===============================
+# Increase max upload size to 100MB (default is 5MB)
+options(shiny.maxRequestSize = 100*1024^2)
+
 library(shiny)
 library(shinydashboard)
 library(shinyjs)

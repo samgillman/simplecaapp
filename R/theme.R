@@ -318,23 +318,28 @@ get_unified_theme_css <- function() {
       height: 100% !important;
     }}
 
-    /* Ensure the hidden file input is positioned correctly for clicking */
+    /* Fix the file input button structure */
     .btn-file {{
       position: relative !important;
       overflow: visible !important;
+      display: inline-block !important;
     }}
 
-    .btn-file input[type='file'] {{
+    /* Make the entire input-group clickable for file selection */
+    .shiny-input-container .input-group {{
+      position: relative !important;
+    }}
+
+    /* Position file input to cover the entire button AND text field */
+    .shiny-input-container input[type='file'] {{
       position: absolute !important;
       top: 0 !important;
       left: 0 !important;
-      right: 0 !important;
-      bottom: 0 !important;
       width: 100% !important;
       height: 100% !important;
       opacity: 0 !important;
       cursor: pointer !important;
-      z-index: 999 !important;
+      z-index: 9999 !important;
       display: block !important; /* Override Shiny's display:none */
     }}
 
@@ -646,56 +651,63 @@ get_accordion_js <- function() {
     }
   }
 
-  // Fix file input responsiveness - Shiny specific solution
+  // Fix file input - Complete solution for Shiny file upload
   function fixFileInputs() {
-    // Find all file input containers
-    const fileInputContainers = document.querySelectorAll('input[type=\"file\"]');
+    const fileInputs = document.querySelectorAll('input[type=\"file\"]');
 
-    fileInputContainers.forEach(fileInput => {
-      // Find the button span that contains this file input
-      let buttonSpan = fileInput.closest('.btn-file');
-      if (!buttonSpan) return;
+    fileInputs.forEach(function(fileInput) {
+      // Get the containing input-group div
+      const inputGroup = fileInput.closest('.input-group');
+      if (!inputGroup) return;
 
-      // Make the file input clickable by fixing its styles
-      fileInput.style.position = 'absolute';
-      fileInput.style.top = '0';
-      fileInput.style.left = '0';
-      fileInput.style.width = '100%';
-      fileInput.style.height = '100%';
-      fileInput.style.opacity = '0';
-      fileInput.style.cursor = 'pointer';
-      fileInput.style.zIndex = '999';
-      fileInput.style.display = 'block'; // Override display:none
+      // Move the file input to cover the ENTIRE input-group (button + text field)
+      inputGroup.style.position = 'relative';
 
-      // Ensure the button span is positioned relative
-      buttonSpan.style.position = 'relative';
-      buttonSpan.style.overflow = 'visible';
-      buttonSpan.style.cursor = 'pointer';
+      // Apply critical styles with !important to override Shiny's defaults
+      fileInput.style.cssText =
+        'position: absolute !important;' +
+        'top: 0 !important;' +
+        'left: 0 !important;' +
+        'width: 100% !important;' +
+        'height: 100% !important;' +
+        'opacity: 0 !important;' +
+        'cursor: pointer !important;' +
+        'z-index: 10000 !important;' +
+        'display: block !important;';
 
-      // Make sure the button span is clickable
-      buttonSpan.style.pointerEvents = 'auto';
-
-      // Add a click handler to the button span as fallback
-      // Remove existing listeners first
-      const newButtonSpan = buttonSpan.cloneNode(true);
-      const newFileInput = newButtonSpan.querySelector('input[type=\"file\"]');
-
-      if (newFileInput) {
-        // Re-apply styles to the cloned input
-        newFileInput.style.position = 'absolute';
-        newFileInput.style.top = '0';
-        newFileInput.style.left = '0';
-        newFileInput.style.width = '100%';
-        newFileInput.style.height = '100%';
-        newFileInput.style.opacity = '0';
-        newFileInput.style.cursor = 'pointer';
-        newFileInput.style.zIndex = '999';
-        newFileInput.style.display = 'block';
+      // Ensure the file input is actually in the DOM and not hidden
+      if (fileInput.style.display === 'none') {
+        fileInput.style.display = 'block';
       }
 
-      buttonSpan.parentNode.replaceChild(newButtonSpan, buttonSpan);
+      // Make the button and text field look clickable
+      const btnFile = inputGroup.querySelector('.btn-file');
+      const textInput = inputGroup.querySelector('input[type=\"text\"]');
+
+      if (btnFile) {
+        btnFile.style.cursor = 'pointer';
+      }
+
+      if (textInput) {
+        textInput.style.cursor = 'pointer';
+      }
     });
   }
+
+  // Fallback click handler for the entire input group
+  document.addEventListener('click', function(e) {
+    // Check if clicked element is within a file input group
+    const inputGroup = e.target.closest('.shiny-input-container .input-group');
+    if (inputGroup && e.target.tagName !== 'INPUT') {
+      const fileInput = inputGroup.querySelector('input[type=\"file\"]');
+      if (fileInput && fileInput.type === 'file') {
+        e.preventDefault();
+        e.stopPropagation();
+        // Trigger the file input
+        fileInput.click();
+      }
+    }
+  }, true);
 
   // Run on page load
   document.addEventListener('DOMContentLoaded', function() {
