@@ -60,9 +60,27 @@ mod_preproc_server <- function(id, rv) {
       
       df <- as.data.frame(do.call(rbind, sm), stringsAsFactors = FALSE)
       df$Mean <- as.numeric(df$Mean); df$SEM <- as.numeric(df$SEM); df$n <- as.integer(df$n)
+
+      n_groups <- if (!is.null(rv$groups)) length(rv$groups) else 0
+      export_filename <- tools::file_path_sans_ext(
+        build_export_filename(
+          rv,
+          parts = c("average_metrics", sprintf("%d_groups", n_groups)),
+          ext = "csv"
+        )
+      )
+
       datatable(df, 
                 extensions = "Buttons",
-                options=list(dom='Bti', buttons = c('copy', 'csv', 'excel'), pageLength = 15), 
+                options=list(
+                  dom='Bti',
+                  buttons = list(
+                    'copy',
+                    list(extend = 'csv', filename = export_filename),
+                    list(extend = 'excel', filename = export_filename)
+                  ),
+                  pageLength = 15
+                ), 
                 rownames=FALSE) |>
         formatRound(c("Mean","SEM"), 4)
     })
@@ -106,7 +124,12 @@ mod_preproc_server <- function(id, rv) {
     
     output$dl_avg_metrics_img <- downloadHandler(
       filename = function() {
-        sprintf("average_metrics_%s.%s", Sys.Date(), input$dl_fmt)
+        n_groups <- if (!is.null(rv$groups)) length(rv$groups) else 0
+        build_export_filename(
+          rv,
+          parts = c("average_metrics", sprintf("%d_groups", n_groups)),
+          ext = input$dl_fmt %||% "png"
+        )
       },
       content = function(file) {
         req(avg_metrics_gt())
@@ -126,7 +149,14 @@ mod_preproc_server <- function(id, rv) {
     )
     
     output$dl_processed_wide <- downloadHandler(
-      filename = function() sprintf("processed_%s_%s.csv", input$pp_dl_group %||% "data", Sys.Date()),
+      filename = function() {
+        dataset <- input$pp_dl_group %||% "dataset"
+        build_export_filename(
+          rv,
+          parts = c("processed", dataset, "wide"),
+          ext = "csv"
+        )
+      },
       content = function(file) { req(rv$dts, input$pp_dl_group); data.table::fwrite(rv$dts[[input$pp_dl_group]], file) }
     )
     

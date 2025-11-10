@@ -84,7 +84,93 @@ mod_time_course_server <- function(id, rv) {
     observeEvent(input$toggle_advanced, {
       advanced_visible(!advanced_visible())
     })
-    
+
+    # Output to control conditional panel visibility
+    output$baseline_method_is_frame_range <- reactive({
+      identical(rv$baseline_method, "frame_range")
+    })
+    outputOptions(output, "baseline_method_is_frame_range", suspendWhenHidden = FALSE)
+
+    # Sync slider with current baseline when data is loaded
+    observeEvent(rv$baseline_frames, {
+      if (!is.null(rv$baseline_frames) && length(rv$baseline_frames) == 2) {
+        updateSliderInput(session, "tc_baseline_frames", value = rv$baseline_frames)
+      }
+    }, ignoreInit = TRUE)
+
+    # Handle baseline change application
+    observeEvent(input$apply_baseline, {
+      req(rv$raw_traces, rv$baselines, input$tc_baseline_frames)
+
+      # Ensure baseline method is frame_range
+      if (!identical(rv$baseline_method, "frame_range")) {
+        showNotification("Baseline adjustment only available for Frame Range method", type = "warning", duration = 3)
+        return()
+      }
+
+      withProgress(message = "Recalculating with new baseline...", value = 0, {
+        new_baseline_frames <- input$tc_baseline_frames
+
+        # Update rv$baseline_frames
+        rv$baseline_frames <- new_baseline_frames
+
+        # Reprocess all data with new baseline
+        dts <- list()
+        baselines <- list()
+
+        for (group_name in names(rv$raw_traces)) {
+          incProgress(1/length(rv$raw_traces), detail = paste("Processing:", group_name))
+
+          dt <- data.table::copy(rv$raw_traces[[group_name]])
+
+          # Calculate new F0 with new baseline frames
+          start_frame <- max(1, as.integer(new_baseline_frames[1]))
+          end_frame <- min(nrow(dt), as.integer(new_baseline_frames[2]))
+
+          F0 <- vapply(seq(2, ncol(dt)), function(j) {
+            mean(dt[[j]][start_frame:end_frame], na.rm = TRUE)
+          }, numeric(1))
+
+          baselines[[group_name]] <- setNames(F0, names(dt)[-1])
+
+          # Apply new ΔF/F₀ transformation
+          for (k in seq_along(F0)) {
+            j <- k + 1
+            f0 <- F0[[k]]
+            if (is.finite(f0) && f0 > 1e-6) {
+              dt[[j]] <- (dt[[j]] - f0) / f0
+            } else if (is.finite(f0) && f0 <= 1e-6) {
+              dt[[j]] <- dt[[j]] - f0
+            }
+          }
+
+          dts[[group_name]] <- dt
+        }
+
+        # Update reactive values
+        rv$dts <- dts
+        rv$baselines <- baselines
+
+        # Recalculate long format and summary
+        rv$long <- purrr::imap(dts, ~to_long(.x, .y)) |> dplyr::bind_rows()
+        rv$summary <- if (nrow(rv$long) > 0) {
+          rv$long |>
+            dplyr::group_by(Group, Time) |>
+            dplyr::summarise(mean_dFF0 = mean(dFF0, na.rm = TRUE),
+                           sem_dFF0 = stats::sd(dFF0, na.rm = TRUE)/sqrt(dplyr::n()),
+                           sd_dFF0 = stats::sd(dFF0, na.rm = TRUE),
+                           n_cells = dplyr::n(), .groups = "drop")
+        } else NULL
+
+        # Recalculate metrics
+        rv$metrics <- purrr::imap(dts, ~compute_metrics_for_dt(.x, .y, new_baseline_frames)) |>
+          dplyr::bind_rows()
+
+        showNotification("Baseline updated successfully! All metrics recalculated.",
+                        type = "message", duration = 3)
+      })
+    })
+
     # Store the last known groups to detect actual changes
     last_groups <- reactiveVal(NULL)
     
@@ -132,6 +218,29 @@ mod_time_course_server <- function(id, rv) {
       ns <- session$ns
       
       wellPanel(style = "background-color: #f8f9fa; margin-bottom: 20px;",
+                # Baseline adjustment section
+                div(style = "background-color: #fff3cd; padding: 10px; margin-bottom: 15px; border-radius: 5px; border: 1px solid #ffc107;",
+                    h5("⚠️ Baseline Adjustment", style = "font-weight: bold; color: #856404; margin-top: 0;"),
+                    p("Changing baseline will recalculate all data and metrics. Only available for frame range method.",
+                      style = "font-size: 12px; color: #856404; margin-bottom: 10px;"),
+                    conditionalPanel(
+                      condition = "output.baseline_method_is_frame_range",
+                      ns = ns,
+                      sliderInput(ns("tc_baseline_frames"), "Baseline Frame Range:",
+                                  min = 1, max = 100,
+                                  value = c(isolate(rv$baseline_frames)[1] %||% 1, isolate(rv$baseline_frames)[2] %||% 20),
+                                  step = 1),
+                      actionButton(ns("apply_baseline"), "Apply Baseline Change",
+                                   class = "btn-warning btn-sm",
+                                   style = "width: 100%;")
+                    ),
+                    conditionalPanel(
+                      condition = "!output.baseline_method_is_frame_range",
+                      ns = ns,
+                      p("Baseline adjustment only available for 'Frame Range' method. Go to Load Data tab to change baseline method.",
+                        style = "font-size: 12px; color: #856404; font-style: italic;")
+                    )
+                ),
                 fluidRow(
                   column(width = 3,
                          h5("Display Options", style = "font-weight: bold; color: #333;"),
@@ -141,7 +250,7 @@ mod_time_course_server <- function(id, rv) {
                          sliderInput(ns("tc_line_width"),"Line width", 0.5, 4, isolate(input$tc_line_width) %||% 1.6, 0.1, width = "100%"),
                          tags$hr(),
                          h6("Y-Axis Scale", style = "font-weight: bold; margin-top: 10px;"),
-                         sliderInput(ns("tc_scale_step"), "Y-axis step size", 
+                         sliderInput(ns("tc_scale_step"), "Y-axis step size",
                                     min = 0.1, max = 1.0, value = isolate(input$tc_scale_step) %||% 0.5, step = 0.1,
                                     helpText("Controls Y-axis tick spacing"))
                   ),
@@ -600,12 +709,12 @@ mod_time_course_server <- function(id, rv) {
     # Download handler
     output$dl_timecourse_plot_local <- downloadHandler(
       filename = function() {
-        base_name <- if (!is.null(rv$groups) && length(rv$groups) > 0) {
-          paste(rv$groups, collapse = "_")
-        } else {
-          "timecourse"
-        }
-        sprintf("%s Time Course Plot.%s", base_name, input$tc_dl_fmt)
+        group_part <- if (!is.null(rv$groups) && length(rv$groups) > 0) paste(rv$groups, collapse = "-") else NULL
+        build_export_filename(
+          rv,
+          parts = c("time_course_plot", group_part),
+          ext = input$tc_dl_fmt %||% "png"
+        )
       },
       content = function(file) {
         req(rv$summary)

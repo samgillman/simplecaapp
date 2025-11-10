@@ -10,6 +10,50 @@ library(stringr) # For str_extract
 # Custom operator for handling NULL values
 `%||%` <- function(a, b) if (!is.null(a)) a else b
 
+# --------------------------- Export helpers ---------------------------
+
+#' Sanitize a value so it can safely be used inside a filename
+#' @param x Value to sanitize (character/numeric)
+#' @param fallback Value to return when x is NULL/empty/unsuitable
+#' @return A safe filename component or fallback/NULL
+sanitize_filename_component <- function(x, fallback = NULL) {
+  if (is.null(x) || is.na(x)) return(fallback)
+  if (is.numeric(x)) x <- format(x, trim = TRUE, scientific = FALSE)
+  if (!nzchar(x)) return(fallback)
+  cleaned <- gsub("[^A-Za-z0-9_-]+", "_", x)
+  cleaned <- gsub("_+", "_", cleaned)
+  cleaned <- gsub("^_|_$", "", cleaned)
+  if (!nzchar(cleaned)) fallback else cleaned
+}
+
+#' Base name (without extension) pulled from the first uploaded file
+#' @param rv App reactiveValues list
+#' @return A sanitized base name with a default of "data"
+export_base_name <- function(rv) {
+  if (!is.null(rv$files) && nrow(rv$files) > 0 && "name" %in% names(rv$files)) {
+    name <- tools::file_path_sans_ext(basename(rv$files$name[1]))
+    sanitize_filename_component(name, "data")
+  } else {
+    "data"
+  }
+}
+
+#' Helper to compose a descriptive export filename
+#' @param rv Reactive values (for deriving base name)
+#' @param parts Character vector of additional filename parts
+#' @param ext File extension (without dot)
+#' @param include_date Whether to append today's date automatically
+#' @return A filename string like "dataset_context_2025-11-02.csv"
+build_export_filename <- function(rv, parts = character(), ext = "csv", include_date = TRUE) {
+  base <- export_base_name(rv)
+  components <- c(base, parts)
+  sanitized <- unlist(lapply(components, sanitize_filename_component, fallback = NULL), use.names = FALSE)
+  if (include_date) {
+    sanitized <- c(sanitized, format(Sys.Date()))
+  }
+  sprintf("%s.%s", paste(sanitized, collapse = "_"), ext)
+}
+
 # Safely read csv or excel files into a data.table
 safe_read <- function(path) {
   ext <- tolower(tools::file_ext(path))
@@ -133,8 +177,21 @@ calculate_cell_metrics <- function(cell_data, time_vec, baseline_frames = c(1, 2
                       Response_Amplitude=NA, FWHM=NA, Half_Width=NA, Baseline_SD=NA, SNR=NA))
   }
 
-  peak_value <- max(working_signal, na.rm = TRUE)
-  peak_idx <- which.max(working_signal)
+  # Only look for peaks AFTER the baseline period
+  search_region <- working_signal
+  search_region[1:end_frame] <- -Inf  # Exclude baseline frames from peak search
+
+  peak_idx <- which.max(search_region)
+  peak_value <- working_signal[peak_idx]
+
+  # If peak is in baseline or no valid peak found, return NA for all metrics
+  if (peak_idx <= end_frame || !is.finite(peak_value)) {
+    return(data.frame(Peak_dFF0=NA, Time_to_Peak=NA, Rise_Time=NA, AUC=NA,
+                      Response_Amplitude=NA, FWHM=NA, Half_Width=NA, Baseline_SD=baseline_sd, SNR=NA,
+                      Time_to_25_Peak=NA, Time_to_50_Peak=NA, Time_to_75_Peak=NA,
+                      Calcium_Entry_Rate=NA))
+  }
+
   time_to_peak <- t[peak_idx]
   response_amplitude <- peak_value - baseline
   
@@ -225,7 +282,7 @@ compute_metrics_for_dt <- function(dt, group_label, baseline_frames = c(1, 20)) 
   
   # Calculate metrics for each cell column
   metrics_list <- lapply(cell_cols, function(col_name) {
-    metrics <- calculate_cell_metrics(dt[[col_name]], time_vec, baseline_frames)
+    metrics <- calculate_cell_metrics(dt[[col_name]], time_vec, baseline_frames, data_is_dFF0 = TRUE)
     metrics$Group <- group_label
     metrics$Cell <- col_name
     metrics$Cell_ID <- paste(group_label, col_name, sep = "_")

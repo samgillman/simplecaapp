@@ -1058,8 +1058,13 @@ mod_metrics_explained_server <- function(id, rv) {
     output$dl_plot <- downloadHandler(
       filename = function() {
         req(input$metric_to_explain, selected_cell_data())
-        cell_label <- gsub("[^A-Za-z0-9_-]", "_", selected_cell_data()$metric$Cell_Label)
-        sprintf("%s_%s.%s", input$metric_to_explain, cell_label, input$dl_format %||% "png")
+        metric_part <- sanitize_filename_component(input$metric_to_explain, "metric")
+        cell_part <- sanitize_filename_component(selected_cell_data()$metric$Cell_Label, "cell")
+        build_export_filename(
+          rv,
+          parts = c("metric_explanation", metric_part, cell_part),
+          ext = input$dl_format %||% "png"
+        )
       },
       content = function(file) {
         req(explanation_plot_obj())

@@ -22,7 +22,7 @@ A modern, interactive Shiny application for calcium imaging data analysis. Simpl
 
 ### Quantitative Analysis
 Automatic calculation of key calcium imaging metrics:
-- **Peak ΔF/F₀**: Maximum fluorescence response intensity
+- **Peak ΔF/F₀**: Maximum fluorescence response intensity (excludes baseline period)
 - **Time to Peak**: Duration until signal reaches maximum
 - **Rise Time (10-90%)**: Time for signal to rise from 10% to 90% of peak
 - **Calcium Entry Rate**: Rate of signal rise (ΔF/F₀/s)
@@ -30,6 +30,13 @@ Automatic calculation of key calcium imaging metrics:
 - **FWHM & Half-Width**: Duration of response at half-maximum intensity
 - **Area Under Curve (AUC)**: Total signal over time
 - **Signal-to-Noise Ratio (SNR)**: Response strength relative to baseline noise
+- **Baseline Standard Deviation**: Quantifies noise level during rest period
+
+### Advanced Features (New)
+- **Interactive Baseline Adjustment**: Recalculate baseline in Time Course and Heatmap tabs without reloading data
+- **Baseline Period Protection**: Peaks within baseline frames are excluded from analysis
+- **Metric Explanations**: Visual breakdown showing how each metric is calculated using your actual data
+- **Improved ΔF/F₀ Calculation**: Handles edge cases like very small baselines and already-processed data
 
 ### Export & Documentation
 - **Multiple export formats**: CSV, Excel, PNG, PDF, TIFF, SVG

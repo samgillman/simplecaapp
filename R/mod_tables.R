@@ -164,12 +164,26 @@ mod_tables_server <- function(id, rv) {
     })
     
     output$download_cell_metrics <- downloadHandler(
-      filename = function() { paste0("cell_metrics_", Sys.Date(), ".csv") },
+      filename = function() {
+        n_cells <- if (!is.null(rv$metrics)) nrow(rv$metrics) else 0
+        build_export_filename(
+          rv,
+          parts = c("individual_cell_metrics", sprintf("%d_cells", n_cells)),
+          ext = "csv"
+        )
+      },
       content = function(file) { req(rv$metrics); write.csv(rv$metrics, file, row.names = FALSE) }
     )
     
     output$download_summary <- downloadHandler(
-      filename = function() { paste0("summary_statistics_", Sys.Date(), ".csv") },
+      filename = function() {
+        n_groups <- if (!is.null(rv$groups)) length(rv$groups) else 0
+        build_export_filename(
+          rv,
+          parts = c("summary_statistics", sprintf("%d_groups", n_groups)),
+          ext = "csv"
+        )
+      },
       content = function(file) {
         req(rv$metrics)
         df <- rv$metrics
@@ -190,7 +204,14 @@ mod_tables_server <- function(id, rv) {
     )
     
     output$download_timecourse <- downloadHandler(
-      filename = function() { paste0("timecourse_summary_", Sys.Date(), ".csv") },
+      filename = function() {
+        n_groups <- if (!is.null(rv$groups)) length(rv$groups) else 0
+        build_export_filename(
+          rv,
+          parts = c("timecourse_summary", sprintf("%d_groups", n_groups)),
+          ext = "csv"
+        )
+      },
       content = function(file) {
         req(rv$summary)
         s <- rv$summary %>% dplyr::transmute(Group, Time, Mean = mean_dFF0, SD = sd_dFF0, SEM = sem_dFF0, N = n_cells)
@@ -199,7 +220,20 @@ mod_tables_server <- function(id, rv) {
     )
     
     output$download_raw <- downloadHandler(
-      filename = function() { paste0("processed_data_", input$processed_data_group %||% "dataset", "_", Sys.Date(), ".csv") },
+      filename = function() {
+        dataset_name <- input$processed_data_group
+        dataset_name <- if (!is.null(dataset_name) && nzchar(dataset_name)) dataset_name else "dataset"
+        df <- NULL
+        if (!is.null(rv$dts) && dataset_name %in% names(rv$dts)) {
+          df <- rv$dts[[dataset_name]]
+        }
+        n_cells <- if (!is.null(df)) max(0, ncol(df) - 1) else 0
+        build_export_filename(
+          rv,
+          parts = c("processed", dataset_name, sprintf("%d_cells", n_cells)),
+          ext = "csv"
+        )
+      },
       content = function(file) { req(rv$dts, input$processed_data_group); write.csv(rv$dts[[input$processed_data_group]], file, row.names = FALSE) }
     )
     

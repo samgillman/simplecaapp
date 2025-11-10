@@ -220,7 +220,13 @@ mod_metrics_server <- function(id, rv) {
 
     output$dl_plot <- downloadHandler(
       filename = function() {
-        sprintf("metrics_plot_%s.%s", Sys.Date(), input$dl_format)
+        metric_code <- input$metric_name %||% "metric"
+        metric_part <- sanitize_filename_component(metric_code, "metric")
+        build_export_filename(
+          rv,
+          parts = c("metric_plot", metric_part),
+          ext = input$dl_format %||% "png"
+        )
       },
       content = function(file) {
         ggsave(file, plot = metrics_plot_obj(),
@@ -232,7 +238,11 @@ mod_metrics_server <- function(id, rv) {
     # Batch export all metrics
     output$dl_all_plots <- downloadHandler(
       filename = function() {
-        sprintf("all_metrics_%s.zip", Sys.Date())
+        build_export_filename(
+          rv,
+          parts = c("all_metrics"),
+          ext = "zip"
+        )
       },
       content = function(file) {
         # Create temporary directory

@@ -36,28 +36,49 @@ mod_export_server <- function(id, rv, metrics_plot_reactive, heatmap_plot_reacti
     
     
     output$dl_processed_wide_exp <- downloadHandler(
-      filename = function() sprintf("processed_%s_%s.csv", input$exp_dl_group %||% "data", Sys.Date()),
+      filename = function() {
+        dataset <- input$exp_dl_group %||% "dataset"
+        build_export_filename(
+          rv,
+          parts = c("processed", dataset, "wide"),
+          ext = "csv"
+        )
+      },
       content = function(file) { req(rv$dts, input$exp_dl_group); data.table::fwrite(rv$dts[[input$exp_dl_group]], file) }
     )
     
     output$dl_metrics_csv <- downloadHandler(
-      filename = function() sprintf("metrics_%s.csv", Sys.Date()),
+      filename = function() {
+        n_cells <- if (!is.null(rv$metrics)) nrow(rv$metrics) else 0
+        build_export_filename(
+          rv,
+          parts = c("individual_cell_metrics", sprintf("%d_cells", n_cells)),
+          ext = "csv"
+        )
+      },
       content = function(file) data.table::fwrite(rv$metrics, file)
     )
     
     output$dl_summary_csv <- downloadHandler(
-      filename = function() sprintf("timecourse_summary_%s.csv", Sys.Date()),
+      filename = function() {
+        n_groups <- if (!is.null(rv$groups)) length(rv$groups) else 0
+        build_export_filename(
+          rv,
+          parts = c("timecourse_summary", sprintf("%d_groups", n_groups)),
+          ext = "csv"
+        )
+      },
       content = function(file) data.table::fwrite(rv$summary, file)
     )
     
     output$dl_timecourse_plot <- downloadHandler(
       filename = function() {
-        base_name <- if (!is.null(rv$groups) && length(rv$groups) > 0) {
-          paste(rv$groups, collapse = "_")
-        } else {
-          "timecourse"
-        }
-        sprintf("%s Time Course Plot.%s", base_name, input$exp_fmt)
+        group_part <- if (!is.null(rv$groups) && length(rv$groups) > 0) paste(rv$groups, collapse = "-") else NULL
+        build_export_filename(
+          rv,
+          parts = c("time_course_plot", group_part),
+          ext = input$exp_fmt %||% "png"
+        )
       },
       content = function(file) {
         req(rv$summary)
@@ -70,7 +91,13 @@ mod_export_server <- function(id, rv, metrics_plot_reactive, heatmap_plot_reacti
     )
     
     output$dl_heatmap_plot <- downloadHandler(
-      filename = function() sprintf("heatmap_%s.%s", Sys.Date(), input$exp_fmt),
+      filename = function() {
+        build_export_filename(
+          rv,
+          parts = c("heatmap_plot"),
+          ext = input$exp_fmt %||% "png"
+        )
+      },
       content = function(file) {
         req(heatmap_plot_reactive())
         ggplot2::ggsave(file, plot = heatmap_plot_reactive(), width = input$exp_w, height = input$exp_h, dpi = input$exp_dpi, device = input$exp_fmt)
@@ -78,7 +105,13 @@ mod_export_server <- function(id, rv, metrics_plot_reactive, heatmap_plot_reacti
     )
     
     output$dl_metrics_plot <- downloadHandler(
-      filename = function() sprintf("metric_%s_%s.%s", "plot", Sys.Date(), input$exp_fmt),
+      filename = function() {
+        build_export_filename(
+          rv,
+          parts = c("metrics_plot"),
+          ext = input$exp_fmt %||% "png"
+        )
+      },
       content = function(file) {
         req(metrics_plot_reactive())
         ggplot2::ggsave(file, plot = metrics_plot_reactive(), width = input$exp_w, height = input$exp_h, dpi = input$exp_dpi, device = input$exp_fmt)
