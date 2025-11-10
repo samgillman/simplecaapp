@@ -7,7 +7,7 @@ mod_heatmap_ui <- function(id) {
             box(title = "Controls", status = "primary", solidHeader = TRUE, width = 4, collapsible = FALSE,
                 # Baseline adjustment section
                 div(style = "background-color: #fff3cd; padding: 10px; margin-bottom: 15px; border-radius: 5px; border: 1px solid #ffc107;",
-                    h5("⚠️ Baseline Adjustment", style = "font-weight: bold; color: #856404; margin-top: 0;"),
+                    h5("Baseline Adjustment", style = "font-weight: bold; color: #856404; margin-top: 0;"),
                     p("Changing baseline will recalculate all data and metrics.",
                       style = "font-size: 12px; color: #856404; margin-bottom: 10px;"),
                     conditionalPanel(

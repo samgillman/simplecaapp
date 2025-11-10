@@ -8,8 +8,9 @@ mod_time_course_ui <- function(id) {
                    box(title = "Time Course", status = "primary", solidHeader = TRUE, width = 12,
                        fluidRow(
                          column(8,
-                                actionButton(ns("toggle_settings"), "⚙️ Graph Settings", 
-                                             style = "margin-bottom: 15px; background-color: #3c8dbc; color: white;")
+                                actionButton(ns("toggle_settings"), "Graph Settings",
+                                             class = "btn-primary",
+                                             style = "margin-bottom: 15px;")
                          ),
                          column(4, align = "right",
                                 radioGroupButtons(
@@ -220,7 +221,7 @@ mod_time_course_server <- function(id, rv) {
       wellPanel(style = "background-color: #f8f9fa; margin-bottom: 20px;",
                 # Baseline adjustment section
                 div(style = "background-color: #fff3cd; padding: 10px; margin-bottom: 15px; border-radius: 5px; border: 1px solid #ffc107;",
-                    h5("⚠️ Baseline Adjustment", style = "font-weight: bold; color: #856404; margin-top: 0;"),
+                    h5("Baseline Adjustment", style = "font-weight: bold; color: #856404; margin-top: 0;"),
                     p("Changing baseline will recalculate all data and metrics. Only available for frame range method.",
                       style = "font-size: 12px; color: #856404; margin-bottom: 10px;"),
                     conditionalPanel(
@@ -270,8 +271,9 @@ mod_time_course_server <- function(id, rv) {
                          h5("Labels", style = "font-weight: bold; color: #333;"),
                          div(style = "display: flex; align-items: center; gap: 8px;",
                              textInput(ns("tc_title"),"Title", isolate(input$tc_title) %||% "", width = "calc(100% - 80px)"),
-                             actionButton(ns("reset_title"), "Reset", 
-                                        style = "height: 38px; margin-top: 20px; padding: 6px 12px; font-size: 12px;",
+                             actionButton(ns("reset_title"), "Reset",
+                                        class = "btn-default btn-sm",
+                                        style = "height: 38px; margin-top: 20px;",
                                         title = "Reset title to default (group names)")
                           ),
                          textInput(ns("tc_x"),"X axis label", isolate(input$tc_x) %||% "Time (s)"),

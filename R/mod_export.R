@@ -13,14 +13,14 @@ mod_export_ui <- function(id) {
                 numericInput(ns("exp_dpi"),"DPI (for raster)", 300, min=72, max=600),
                 conditionalPanel(paste0("input['", ns("exp_fmt"), "'] == 'tiff'"), selectInput(ns("tiff_comp"),"TIFF compression", choices=c("lzw","zip","none"), selected="lzw")),
                 tags$hr(), h4("Downloads"),
-                downloadButton(ns("dl_metrics_csv"),"Download Metrics CSV"), br(), br(),
-                downloadButton(ns("dl_summary_csv"),"Download Summary CSV"), br(), br(),
-                downloadButton(ns("dl_timecourse_plot"),"Download Time Course Plot"), br(), br(),
-                downloadButton(ns("dl_heatmap_plot"),"Download Heatmap Plot"), br(), br(),
-                downloadButton(ns("dl_metrics_plot"),"Download Current Metrics Plot"),
+                downloadButton(ns("dl_metrics_csv"),"Download Metrics CSV", class = "btn-primary"), br(), br(),
+                downloadButton(ns("dl_summary_csv"),"Download Summary CSV", class = "btn-primary"), br(), br(),
+                downloadButton(ns("dl_timecourse_plot"),"Download Time Course Plot", class = "btn-primary"), br(), br(),
+                downloadButton(ns("dl_heatmap_plot"),"Download Heatmap Plot", class = "btn-primary"), br(), br(),
+                downloadButton(ns("dl_metrics_plot"),"Download Current Metrics Plot", class = "btn-primary"),
                 tags$hr(), h4("Processed Data"),
                 selectInput(ns("exp_dl_group"), "Select file", choices = NULL),
-                downloadButton(ns("dl_processed_wide_exp"), "Download Processed Data (CSV)")
+                downloadButton(ns("dl_processed_wide_exp"), "Download Processed Data (CSV)", class = "btn-primary")
             )
           ) # end fluidRow
   ) # end tabItem

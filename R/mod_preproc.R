@@ -13,12 +13,12 @@ mod_preproc_ui <- function(id) {
                          column(4, numericInput(ns("dl_w"), "Width (in)", 5, min = 2, max = 20, step = 0.5)),
                          column(4, numericInput(ns("dl_h"), "Height (in)", 6, min = 2, max = 20, step = 0.5))
                        ),
-                       downloadButton(ns("dl_avg_metrics_img"), "Download Table Image")
+                       downloadButton(ns("dl_avg_metrics_img"), "Download Table Image", class = "btn-primary")
                    ),
                    box(title = "Download Processed Data", status = "primary", solidHeader = TRUE, width = 12, collapsible = FALSE,
                        tags$p("Download the processed data in the original wide format (first column = Time; subsequent columns = cells)."),
                        selectInput(ns("pp_dl_group"), "Select file", choices = NULL),
-                       downloadButton(ns("dl_processed_wide"), "Download Processed File (CSV)")
+                       downloadButton(ns("dl_processed_wide"), "Download Processed File (CSV)", class = "btn-primary")
                    )
             )
           )
