@@ -8,78 +8,134 @@ mod_load_data_ui <- function(id) {
             column(
               width = 6,
               box(title = "Load Data", status = "primary", solidHeader = TRUE, width = 12, collapsible = FALSE,
-                  fileInput(ns("data_files"),"Upload CSV or Excel (wide; first column = Time)", multiple = TRUE,
-                            accept = c(".csv",".xlsx",".xls"))
+                  div(style = "padding: 12px;",
+                      fileInput(ns("data_files"),"Upload CSV or Excel (wide; first column = Time)", multiple = TRUE,
+                                accept = c(".csv",".xlsx",".xls")),
+                      # Add JavaScript to fix the file input after page loads
+                      tags$script(HTML(paste0("
+                        $(document).ready(function() {
+                          // Wait for Shiny to be fully connected
+                          $(document).on('shiny:connected', function() {
+                            setTimeout(function() {
+                              // Find the specific file input for this module
+                              var fileInput = $('#", ns("data_files"), "');
+                              var fileInputElement = fileInput[0];
+                              if (fileInputElement) {
+                                // Make the entire button area clickable
+                                var buttonArea = fileInput.closest('.form-group').find('.btn-file');
+                                var textArea = fileInput.closest('.form-group').find('input[type=\"text\"]');
+
+                                // Remove the display:none and make it cover the button
+                                fileInputElement.style.display = 'block';
+                                fileInputElement.style.position = 'absolute';
+                                fileInputElement.style.top = '0';
+                                fileInputElement.style.left = '0';
+                                fileInputElement.style.width = '100%';
+                                fileInputElement.style.height = '100%';
+                                fileInputElement.style.opacity = '0';
+                                fileInputElement.style.cursor = 'pointer';
+                                fileInputElement.style.zIndex = '1000';
+
+                                // Make the parent container relative
+                                var inputGroup = fileInput.closest('.input-group');
+                                if (inputGroup.length > 0) {
+                                  inputGroup[0].style.position = 'relative';
+                                }
+
+                                // Add click handler to the text field
+                                if (textArea.length > 0) {
+                                  textArea.css('cursor', 'pointer');
+                                  textArea.on('click', function(e) {
+                                    e.preventDefault();
+                                    fileInputElement.click();
+                                  });
+                                }
+                              }
+                            }, 1000);
+                          });
+                        });
+                      ")))
+                  )
               ),
               box(title = "Processing Options", status = "primary", solidHeader = TRUE, width = 12, collapsible = FALSE,
-                  # Basic processing controls (always visible)
-                  selectInput(ns("pp_baseline_method"),"Baseline (F₀) method",
-                              choices = c("Frame Range"="frame_range","Rolling minimum"="rolling_min","Percentile"="percentile"),
-                              selected="frame_range"),
-                  conditionalPanel(paste0("input['", ns("pp_baseline_method"), "'] == 'frame_range'"),
-                                   sliderInput(ns("pp_baseline_frames"),"Baseline Frame Range:", min = 1, max = 100, value = c(1, 20), step = 1)
-                  ),
-                  conditionalPanel(paste0("input['", ns("pp_baseline_method"), "'] == 'rolling_min'"),
-                                   numericInput(ns("pp_window_size"),"Rolling window (frames)", value=50, min=5, step=1)
-                  ),
-                  conditionalPanel(paste0("input['", ns("pp_baseline_method"), "'] == 'percentile'"),
-                                   numericInput(ns("pp_percentile"),"Baseline percentile", value=10, min=1, max=50, step=1)
-                  ),
-                  
-                  # Advanced controls in a simple div (not collapsible)
-                  div(style = "margin-top: 15px; padding-top: 15px; border-top: 1px solid #eee;",
-                      h5("Advanced Options", style = "font-weight: 600; color: #333; margin-bottom: 10px;"),
-                      numericInput(ns("pp_sampling_rate"),"Sampling rate (Hz) if Time missing/invalid", value=1, min=0.0001, step=0.1)
-                  ),
-                  
-                  # Right-aligned Process button and help text
-                  div(style = "margin-top: 16px; text-align: right;",
-                      actionButton(ns("load_btn"),"Process Data", class = "btn-primary", style = "margin-bottom: 8px;")
-                  ),
-                  div(class="small-help", style = "text-align: center; font-style: italic;","ΔF/F₀ = (F - F₀)/F₀. Operations apply per uploaded file.")
+                  div(style = "padding: 12px;",
+                      # Basic processing controls (always visible)
+                      selectInput(ns("pp_baseline_method"),"Baseline (F₀) method",
+                                  choices = c("Frame Range"="frame_range","Rolling minimum"="rolling_min","Percentile"="percentile"),
+                                  selected="frame_range"),
+                      conditionalPanel(paste0("input['", ns("pp_baseline_method"), "'] == 'frame_range'"),
+                                       sliderInput(ns("pp_baseline_frames"),"Baseline Frame Range:", min = 1, max = 100, value = c(1, 20), step = 1)
+                      ),
+                      conditionalPanel(paste0("input['", ns("pp_baseline_method"), "'] == 'rolling_min'"),
+                                       numericInput(ns("pp_window_size"),"Rolling window (frames)", value=50, min=5, step=1)
+                      ),
+                      conditionalPanel(paste0("input['", ns("pp_baseline_method"), "'] == 'percentile'"),
+                                       numericInput(ns("pp_percentile"),"Baseline percentile", value=10, min=1, max=50, step=1)
+                      ),
+
+                      # Advanced controls in a simple div (not collapsible)
+                      div(style = "margin-top: 15px; padding-top: 15px; border-top: 1px solid var(--color-gray-100);",
+                          h5("Advanced Options", style = "font-weight: 600; color: var(--color-gray-900); margin-bottom: 10px;"),
+                          numericInput(ns("pp_sampling_rate"),"Sampling rate (Hz) if Time missing/invalid", value=1, min=0.0001, step=0.1)
+                      ),
+
+                      # Right-aligned Process button and help text
+                      div(style = "margin-top: 16px; text-align: right;",
+                          actionButton(ns("load_btn"),"Process Data", class = "btn-primary", style = "margin-bottom: 8px;")
+                      ),
+                      div(class="small-help", style = "text-align: center; font-style: italic; color: var(--color-gray-600);","ΔF/F₀ = (F - F₀)/F₀. Operations apply per uploaded file.")
+                  )
               )
             ),
             # Right Column: At a glance and Processing Status
             column(
               width = 6,
-              box(title = "At a glance", status = "info", solidHeader = TRUE, width = 12, collapsible = FALSE,
-                  div(style = "padding: 5px;",
-                      div(class = "stat-card", style = "background: var(--secondary-color); color: white; text-align: center; display:flex; align-items:center; justify-content:center; flex-direction: column; padding:16px 0;",
-                          h3(textOutput(ns("n_files_text"), inline = TRUE)),
-                          p("Files loaded")
+              box(title = "At a glance", status = "primary", solidHeader = TRUE, width = 12, collapsible = FALSE,
+                  div(style = "padding: 12px;",
+                      div(class = "stat-card", style = "background: var(--color-gray-50); border: 2px solid var(--color-gray-100); text-align: center; padding: 24px 16px; border-radius: var(--radius-md); margin-bottom: 12px; box-shadow: var(--shadow-level-1);",
+                          h3(textOutput(ns("n_files_text"), inline = TRUE), style = "margin: 0 0 6px 0; font-size: 40px; font-weight: 700; line-height: 1; color: var(--color-primary-blue);"),
+                          p("Files loaded", style = "margin: 0; font-size: 13px; color: var(--color-gray-600); font-weight: 500; letter-spacing: 0.3px;")
                       ),
-                      div(class = "stat-card", style = "background: var(--primary-color); color: white; text-align: center; display:flex; align-items:center; justify-content:center; flex-direction: column; padding:16px 0;",
-                          h3(textOutput(ns("n_cells_text"), inline = TRUE)),
-                          p("Total cells")
+                      div(class = "stat-card", style = "background: var(--color-gray-50); border: 2px solid var(--color-gray-100); text-align: center; padding: 24px 16px; border-radius: var(--radius-md); margin-bottom: 12px; box-shadow: var(--shadow-level-1);",
+                          h3(textOutput(ns("n_cells_text"), inline = TRUE), style = "margin: 0 0 6px 0; font-size: 40px; font-weight: 700; line-height: 1; color: var(--color-primary-blue);"),
+                          p("Total cells", style = "margin: 0; font-size: 13px; color: var(--color-gray-600); font-weight: 500; letter-spacing: 0.3px;")
                       ),
-                      div(class = "stat-card", style = "background: #339966; color: white; text-align: center; display:flex; align-items:center; justify-content:center; flex-direction: column; padding:16px 0;",
-                          h3(textOutput(ns("n_timepoints_text"), inline = TRUE)),
-                          p("Total timepoints")
+                      div(class = "stat-card", style = "background: var(--color-gray-50); border: 2px solid var(--color-gray-100); text-align: center; padding: 24px 16px; border-radius: var(--radius-md); box-shadow: var(--shadow-level-1);",
+                          h3(textOutput(ns("n_timepoints_text"), inline = TRUE), style = "margin: 0 0 6px 0; font-size: 40px; font-weight: 700; line-height: 1; color: var(--color-primary-blue);"),
+                          p("Total timepoints", style = "margin: 0; font-size: 13px; color: var(--color-gray-600); font-weight: 500; letter-spacing: 0.3px;")
                       )
                   )
               ),
-              box(title = "Processing Status", status = "info", solidHeader = TRUE, width = 12, collapsible = FALSE,
-                  div(style = "padding: 10px;",
+              box(title = "Processing Status", status = "primary", solidHeader = TRUE, width = 12, collapsible = FALSE,
+                  div(style = "padding: 16px 12px;",
                       fluidRow(
                         column(3, align = "center",
-                               icon("file-import", class = "fa-2x", style = "color: #5bc0de; margin-bottom: 8px;"),
-                               h5("Files Loaded", style = "margin: 5px 0; font-weight: 600;"),
-                               textOutput(ns("status_files_loaded"), container = function(...) div(..., style = "font-size: 13px; color: #666;"))
+                               div(style = "padding: 8px;",
+                                   icon("file-import", class = "fa-2x", style = "color: var(--color-info); margin-bottom: 10px; display: block;"),
+                                   h5("Files Loaded", style = "margin: 0 0 6px 0; font-weight: 600; font-size: 14px;"),
+                                   textOutput(ns("status_files_loaded"), container = function(...) div(..., style = "font-size: 12px; color: var(--color-gray-600); line-height: 1.4;"))
+                               )
                         ),
                         column(3, align = "center",
-                               icon("check-circle", class = "fa-2x", style = "color: #5cb85c; margin-bottom: 8px;"),
-                               h5("Processing", style = "margin: 5px 0; font-weight: 600;"),
-                               textOutput(ns("status_processing"), container = function(...) div(..., style = "font-size: 13px; color: #666;"))
+                               div(style = "padding: 8px;",
+                                   icon("check-circle", class = "fa-2x", style = "color: var(--color-success); margin-bottom: 10px; display: block;"),
+                                   h5("Processing", style = "margin: 0 0 6px 0; font-weight: 600; font-size: 14px;"),
+                                   textOutput(ns("status_processing"), container = function(...) div(..., style = "font-size: 12px; color: var(--color-gray-600); line-height: 1.4;"))
+                               )
                         ),
                         column(3, align = "center",
-                               icon("calculator", class = "fa-2x", style = "color: #f0ad4e; margin-bottom: 8px;"),
-                               h5("Metrics", style = "margin: 5px 0; font-weight: 600;"),
-                               textOutput(ns("status_metrics"), container = function(...) div(..., style = "font-size: 13px; color: #666;"))
+                               div(style = "padding: 8px;",
+                                   icon("calculator", class = "fa-2x", style = "color: var(--color-warning); margin-bottom: 10px; display: block;"),
+                                   h5("Metrics", style = "margin: 0 0 6px 0; font-weight: 600; font-size: 14px;"),
+                                   textOutput(ns("status_metrics"), container = function(...) div(..., style = "font-size: 12px; color: var(--color-gray-600); line-height: 1.4;"))
+                               )
                         ),
                         column(3, align = "center",
-                               icon("chart-line", class = "fa-2x", style = "color: #9b59b6; margin-bottom: 8px;"),
-                               h5("Ready", style = "margin: 5px 0; font-weight: 600;"),
-                               textOutput(ns("status_ready"), container = function(...) div(..., style = "font-size: 13px; color: #666;"))
+                               div(style = "padding: 8px;",
+                                   icon("chart-line", class = "fa-2x", style = "color: var(--color-primary-blue); margin-bottom: 10px; display: block;"),
+                                   h5("Ready", style = "margin: 0 0 6px 0; font-weight: 600; font-size: 14px;"),
+                                   textOutput(ns("status_ready"), container = function(...) div(..., style = "font-size: 12px; color: var(--color-gray-600); line-height: 1.4;"))
+                               )
                         )
                       )
                   )

@@ -5,64 +5,67 @@ mod_heatmap_ui <- function(id) {
   tabItem(tabName = "heatmap",
           fluidRow(
             box(title = "Controls", status = "primary", solidHeader = TRUE, width = 4, collapsible = FALSE,
-                # Baseline adjustment section
-                div(style = "background-color: #fff3cd; padding: 10px; margin-bottom: 15px; border-radius: 5px; border: 1px solid #ffc107;",
-                    h5("Baseline Adjustment", style = "font-weight: bold; color: #856404; margin-top: 0;"),
-                    p("Changing baseline will recalculate all data and metrics.",
-                      style = "font-size: 12px; color: #856404; margin-bottom: 10px;"),
-                    conditionalPanel(
-                      condition = "output.baseline_method_is_frame_range",
-                      ns = ns,
-                      sliderInput(ns("hm_baseline_frames"), "Baseline Frame Range:",
-                                  min = 1, max = 100,
-                                  value = c(1, 20),
-                                  step = 1),
-                      actionButton(ns("apply_baseline"), "Apply Baseline Change",
-                                   class = "btn-warning btn-sm",
-                                   style = "width: 100%;")
-                    ),
-                    conditionalPanel(
-                      condition = "!output.baseline_method_is_frame_range",
-                      ns = ns,
-                      p("Only available for 'Frame Range' method.",
-                        style = "font-size: 12px; color: #856404; font-style: italic;")
-                    )
+                # Basic Options Accordion
+                accordion(
+                  id = ns("basic_accordion"),
+                  title = "Display & Sorting",
+                  icon = "th",
+                  expanded = TRUE,
+                  content = div(
+                    selectInput(ns("hm_sort"), "Sort cells by",
+                                choices = c("Time to Peak" = "tpeak", "Peak Amplitude" = "amp", "Original" = "orig"),
+                                selected = "tpeak"),
+                    selectInput(ns("hm_palette"), "Color palette",
+                                choices = c("plasma", "viridis", "magma", "inferno", "cividis"),
+                                selected = "plasma"),
+                    tags$hr(style = "margin: 12px 0;"),
+                    h6("Legend Scale", style = "font-weight: 600; margin-bottom: 8px;"),
+                    sliderInput(ns("hm_scale_step"), "Scale step size",
+                                min = 0.1, max = 1.0, value = 0.5, step = 0.1)
+                  )
                 ),
 
-                selectInput(ns("hm_sort"),"Sort cells by", choices = c("Time to Peak"="tpeak","Peak Amplitude"="amp","Original"="orig"), selected="tpeak"),
-                selectInput(ns("hm_palette"),"Color palette", choices = c("plasma","viridis","magma","inferno","cividis"), selected = "plasma"),
-                tags$hr(),
-                
-                # --- Scale Control ---
-                sliderInput(ns("hm_scale_step"), "Scale step size", 
-                           min = 0.1, max = 1.0, value = 0.5, step = 0.1,
-                           helpText("Controls legend interval spacing")),
-                tags$hr(),
-                
-                # --- Title and Labels ---
-                textInput(ns("hm_title"),"Plot title","Population Heatmap"),
-                checkboxInput(ns("hm_center_title"), "Center title", value = TRUE),
-                textInput(ns("hm_x_label"),"X label","Time (s)"),
-                textInput(ns("hm_y_label"),"Y label","Cell"),
-                tags$details(
-                  tags$summary(style = "cursor:pointer; font-weight:600; color:#0072B2;", "Appearance & Typography"),
-                  div(style = "margin-top:8px;",
-                      h6("Typography & Sizing", style = "font-weight: bold; margin-top: 15px;"),
-                      sliderInput(ns("hm_title_size"),"Title size", 10, 24, 16, 1),
-                      checkboxInput(ns("hm_bold_title"), "Bold title", value = TRUE),
-                      sliderInput(ns("hm_axis_title_size"),"Axis title size", 8, 24, 14, 1),
-                      checkboxInput(ns("hm_bold_axis_title"), "Bold axis titles", value = TRUE),
-                      sliderInput(ns("hm_axis_text_size"),"Axis text size", 8, 24, 12, 1),
-                      checkboxInput(ns("hm_bold_axis_text"), "Bold axis text", value = FALSE),
-                      sliderInput(ns("hm_legend_text_size"),"Legend text size", min = 6, max = 24, value = 10, step = 1),
-                      checkboxInput(ns("hm_bold_legend_text"), "Bold legend text", value = FALSE),
-                      selectInput(ns("hm_font"), "Font", 
-                                  choices = c("Arial", "Helvetica", "Times", "Courier"), 
-                                  selected = "Arial")
+                # Labels Accordion
+                accordion(
+                  id = ns("labels_accordion"),
+                  title = "Labels",
+                  icon = "tag",
+                  expanded = FALSE,
+                  content = div(
+                    textInput(ns("hm_title"), "Plot title", "Population Heatmap"),
+                    checkboxInput(ns("hm_center_title"), "Center title", value = TRUE),
+                    textInput(ns("hm_x_label"), "X label", "Time (s)"),
+                    textInput(ns("hm_y_label"), "Y label", "Cell")
+                  )
+                ),
+
+                # Typography Accordion
+                accordion(
+                  id = ns("typography_accordion"),
+                  title = "Typography",
+                  icon = "font",
+                  expanded = FALSE,
+                  content = div(
+                    h6("Title & Axes", style = "font-weight: 600; margin-bottom: 8px;"),
+                    sliderInput(ns("hm_title_size"), "Title size", 10, 24, 16, 1),
+                    checkboxInput(ns("hm_bold_title"), "Bold title", value = TRUE),
+                    sliderInput(ns("hm_axis_title_size"), "Axis title size", 8, 24, 14, 1),
+                    checkboxInput(ns("hm_bold_axis_title"), "Bold axis titles", value = TRUE),
+                    sliderInput(ns("hm_axis_text_size"), "Axis text size", 8, 24, 12, 1),
+                    checkboxInput(ns("hm_bold_axis_text"), "Bold axis text", value = FALSE),
+                    tags$hr(style = "margin: 12px 0;"),
+                    h6("Legend", style = "font-weight: 600; margin-bottom: 8px;"),
+                    sliderInput(ns("hm_legend_text_size"), "Legend text size", min = 6, max = 24, value = 10, step = 1),
+                    checkboxInput(ns("hm_bold_legend_text"), "Bold legend text", value = FALSE),
+                    tags$hr(style = "margin: 12px 0;"),
+                    h6("Font Family", style = "font-weight: 600; margin-bottom: 8px;"),
+                    selectInput(ns("hm_font"), "Font",
+                                choices = c("Arial", "Helvetica", "Times", "Courier"),
+                                selected = "Arial")
                   )
                 )
             ),
-            box(title = "Heatmap", solidHeader = TRUE, width = 8, collapsible = FALSE,
+            box(title = "Heatmap", status = "primary", solidHeader = TRUE, width = 8, collapsible = FALSE,
                 withSpinner(plotOutput(ns("heatmap_plot"), height = "760px"), type = 4),
                 tags$hr(),
                 fluidRow(
@@ -73,7 +76,7 @@ mod_heatmap_ui <- function(id) {
                 ),
                 fluidRow(
                   column(3, numericInput(ns("hm_dl_dpi"),"DPI", 300, min = 72, max = 600)),
-                  column(9, div(style = "text-align:right; margin-top:6px;", downloadButton(ns("dl_heatmap_plot_local"),"Download Heatmap")))
+                  column(9, div(style = "text-align:right; margin-top:6px;", downloadButton(ns("dl_heatmap_plot_local"),"Download Heatmap", class = "btn-primary")))
                 )
             )
           )
@@ -82,95 +85,9 @@ mod_heatmap_ui <- function(id) {
 
 mod_heatmap_server <- function(id, rv) {
     moduleServer(id, function(input, output, session) {
-
-      # Output to control conditional panel visibility
-      output$baseline_method_is_frame_range <- reactive({
-        identical(rv$baseline_method, "frame_range")
-      })
-      outputOptions(output, "baseline_method_is_frame_range", suspendWhenHidden = FALSE)
-
-      # Sync slider with current baseline when data is loaded
-      observeEvent(rv$baseline_frames, {
-        if (!is.null(rv$baseline_frames) && length(rv$baseline_frames) == 2) {
-          updateSliderInput(session, "hm_baseline_frames", value = rv$baseline_frames)
-        }
-      }, ignoreInit = TRUE)
-
-      # Handle baseline change application
-      observeEvent(input$apply_baseline, {
-        req(rv$raw_traces, rv$baselines, input$hm_baseline_frames)
-
-        # Ensure baseline method is frame_range
-        if (!identical(rv$baseline_method, "frame_range")) {
-          showNotification("Baseline adjustment only available for Frame Range method", type = "warning", duration = 3)
-          return()
-        }
-
-        withProgress(message = "Recalculating with new baseline...", value = 0, {
-          new_baseline_frames <- input$hm_baseline_frames
-
-          # Update rv$baseline_frames
-          rv$baseline_frames <- new_baseline_frames
-
-          # Reprocess all data with new baseline
-          dts <- list()
-          baselines <- list()
-
-          for (group_name in names(rv$raw_traces)) {
-            incProgress(1/length(rv$raw_traces), detail = paste("Processing:", group_name))
-
-            dt <- data.table::copy(rv$raw_traces[[group_name]])
-
-            # Calculate new F0 with new baseline frames
-            start_frame <- max(1, as.integer(new_baseline_frames[1]))
-            end_frame <- min(nrow(dt), as.integer(new_baseline_frames[2]))
-
-            F0 <- vapply(seq(2, ncol(dt)), function(j) {
-              mean(dt[[j]][start_frame:end_frame], na.rm = TRUE)
-            }, numeric(1))
-
-            baselines[[group_name]] <- setNames(F0, names(dt)[-1])
-
-            # Apply new ΔF/F₀ transformation
-            for (k in seq_along(F0)) {
-              j <- k + 1
-              f0 <- F0[[k]]
-              if (is.finite(f0) && f0 > 1e-6) {
-                dt[[j]] <- (dt[[j]] - f0) / f0
-              } else if (is.finite(f0) && f0 <= 1e-6) {
-                dt[[j]] <- dt[[j]] - f0
-              }
-            }
-
-            dts[[group_name]] <- dt
-          }
-
-          # Update reactive values
-          rv$dts <- dts
-          rv$baselines <- baselines
-
-          # Recalculate long format and summary
-          rv$long <- purrr::imap(dts, ~to_long(.x, .y)) |> dplyr::bind_rows()
-          rv$summary <- if (nrow(rv$long) > 0) {
-            rv$long |>
-              dplyr::group_by(Group, Time) |>
-              dplyr::summarise(mean_dFF0 = mean(dFF0, na.rm = TRUE),
-                             sem_dFF0 = stats::sd(dFF0, na.rm = TRUE)/sqrt(dplyr::n()),
-                             sd_dFF0 = stats::sd(dFF0, na.rm = TRUE),
-                             n_cells = dplyr::n(), .groups = "drop")
-          } else NULL
-
-          # Recalculate metrics
-          rv$metrics <- purrr::imap(dts, ~compute_metrics_for_dt(.x, .y, new_baseline_frames)) |>
-            dplyr::bind_rows()
-
-          showNotification("Baseline updated successfully! All metrics recalculated.",
-                          type = "message", duration = 3)
-        })
-      })
-
+      
       # Simple 0.5 interval scale (reverted from complex data-driven approach)
-
+    
     heatmap_plot_reactive <- reactive({
       req(rv$dts)
       build_hm <- function(dt, label) {
@@ -297,7 +214,7 @@ mod_heatmap_server <- function(id, rv) {
     output$heatmap_plot <- renderPlot({
       heatmap_plot_reactive()
     })
-    
+
     output$dl_heatmap_plot_local <- downloadHandler(
       filename = function() {
         build_export_filename(

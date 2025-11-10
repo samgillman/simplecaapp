@@ -13,12 +13,12 @@ mod_preproc_ui <- function(id) {
                          column(4, numericInput(ns("dl_w"), "Width (in)", 5, min = 2, max = 20, step = 0.5)),
                          column(4, numericInput(ns("dl_h"), "Height (in)", 6, min = 2, max = 20, step = 0.5))
                        ),
-                       downloadButton(ns("dl_avg_metrics_img"), "Download Table Image", class = "btn-primary")
+                       downloadButton(ns("dl_avg_metrics_img"), "Download Table Image")
                    ),
                    box(title = "Download Processed Data", status = "primary", solidHeader = TRUE, width = 12, collapsible = FALSE,
                        tags$p("Download the processed data in the original wide format (first column = Time; subsequent columns = cells)."),
                        selectInput(ns("pp_dl_group"), "Select file", choices = NULL),
-                       downloadButton(ns("dl_processed_wide"), "Download Processed File (CSV)", class = "btn-primary")
+                       downloadButton(ns("dl_processed_wide"), "Download Processed File (CSV)")
                    )
             )
           )
@@ -61,16 +61,16 @@ mod_preproc_server <- function(id, rv) {
       df <- as.data.frame(do.call(rbind, sm), stringsAsFactors = FALSE)
       df$Mean <- as.numeric(df$Mean); df$SEM <- as.numeric(df$SEM); df$n <- as.integer(df$n)
 
+      # Create custom filename for export buttons
+      base_name <- if (!is.null(rv$files) && nrow(rv$files) > 0) {
+        tools::file_path_sans_ext(basename(rv$files$name[1]))
+      } else {
+        "data"
+      }
       n_groups <- if (!is.null(rv$groups)) length(rv$groups) else 0
-      export_filename <- tools::file_path_sans_ext(
-        build_export_filename(
-          rv,
-          parts = c("average_metrics", sprintf("%d_groups", n_groups)),
-          ext = "csv"
-        )
-      )
+      export_filename <- paste0(base_name, "_average_metrics_", n_groups, "_groups_", Sys.Date())
 
-      datatable(df, 
+      datatable(df,
                 extensions = "Buttons",
                 options=list(
                   dom='Bti',
@@ -80,7 +80,7 @@ mod_preproc_server <- function(id, rv) {
                     list(extend = 'excel', filename = export_filename)
                   ),
                   pageLength = 15
-                ), 
+                ),
                 rownames=FALSE) |>
         formatRound(c("Mean","SEM"), 4)
     })
@@ -124,12 +124,13 @@ mod_preproc_server <- function(id, rv) {
     
     output$dl_avg_metrics_img <- downloadHandler(
       filename = function() {
+        base_name <- if (!is.null(rv$files) && nrow(rv$files) > 0) {
+          tools::file_path_sans_ext(basename(rv$files$name[1]))
+        } else {
+          "data"
+        }
         n_groups <- if (!is.null(rv$groups)) length(rv$groups) else 0
-        build_export_filename(
-          rv,
-          parts = c("average_metrics", sprintf("%d_groups", n_groups)),
-          ext = input$dl_fmt %||% "png"
-        )
+        sprintf("%s_average_metrics_%d_groups_%s.%s", base_name, n_groups, Sys.Date(), input$dl_fmt)
       },
       content = function(file) {
         req(avg_metrics_gt())
@@ -150,12 +151,12 @@ mod_preproc_server <- function(id, rv) {
     
     output$dl_processed_wide <- downloadHandler(
       filename = function() {
-        dataset <- input$pp_dl_group %||% "dataset"
-        build_export_filename(
-          rv,
-          parts = c("processed", dataset, "wide"),
-          ext = "csv"
-        )
+        base_name <- if (!is.null(rv$files) && nrow(rv$files) > 0) {
+          tools::file_path_sans_ext(basename(rv$files$name[1]))
+        } else {
+          "data"
+        }
+        sprintf("%s_processed_%s_%s.csv", base_name, input$pp_dl_group %||% "data", Sys.Date())
       },
       content = function(file) { req(rv$dts, input$pp_dl_group); data.table::fwrite(rv$dts[[input$pp_dl_group]], file) }
     )

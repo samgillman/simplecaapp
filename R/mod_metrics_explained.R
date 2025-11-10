@@ -279,20 +279,35 @@ mod_metrics_explained_ui <- function(id) {
                 p("The calcium entry rate is calculated as the slope between the 10% and 90% points:"),
                 uiOutput(ns("ca_calculation_ui"))
               ),
-              
-              hr(),
-              h4("Explore a Single Cell"),
-              uiOutput(ns("cell_selector_ui")),
-              hr(),
-              # Simple download section matching other tabs
-              fluidRow(
-                column(6, selectInput(ns("dl_format"), "Format", c("PNG"="png", "PDF"="pdf", "SVG"="svg", "TIFF"="tiff"), "png")),
-                column(3, numericInput(ns("dl_dpi"), "DPI", 300, 72, 600, 5)),
-                column(3, div(style = "margin-top:25px;", downloadButton(ns("dl_plot"), "Download Plot", class = "btn-primary")))
+
+              # Cell Selection Accordion
+              accordion(
+                id = ns("cell_selection_accordion"),
+                title = "Cell Selection",
+                icon = "flask",
+                expanded = TRUE,
+                content = div(
+                  uiOutput(ns("cell_selector_ui"))
+                )
+              ),
+
+              # Download Options Accordion
+              accordion(
+                id = ns("download_accordion"),
+                title = "Download Options",
+                icon = "download",
+                expanded = FALSE,
+                content = div(
+                  fluidRow(
+                    column(6, selectInput(ns("dl_format"), "Format", c("PNG"="png", "PDF"="pdf", "SVG"="svg", "TIFF"="tiff"), "png")),
+                    column(6, numericInput(ns("dl_dpi"), "DPI", 300, 72, 600, 5))
+                  ),
+                  downloadButton(ns("dl_plot"), "Download Plot", class = "btn-primary", style = "width: 100%; margin-top: 10px;")
+                )
               )
             ),
-            
-            # Right Column: The plot itself (dynamically updated)
+
+            # Right Column: The plot itself (static only - annotations don't convert to plotly)
             column(width = 7,
               plotOutput(ns("explanation_plot"), height = "600px")
             )
@@ -317,7 +332,30 @@ mod_metrics_explained_server <- function(id, rv) {
       req(rv$metrics)
       cell_choices <- rv$metrics$Cell_ID
       names(cell_choices) <- paste(rv$metrics$Group, "-", rv$metrics$Cell_Label)
-      selectInput(ns("selected_cell"), "Select a Cell to Visualize:", choices = cell_choices, selected = cell_choices[1])
+
+      # Ensure proper initialization by returning the select input with explicit ID
+      selectInput(
+        inputId = ns("selected_cell"),
+        label = "Select a Cell to Visualize:",
+        choices = cell_choices,
+        selected = cell_choices[1],
+        width = "100%"
+      )
+    })
+
+    # Also update the selector when metrics change to ensure binding
+    observe({
+      req(rv$metrics)
+      cell_choices <- rv$metrics$Cell_ID
+      names(cell_choices) <- paste(rv$metrics$Group, "-", rv$metrics$Cell_Label)
+
+      # Use updateSelectInput to ensure proper binding even in accordion
+      updateSelectInput(
+        session = session,
+        inputId = "selected_cell",
+        choices = cell_choices,
+        selected = isolate(input$selected_cell) %||% cell_choices[1]
+      )
     })
 
     selected_cell_data <- reactive({
@@ -1054,7 +1092,7 @@ mod_metrics_explained_server <- function(id, rv) {
     output$explanation_plot <- renderPlot({
       explanation_plot_obj()
     }, res = 96)
-    
+
     output$dl_plot <- downloadHandler(
       filename = function() {
         req(input$metric_to_explain, selected_cell_data())
