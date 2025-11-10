@@ -66,24 +66,7 @@ mod_heatmap_ui <- function(id) {
                 )
             ),
             box(title = "Heatmap", status = "primary", solidHeader = TRUE, width = 8, collapsible = FALSE,
-                fluidRow(
-                  column(12, align = "right",
-                         radioGroupButtons(
-                           inputId = ns("plot_type_toggle"),
-                           label = NULL,
-                           choices = c("Static", "Interactive"),
-                           selected = "Static",
-                           status = "primary",
-                           size = "sm"
-                         )
-                  )
-                ),
-                conditionalPanel(paste0("input['", ns("plot_type_toggle"), "'] == 'Static'"),
-                                 withSpinner(plotOutput(ns("heatmap_plot"), height = "760px"), type = 4)
-                ),
-                conditionalPanel(paste0("input['", ns("plot_type_toggle"), "'] == 'Interactive'"),
-                                 withSpinner(plotlyOutput(ns("heatmap_plotly"), height = "760px"), type = 4)
-                ),
+                withSpinner(plotOutput(ns("heatmap_plot"), height = "760px"), type = 4),
                 tags$hr(),
                 fluidRow(
                   column(3, selectInput(ns("hm_dl_fmt"),"Format", choices = c("PNG"="png","PDF"="pdf","TIFF"="tiff","SVG"="svg"), selected = "png")),
@@ -232,46 +215,14 @@ mod_heatmap_server <- function(id, rv) {
       heatmap_plot_reactive()
     })
 
-    output$heatmap_plotly <- plotly::renderPlotly({
-      req(heatmap_plot_reactive())
-
-      # Try to convert ggplot to plotly
-      p <- tryCatch({
-        plotly::ggplotly(heatmap_plot_reactive(), tooltip = c("x", "y", "fill")) %>%
-          plotly::layout(
-            hoverlabel = list(bgcolor = "white", font = list(family = input$hm_font %||% "Arial")),
-            xaxis = list(fixedrange = FALSE, title = input$hm_x_label %||% "Time (s)"),
-            yaxis = list(fixedrange = FALSE, title = input$hm_y_label %||% "Cell"),
-            title = list(text = input$hm_title %||% "Population Heatmap")
-          ) %>%
-          plotly::config(
-            displayModeBar = TRUE,
-            displaylogo = FALSE,
-            modeBarButtonsToRemove = c("lasso2d", "select2d"),
-            toImageButtonOptions = list(
-              format = "png",
-              filename = "heatmap",
-              width = 1200,
-              height = 800
-            )
-          )
-      }, error = function(e) {
-        # If conversion fails, show message
-        plotly::plot_ly() %>%
-          plotly::add_text(x = 0.5, y = 0.5,
-                          text = "Interactive heatmap view not available.\nPlease use Static view.",
-                          textfont = list(size = 16, color = "gray")) %>%
-          plotly::layout(
-            xaxis = list(showgrid = FALSE, showticklabels = FALSE, zeroline = FALSE),
-            yaxis = list(showgrid = FALSE, showticklabels = FALSE, zeroline = FALSE)
-          )
-      })
-
-      p
-    })
-
     output$dl_heatmap_plot_local <- downloadHandler(
-      filename = function() sprintf("heatmap_%s.%s", Sys.Date(), input$hm_dl_fmt),
+      filename = function() {
+        build_export_filename(
+          rv,
+          parts = c("heatmap_plot"),
+          ext = input$hm_dl_fmt %||% "png"
+        )
+      },
       content = function(file) {
         req(heatmap_plot_reactive())
         ggplot2::ggsave(file, plot = heatmap_plot_reactive(), width = input$hm_dl_w, height = input$hm_dl_h, dpi = input$hm_dl_dpi)
