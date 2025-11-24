@@ -319,6 +319,13 @@ mod_metrics_explained_server <- function(id, rv) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
     
+    # Helper to safely get baseline frames (defaults to 1-20 if not set)
+    # Using reactive isolation to access current value of rv$baseline_frames or default
+    get_bl <- function() {
+      frames <- rv$baseline_frames
+      if (is.null(frames) || length(frames) != 2) c(1, 20) else frames
+    }
+    
     explanation_theme <- function() {
       theme_classic(base_size = 14) +
       theme(plot.title = element_text(face = "bold", hjust = 0.5, size = 16),
@@ -467,12 +474,12 @@ mod_metrics_explained_server <- function(id, rv) {
       req(selected_cell_data())
       data <- selected_cell_data()
 
-      baseline_vals <- data$processed_trace$dFF0[rv$baseline_frames[1]:rv$baseline_frames[2]]
+      baseline_vals <- data$processed_trace$dFF0[get_bl()[1]:get_bl()[2]]
       n_frames <- length(baseline_vals)
 
       div(style = "background-color: #f8f9fa; padding: 15px; border-radius: 5px; border-left: 4px solid #3498db;",
         tags$ul(style = "margin-bottom: 0;",
-          tags$li(sprintf("Baseline frames: %d to %d", rv$baseline_frames[1], rv$baseline_frames[2])),
+          tags$li(sprintf("Baseline frames: %d to %d", get_bl()[1], get_bl()[2])),
           tags$li(sprintf("Number of baseline points: %d", n_frames)),
           tags$li(sprintf("Mean baseline ΔF/F₀: %.4f", mean(baseline_vals, na.rm = TRUE))),
           tags$li(sprintf("Baseline SD: %.4f ΔF/F₀", data$metric$Baseline_SD))
@@ -484,7 +491,7 @@ mod_metrics_explained_server <- function(id, rv) {
       req(selected_cell_data())
       data <- selected_cell_data()
 
-      baseline_vals <- data$processed_trace$dFF0[rv$baseline_frames[1]:rv$baseline_frames[2]]
+      baseline_vals <- data$processed_trace$dFF0[get_bl()[1]:get_bl()[2]]
       n_frames <- length(baseline_vals)
 
       withMathJax(tagList(
@@ -506,7 +513,7 @@ mod_metrics_explained_server <- function(id, rv) {
       data <- selected_cell_data()
       
       # Calculate the actual 10% and 90% values and times for this specific cell
-      search_start_idx <- min(rv$baseline_frames[2] + 1, which.max(data$processed_trace$dFF0))
+      search_start_idx <- min(get_bl()[2] + 1, which.max(data$processed_trace$dFF0))
       peak_idx <- which.max(data$processed_trace$dFF0)
       t10 <- find_rising_crossing_time(data$processed_trace$dFF0, data$processed_trace$Time, 
                                        0.10 * data$metric$Response_Amplitude, search_start_idx, peak_idx)
@@ -531,7 +538,7 @@ mod_metrics_explained_server <- function(id, rv) {
       data <- selected_cell_data()
       
       # Calculate the actual 10% and 90% times for this specific cell
-      search_start_idx <- min(rv$baseline_frames[2] + 1, which.max(data$processed_trace$dFF0))
+      search_start_idx <- min(get_bl()[2] + 1, which.max(data$processed_trace$dFF0))
       peak_idx <- which.max(data$processed_trace$dFF0)
       t10 <- find_rising_crossing_time(data$processed_trace$dFF0, data$processed_trace$Time, 
                                        0.10 * data$metric$Response_Amplitude, search_start_idx, peak_idx)
@@ -760,7 +767,7 @@ mod_metrics_explained_server <- function(id, rv) {
       data <- selected_cell_data()
       
       # Calculate the actual 10% and 90% values and times for this specific cell
-      search_start_idx <- min(rv$baseline_frames[2] + 1, which.max(data$processed_trace$dFF0))
+      search_start_idx <- min(get_bl()[2] + 1, which.max(data$processed_trace$dFF0))
       peak_idx <- which.max(data$processed_trace$dFF0)
       t10 <- find_rising_crossing_time(data$processed_trace$dFF0, data$processed_trace$Time, 
                                        0.10 * data$metric$Response_Amplitude, search_start_idx, peak_idx)
@@ -785,7 +792,7 @@ mod_metrics_explained_server <- function(id, rv) {
       data <- selected_cell_data()
       
       # Calculate the actual 10% and 90% values and times for this specific cell
-      search_start_idx <- min(rv$baseline_frames[2] + 1, which.max(data$processed_trace$dFF0))
+      search_start_idx <- min(get_bl()[2] + 1, which.max(data$processed_trace$dFF0))
       peak_idx <- which.max(data$processed_trace$dFF0)
       t10 <- find_rising_crossing_time(data$processed_trace$dFF0, data$processed_trace$Time, 
                                        0.10 * data$metric$Response_Amplitude, search_start_idx, peak_idx)
@@ -824,9 +831,9 @@ mod_metrics_explained_server <- function(id, rv) {
           
           p <- ggplot(trace, aes(x = Time, y = dFF0)) +
             geom_line(color = "gray50", linewidth = 1)
-          if (identical(rv$baseline_method, "frame_range") && !is.null(rv$baseline_frames)) {
-            b_start <- trace$Time[min(rv$baseline_frames[1], nrow(trace))]
-            b_end <- trace$Time[min(rv$baseline_frames[2], nrow(trace))]
+          if (identical(rv$baseline_method, "frame_range") && !is.null(get_bl())) {
+            b_start <- trace$Time[min(get_bl()[1], nrow(trace))]
+            b_end <- trace$Time[min(get_bl()[2], nrow(trace))]
             p <- p + annotate("rect", xmin = b_start, xmax = b_end, ymin = -Inf, ymax = Inf, fill = "grey95", alpha = 0.5)
           }
           p + geom_segment(data = metric, aes(x = Time_to_Peak, xend = Time_to_Peak, y = 0, yend = Peak_dFF0), color = "red", linetype = "dashed") +
@@ -858,9 +865,9 @@ mod_metrics_explained_server <- function(id, rv) {
 
           p <- ggplot(trace, aes(x = Time, y = dFF0)) +
             geom_line(color = "gray50", linewidth = 1)
-          if (identical(rv$baseline_method, "frame_range") && !is.null(rv$baseline_frames)) {
-            b_start <- trace$Time[min(rv$baseline_frames[1], nrow(trace))]
-            b_end <- trace$Time[min(rv$baseline_frames[2], nrow(trace))]
+          if (identical(rv$baseline_method, "frame_range") && !is.null(get_bl())) {
+            b_start <- trace$Time[min(get_bl()[1], nrow(trace))]
+            b_end <- trace$Time[min(get_bl()[2], nrow(trace))]
             p <- p + annotate("rect", xmin = b_start, xmax = b_end, ymin = -Inf, ymax = Inf, fill = "grey95", alpha = 0.5)
           }
           p + geom_hline(yintercept = 0, color = "darkgreen", linetype = "dashed", linewidth = 1) +
@@ -875,7 +882,7 @@ mod_metrics_explained_server <- function(id, rv) {
             explanation_theme() + coord_cartesian(clip = "off")
         },
         "snr" = {
-          b_end_time <- trace$Time[min(rv$baseline_frames[2], nrow(trace))]
+          b_end_time <- trace$Time[min(get_bl()[2], nrow(trace))]
           y_range <- diff(range(trace$dFF0, na.rm = TRUE))
           x_range <- diff(range(trace$Time, na.rm = TRUE))
           noise_label_x <- min(trace$Time) + x_range * 0.02
@@ -899,8 +906,8 @@ mod_metrics_explained_server <- function(id, rv) {
             explanation_theme() + coord_cartesian(clip = "off")
         },
         "baseline_sd" = {
-          b_end_time <- trace$Time[min(rv$baseline_frames[2], nrow(trace))]
-          baseline_mean <- mean(trace$dFF0[rv$baseline_frames[1]:rv$baseline_frames[2]], na.rm = TRUE)
+          b_end_time <- trace$Time[min(get_bl()[2], nrow(trace))]
+          baseline_mean <- mean(trace$dFF0[get_bl()[1]:get_bl()[2]], na.rm = TRUE)
 
           # Pre-calculate values to avoid scoping issues
           baseline_sd <- metric$Baseline_SD
@@ -925,7 +932,7 @@ mod_metrics_explained_server <- function(id, rv) {
             explanation_theme() + coord_cartesian(clip = "off")
         },
         "rise_time" = {
-          search_start_idx <- min(rv$baseline_frames[2] + 1, which.max(trace$dFF0))
+          search_start_idx <- min(get_bl()[2] + 1, which.max(trace$dFF0))
           peak_idx <- which.max(trace$dFF0)
           t10 <- find_rising_crossing_time(trace$dFF0, trace$Time, 0.10 * metric$Response_Amplitude, search_start_idx, peak_idx)
           t90 <- find_rising_crossing_time(trace$dFF0, trace$Time, 0.90 * metric$Response_Amplitude, search_start_idx, peak_idx)
@@ -1015,7 +1022,7 @@ mod_metrics_explained_server <- function(id, rv) {
             coord_cartesian(clip = "off")
         },
         "ca_entry_rate" = {
-          search_start_idx <- min(rv$baseline_frames[2] + 1, which.max(trace$dFF0))
+          search_start_idx <- min(get_bl()[2] + 1, which.max(trace$dFF0))
           peak_idx <- which.max(trace$dFF0)
           t10 <- find_rising_crossing_time(trace$dFF0, trace$Time, 0.10 * metric$Response_Amplitude, search_start_idx, peak_idx)
           t90 <- find_rising_crossing_time(trace$dFF0, trace$Time, 0.90 * metric$Response_Amplitude, search_start_idx, peak_idx)
