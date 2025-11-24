@@ -52,9 +52,11 @@ accordion <- function(id, title, content, expanded = FALSE, icon = NULL) {
 #' Standardized Box Component
 #'
 #' A wrapper around shinydashboard::box with consistent styling presets.
+#' Supports an optional icon that is rendered in the box title.
 #'
 #' @param title Box title
 #' @param ... Content
+#' @param icon Optional shiny icon() to display before the title
 #' @param status Bootstrap status (primary, success, etc.)
 #' @param solidHeader Logical, whether header has background color
 #' @param width Width (1-12)
@@ -62,9 +64,16 @@ accordion <- function(id, title, content, expanded = FALSE, icon = NULL) {
 #' @param collapsed Logical
 #'
 #' @return A box UI element
-theme_box <- function(title, ..., status = "primary", solidHeader = TRUE, width = 12, collapsible = FALSE, collapsed = FALSE) {
+theme_box <- function(title, ..., icon = NULL, status = "primary", solidHeader = TRUE, width = 12, collapsible = FALSE, collapsed = FALSE) {
+  # If an icon is provided, prepend it to the title
+  box_title <- if (!is.null(icon)) {
+    tagList(icon, " ", title)
+  } else {
+    title
+  }
+  
   shinydashboard::box(
-    title = title,
+    title = box_title,
     ...,
     status = status,
     solidHeader = solidHeader,
