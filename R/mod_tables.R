@@ -4,52 +4,76 @@ mod_tables_ui <- function(id) {
   ns <- NS(id)
   tabItem(tabName = "tables",
           fluidRow(
-            box(
-              title = "Data Tables",
-              status = "primary",
-              solidHeader = TRUE,
-              width = 12,
-              collapsible = FALSE,
-              tabsetPanel(
-                id = ns("tables_tabs"),
-                tabPanel(
-                  "Cell Metrics",
-                  icon = icon("table"),
-                  br(),
-                  h4("Individual Cell Metrics"),
-                  DT::DTOutput(ns("cell_metrics_table")),
-                  br(),
-                  downloadButton(ns("download_cell_metrics"), "Download Cell Metrics (CSV)", class = "btn-primary")
-                ),
-                tabPanel(
-                  "Summary Statistics",
-                  icon = icon("chart-bar"),
-                  br(),
-                  h4("Summary Statistics by Group"),
-                  DT::DTOutput(ns("summary_stats_table")),
-                  br(),
-                  downloadButton(ns("download_summary"), "Download Summary (CSV)", class = "btn-primary")
-                ),
-                tabPanel(
-                  "Time Course Summary",
-                  icon = icon("clock"),
-                  br(),
-                  h4("Time Course Summary (Mean ± SEM)"),
-                  DT::DTOutput(ns("timecourse_summary_table")),
-                  br(),
-                  downloadButton(ns("download_timecourse"), "Download Time Course (CSV)", class = "btn-primary")
-                ),
-                tabPanel(
-                  "Processed Data",
-                  icon = icon("database"),
-                  br(),
-                  h4("Processed Data (Wide Format)"),
-                  selectInput(ns("processed_data_group"), "Select Dataset", choices = NULL),
-                  DT::DTOutput(ns("raw_data_table")),
-                  br(),
-                  downloadButton(ns("download_raw"), "Download Processed Data (CSV)", class = "btn-primary")
-                )
-              )
+            column(width = 12,
+                   theme_box(
+                     title = "Data Tables",
+                     icon = icon("table"),
+                     status = "primary",
+                     width = 12,
+                     collapsible = FALSE,
+                     
+                     tabsetPanel(
+                       id = ns("tables_tabs"),
+                       type = "pills",
+                       
+                       # Tab 1: Cell Metrics
+                       tabPanel(
+                         "Cell Metrics",
+                         icon = icon("calculator"),
+                         div(style = "padding: 15px 0;",
+                             div(style = "display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;",
+                                 h4("Individual Cell Metrics", style = "margin: 0; font-weight: 600;"),
+                                 downloadButton(ns("download_cell_metrics"), "Download CSV", class = "btn-primary btn-sm")
+                             ),
+                             DT::DTOutput(ns("cell_metrics_table"))
+                         )
+                       ),
+                       
+                       # Tab 2: Summary Stats
+                       tabPanel(
+                         "Summary Statistics",
+                         icon = icon("chart-bar"),
+                         div(style = "padding: 15px 0;",
+                             div(style = "display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;",
+                                 h4("Summary Statistics by Group", style = "margin: 0; font-weight: 600;"),
+                                 downloadButton(ns("download_summary"), "Download CSV", class = "btn-primary btn-sm")
+                             ),
+                             DT::DTOutput(ns("summary_stats_table"))
+                         )
+                       ),
+                       
+                       # Tab 3: Time Course Summary
+                       tabPanel(
+                         "Time Course",
+                         icon = icon("clock"),
+                         div(style = "padding: 15px 0;",
+                             div(style = "display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;",
+                                 h4("Time Course Summary (Mean ± SEM)", style = "margin: 0; font-weight: 600;"),
+                                 downloadButton(ns("download_timecourse"), "Download CSV", class = "btn-primary btn-sm")
+                             ),
+                             DT::DTOutput(ns("timecourse_summary_table"))
+                         )
+                       ),
+                       
+                       # Tab 4: Processed Data
+                       tabPanel(
+                         "Processed Data",
+                         icon = icon("database"),
+                         div(style = "padding: 15px 0;",
+                             div(style = "display: flex; align-items: center; gap: 15px; margin-bottom: 15px;",
+                                 div(style = "flex: 1;",
+                                     h4("Processed Data (Wide Format)", style = "margin: 0; font-weight: 600;")
+                                 ),
+                                 div(style = "width: 250px;",
+                                     selectInput(ns("processed_data_group"), NULL, choices = NULL, width = "100%")
+                                 ),
+                                 downloadButton(ns("download_raw"), "Download CSV", class = "btn-primary btn-sm")
+                             ),
+                             DT::DTOutput(ns("raw_data_table"))
+                         )
+                       )
+                     )
+                   )
             )
           )
   )
@@ -64,6 +88,7 @@ mod_tables_server <- function(id, rv) {
     })
     
     output$cell_metrics_table <- DT::renderDT({
+      validate(need(rv$metrics, "Please load and process data to view cell metrics."))
       req(rv$metrics)
       metrics <- rv$metrics
       numeric_cols <- vapply(metrics, is.numeric, logical(1))
@@ -75,15 +100,17 @@ mod_tables_server <- function(id, rv) {
           scrollX = TRUE,
           dom = 'Bfrtip',
           buttons = c('copy', 'csv', 'excel'),
-          columnDefs = list(list(className = 'dt-center', targets = "_all"))
+          columnDefs = list(list(className = 'dt-center', targets = "_all")),
+          language = list(search = "Search cells:")
         ),
         rownames = FALSE,
         filter = 'top',
-        class = 'display compact'
+        class = 'display compact stripe hover'
       ) |> DT::formatRound(columns = which(numeric_cols), digits = 4)
     })
     
     output$summary_stats_table <- DT::renderDT({
+      validate(need(rv$metrics, "Please load and process data to view summary statistics."))
       req(rv$metrics)
       df <- rv$metrics
       metric_cols <- setdiff(names(df)[vapply(df, is.numeric, logical(1))], c("Baseline_SD"))
@@ -116,11 +143,12 @@ mod_tables_server <- function(id, rv) {
           buttons = c('copy', 'csv', 'excel')
         ),
         rownames = FALSE,
-        class = 'display compact'
+        class = 'display compact stripe hover'
       ) |> DT::formatRound(columns = 2:ncol(stats_wide), digits = 4)
     })
     
     output$timecourse_summary_table <- DT::renderDT({
+      validate(need(rv$summary, "Please load and process data to view time course summary."))
       req(rv$summary)
       s <- rv$summary
       summary_df <- s %>%
@@ -139,11 +167,12 @@ mod_tables_server <- function(id, rv) {
           buttons = c('copy', 'csv', 'excel')
         ),
         rownames = FALSE,
-        class = 'display compact'
+        class = 'display compact stripe hover'
       )
     })
     
     output$raw_data_table <- DT::renderDT({
+      validate(need(rv$dts, "Please load data to view processed traces."))
       req(rv$dts)
       if (is.null(input$processed_data_group) || !nzchar(input$processed_data_group)) return(NULL)
       if (!(input$processed_data_group %in% names(rv$dts))) return(NULL)
@@ -159,36 +188,33 @@ mod_tables_server <- function(id, rv) {
           buttons = c('copy', 'csv', 'excel')
         ),
         rownames = FALSE,
-        class = 'display compact'
+        class = 'display compact stripe hover'
       ) |> DT::formatRound(columns = which(numeric_cols), digits = 4)
     })
     
     output$download_cell_metrics <- downloadHandler(
       filename = function() {
-        base_name <- if (!is.null(rv$files) && nrow(rv$files) > 0) {
-          tools::file_path_sans_ext(basename(rv$files$name[1]))
-        } else {
-          "data"
-        }
         n_cells <- if (!is.null(rv$metrics)) nrow(rv$metrics) else 0
-        paste0(base_name, "_cell_metrics_", n_cells, "_cells_", Sys.Date(), ".csv")
+        build_export_filename(
+          rv,
+          parts = c("cell_metrics", paste0(n_cells, "_cells")),
+          ext = "csv"
+        )
       },
       content = function(file) {
         req(rv$metrics)
-        # Download ALL cells, not just what's displayed in the paginated table
-        write.csv(rv$metrics, file, row.names = FALSE)
+        data.table::fwrite(rv$metrics, file)
       }
     )
     
     output$download_summary <- downloadHandler(
       filename = function() {
-        base_name <- if (!is.null(rv$files) && nrow(rv$files) > 0) {
-          tools::file_path_sans_ext(basename(rv$files$name[1]))
-        } else {
-          "data"
-        }
         n_groups <- if (!is.null(rv$groups)) length(rv$groups) else 0
-        paste0(base_name, "_summary_statistics_", n_groups, "_groups_", Sys.Date(), ".csv")
+        build_export_filename(
+          rv,
+          parts = c("summary_statistics", paste0(n_groups, "_groups")),
+          ext = "csv"
+        )
       },
       content = function(file) {
         req(rv$metrics)
@@ -205,39 +231,37 @@ mod_tables_server <- function(id, rv) {
             SEM = SD / pmax(1, sqrt(N)),
             .groups = "drop"
           )
-        write.csv(stats, file, row.names = FALSE)
+        data.table::fwrite(stats, file)
       }
     )
     
     output$download_timecourse <- downloadHandler(
       filename = function() {
-        base_name <- if (!is.null(rv$files) && nrow(rv$files) > 0) {
-          tools::file_path_sans_ext(basename(rv$files$name[1]))
-        } else {
-          "data"
-        }
-        paste0(base_name, "_timecourse_summary_", Sys.Date(), ".csv")
+        build_export_filename(
+          rv,
+          parts = "timecourse_summary",
+          ext = "csv"
+        )
       },
       content = function(file) {
         req(rv$summary)
         s <- rv$summary %>% dplyr::transmute(Group, Time, Mean = mean_dFF0, SD = sd_dFF0, SEM = sem_dFF0, N = n_cells)
-        write.csv(s, file, row.names = FALSE)
+        data.table::fwrite(s, file)
       }
     )
     
     output$download_raw <- downloadHandler(
       filename = function() {
-        base_name <- if (!is.null(rv$files) && nrow(rv$files) > 0) {
-          tools::file_path_sans_ext(basename(rv$files$name[1]))
-        } else {
-          "data"
-        }
         dataset_name <- input$processed_data_group %||% "dataset"
-        paste0(base_name, "_processed_", dataset_name, "_", Sys.Date(), ".csv")
+        build_export_filename(
+          rv,
+          parts = c("processed", dataset_name),
+          ext = "csv"
+        )
       },
       content = function(file) {
         req(rv$dts, input$processed_data_group)
-        write.csv(rv$dts[[input$processed_data_group]], file, row.names = FALSE)
+        data.table::fwrite(rv$dts[[input$processed_data_group]], file)
       }
     )
     

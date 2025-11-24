@@ -5,20 +5,43 @@ mod_preproc_ui <- function(id) {
   tabItem(tabName = "preproc",
           fluidRow(
             column(width = 12,
-                   box(title = "Average Metrics (All Cells)", status = "info", solidHeader = TRUE, width = 12, collapsible = FALSE,
-                       DTOutput(ns("preproc_avg_metrics")),
-                       tags$hr(),
-                       fluidRow(
-                         column(4, selectInput(ns("dl_fmt"), "Format", choices = c("PNG" = "png", "PDF" = "pdf", "TIFF" = "tiff"), selected = "png")),
-                         column(4, numericInput(ns("dl_w"), "Width (in)", 5, min = 2, max = 20, step = 0.5)),
-                         column(4, numericInput(ns("dl_h"), "Height (in)", 6, min = 2, max = 20, step = 0.5))
-                       ),
-                       downloadButton(ns("dl_avg_metrics_img"), "Download Table Image")
+                   theme_box(
+                     title = "Average Metrics (All Cells)",
+                     icon = icon("table"),
+                     status = "info",
+                     width = 12,
+                     collapsible = FALSE,
+                     DTOutput(ns("preproc_avg_metrics")),
+                     
+                     tags$hr(),
+                     
+                     h5("Export Table Image", style = "font-weight: 600; color: var(--color-gray-900); margin-bottom: 15px;"),
+                     fluidRow(
+                       column(3, selectInput(ns("dl_fmt"), "Format", choices = c("PNG" = "png", "PDF" = "pdf", "TIFF" = "tiff"), selected = "png")),
+                       column(3, numericInput(ns("dl_w"), "Width (in)", 5, min = 2, max = 20, step = 0.5)),
+                       column(3, numericInput(ns("dl_h"), "Height (in)", 6, min = 2, max = 20, step = 0.5)),
+                       column(3, style = "margin-top: 25px;", 
+                              downloadButton(ns("dl_avg_metrics_img"), "Download Image", class = "btn-primary", style = "width: 100%;"))
+                     )
                    ),
-                   box(title = "Download Processed Data", status = "primary", solidHeader = TRUE, width = 12, collapsible = FALSE,
-                       tags$p("Download the processed data in the original wide format (first column = Time; subsequent columns = cells)."),
-                       selectInput(ns("pp_dl_group"), "Select file", choices = NULL),
-                       downloadButton(ns("dl_processed_wide"), "Download Processed File (CSV)")
+                   
+                   theme_box(
+                     title = "Download Processed Data",
+                     icon = icon("file-download"),
+                     status = "primary",
+                     width = 12,
+                     collapsible = FALSE,
+                     
+                     div(style = "display: flex; align-items: center; gap: 15px;",
+                         div(style = "flex: 1;",
+                             p("Download the processed data in the original wide format (first column = Time; subsequent columns = cells).", 
+                               class = "text-muted", style = "margin-bottom: 5px;"),
+                             selectInput(ns("pp_dl_group"), "Select File", choices = NULL, width = "100%")
+                         ),
+                         div(style = "margin-top: 15px;",
+                             primary_button(ns("dl_processed_wide"), "Download CSV", icon = icon("download"))
+                         )
+                     )
                    )
             )
           )
@@ -34,6 +57,7 @@ mod_preproc_server <- function(id, rv) {
     })
     
     output$preproc_avg_metrics <- renderDT({
+      validate(need(rv$metrics, "Please load and process data in the 'Load Data' tab to view metrics."))
       req(rv$metrics)
       cols <- c("Peak_dFF0", "AUC", "FWHM", "Half_Width", "Calcium_Entry_Rate",
                 "Time_to_Peak", "Time_to_25_Peak", "Time_to_50_Peak", "Time_to_75_Peak", "Rise_Time", "SNR")
@@ -43,16 +67,16 @@ mod_preproc_server <- function(id, rv) {
         vals <- rv$metrics[[cl]]
         label <- switch(cl,
                         "Peak_dFF0" = "Peak ΔF/F₀",
-                        "Calcium_Entry_Rate" = "Ca²⁺ Entry Rate (ΔF/F₀/s)",
-                        "Time_to_Peak" = "Time to Peak (s)",
-                        "Time_to_25_Peak" = "Time to 25% Peak (s)",
-                        "Time_to_50_Peak" = "Time to 50% Peak (s)",
-                        "Time_to_75_Peak" = "Time to 75% Peak (s)",
-                        "Rise_Time" = "Rise Time (s)",
-                        "FWHM" = "FWHM (s)",
-                        "Half_Width" = "Half-Width (s)",
-                        "SNR" = "Signal-to-Noise Ratio (SNR)",
-                        cl) # Default case
+                        "Calcium_Entry_Rate" = "Ca²⁺ Entry Rate",
+                        "Time_to_Peak" = "Time to Peak",
+                        "Time_to_25_Peak" = "Time to 25% Peak",
+                        "Time_to_50_Peak" = "Time to 50% Peak",
+                        "Time_to_75_Peak" = "Time to 75% Peak",
+                        "Rise_Time" = "Rise Time",
+                        "FWHM" = "FWHM",
+                        "Half_Width" = "Half-Width",
+                        "SNR" = "SNR",
+                        cl)
         c(Metric = label, Mean = mean(vals, na.rm=TRUE),
           SEM = stats::sd(vals, na.rm=TRUE)/sqrt(sum(is.finite(vals))),
           n = sum(is.finite(vals)))
@@ -73,15 +97,17 @@ mod_preproc_server <- function(id, rv) {
       datatable(df,
                 extensions = "Buttons",
                 options=list(
-                  dom='Bti',
+                  dom='Bfrtip',
                   buttons = list(
-                    'copy',
-                    list(extend = 'csv', filename = export_filename),
-                    list(extend = 'excel', filename = export_filename)
+                    list(extend = 'copy', className = 'btn btn-default btn-sm'),
+                    list(extend = 'csv', filename = export_filename, className = 'btn btn-default btn-sm'),
+                    list(extend = 'excel', filename = export_filename, className = 'btn btn-default btn-sm')
                   ),
-                  pageLength = 15
+                  pageLength = 15,
+                  language = list(search = "Search metrics:")
                 ),
-                rownames=FALSE) |>
+                rownames=FALSE,
+                class = "display compact stripe hover") |>
         formatRound(c("Mean","SEM"), 4)
     })
     
@@ -104,7 +130,7 @@ mod_preproc_server <- function(id, rv) {
                         "FWHM" = "FWHM (s)",
                         "Half_Width" = "Half-Width (s)",
                         "SNR" = "Signal-to-Noise Ratio (SNR)",
-                        cl) # Default case
+                        cl)
         c(Metric = label, Mean = mean(vals, na.rm=TRUE),
           SEM = stats::sd(vals, na.rm=TRUE)/sqrt(sum(is.finite(vals))),
           n = sum(is.finite(vals)))
@@ -124,13 +150,12 @@ mod_preproc_server <- function(id, rv) {
     
     output$dl_avg_metrics_img <- downloadHandler(
       filename = function() {
-        base_name <- if (!is.null(rv$files) && nrow(rv$files) > 0) {
-          tools::file_path_sans_ext(basename(rv$files$name[1]))
-        } else {
-          "data"
-        }
         n_groups <- if (!is.null(rv$groups)) length(rv$groups) else 0
-        sprintf("%s_average_metrics_%d_groups_%s.%s", base_name, n_groups, Sys.Date(), input$dl_fmt)
+        build_export_filename(
+          rv,
+          parts = c("average_metrics", paste0(n_groups, "_groups")),
+          ext = input$dl_fmt %||% "png"
+        )
       },
       content = function(file) {
         req(avg_metrics_gt())
@@ -151,12 +176,11 @@ mod_preproc_server <- function(id, rv) {
     
     output$dl_processed_wide <- downloadHandler(
       filename = function() {
-        base_name <- if (!is.null(rv$files) && nrow(rv$files) > 0) {
-          tools::file_path_sans_ext(basename(rv$files$name[1]))
-        } else {
-          "data"
-        }
-        sprintf("%s_processed_%s_%s.csv", base_name, input$pp_dl_group %||% "data", Sys.Date())
+        build_export_filename(
+          rv,
+          parts = c("processed", input$pp_dl_group %||% "data"),
+          ext = "csv"
+        )
       },
       content = function(file) { req(rv$dts, input$pp_dl_group); data.table::fwrite(rv$dts[[input$pp_dl_group]], file) }
     )

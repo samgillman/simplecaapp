@@ -4,7 +4,7 @@ mod_heatmap_ui <- function(id) {
   ns <- NS(id)
   tabItem(tabName = "heatmap",
           fluidRow(
-            box(title = "Controls", status = "primary", solidHeader = TRUE, width = 4, collapsible = FALSE,
+            theme_box(title = "Controls", status = "primary", solidHeader = TRUE, width = 4, collapsible = FALSE,
                 # Basic Options Accordion
                 accordion(
                   id = ns("basic_accordion"),
@@ -65,7 +65,7 @@ mod_heatmap_ui <- function(id) {
                   )
                 )
             ),
-            box(title = "Heatmap", status = "primary", solidHeader = TRUE, width = 8, collapsible = FALSE,
+            theme_box(title = "Heatmap", status = "primary", solidHeader = TRUE, width = 8, collapsible = FALSE,
                 withSpinner(plotOutput(ns("heatmap_plot"), height = "760px"), type = 4),
                 tags$hr(),
                 fluidRow(
@@ -89,11 +89,22 @@ mod_heatmap_server <- function(id, rv) {
       # Simple 0.5 interval scale (reverted from complex data-driven approach)
     
     heatmap_plot_reactive <- reactive({
-      req(rv$dts)
+      # Empty state check
+      if (is.null(rv$dts) || length(rv$dts) == 0) {
+        return(
+          ggplot() + 
+            theme_void() +
+            annotate("text", x = 0.5, y = 0.6, label = "Upload data in 'Load Data' then click Process", size = 6, alpha = 0.7) +
+            annotate("text", x = 0.5, y = 0.45, label = "Heatmap will render here", size = 4.5, alpha = 0.6) +
+            xlim(0,1) + ylim(0,1)
+        )
+      }
+      
       build_hm <- function(dt, label) {
         time_vec <- dt$Time
         dnum <- coerce_numeric_dt(dt)
         mat <- as.matrix(dnum[, -1])
+        cell_names <- colnames(dnum)[-1]
         
         # Debug: check for NA values
         na_count <- sum(is.na(mat))
@@ -103,6 +114,7 @@ mod_heatmap_server <- function(id, rv) {
         
         valid <- apply(mat, 2, function(x) !all(is.na(x)))
         mat <- mat[, valid, drop=FALSE]
+        cell_names <- cell_names[valid]  # Sync cell names with filtered matrix
         if (ncol(mat) == 0) return(NULL)
         
         ord <- seq_len(ncol(mat))
@@ -116,7 +128,9 @@ mod_heatmap_server <- function(id, rv) {
         mat <- mat[, ord, drop=FALSE]
         
         hm <- expand.grid(Time = time_vec, Cell = seq_len(ncol(mat)))
-        hm$Value <- as.vector(mat); hm$Group <- label; hm
+        hm$Value <- as.vector(mat); hm$Group <- label
+        hm$Cell_Label <- rep(cell_names[ord], each = length(time_vec))
+        hm
       }
       
       all_hm <- purrr::imap(rv$dts, ~build_hm(.x, .y)) |> purrr::compact() |> dplyr::bind_rows()
@@ -150,6 +164,7 @@ mod_heatmap_server <- function(id, rv) {
       upper <- ceiling(rng_viz[2] / scale_step) * scale_step
       brks <- seq(0, upper, by = scale_step)
       
+      # Construct the plot
       ggplot(all_hm_viz, aes(Time, Cell, fill = Value)) +
         geom_raster() +
         facet_wrap(~ Group, ncol = 1, scales = "free_y") +
@@ -219,7 +234,7 @@ mod_heatmap_server <- function(id, rv) {
       filename = function() {
         build_export_filename(
           rv,
-          parts = c("heatmap_plot"),
+          parts = "heatmap",
           ext = input$hm_dl_fmt %||% "png"
         )
       },

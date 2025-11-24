@@ -223,7 +223,7 @@ server <- function(input, output, session) {
     mod_preproc_server("preproc", rv)
     
     # Analysis modules  
-    mod_time_course_server("time_course", rv)
+    time_course_outputs <- mod_time_course_server("time_course", rv)
     heatmap_outputs <- mod_heatmap_server("heatmap", rv)
     metrics_outputs <- mod_metrics_server("metrics", rv)
     mod_metrics_explained_server("metrics_explained", rv)
@@ -234,10 +234,12 @@ server <- function(input, output, session) {
     # Export module with reactive plot objects sourced from feature modules
     metrics_plot_reactive <- metrics_outputs$plot %||% reactive({ NULL })
     heatmap_plot_reactive <- heatmap_outputs$plot %||% reactive({ NULL })
+    time_course_plot_reactive <- time_course_outputs$plot %||% reactive({ NULL })
     
     mod_export_server("export", rv, 
                       metrics_plot_reactive = metrics_plot_reactive,
-                      heatmap_plot_reactive = heatmap_plot_reactive)
+                      heatmap_plot_reactive = heatmap_plot_reactive,
+                      time_course_plot_reactive = time_course_plot_reactive)
     
     # Help module
     mod_help_server("help")

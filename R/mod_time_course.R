@@ -5,7 +5,7 @@ mod_time_course_ui <- function(id) {
   tabItem(tabName = "time",
           fluidRow(
             # Left: Controls (always visible)
-            box(title = "Controls", status = "primary", solidHeader = TRUE, width = 4, collapsible = FALSE,
+            theme_box(title = "Controls", status = "primary", solidHeader = TRUE, width = 4, collapsible = FALSE,
                 # Display Options Accordion
                 accordion(
                   id = ns("display_accordion"),
@@ -156,7 +156,7 @@ mod_time_course_ui <- function(id) {
             ),
 
             # Right: Plot
-            box(title = "Time Course", status = "primary", solidHeader = TRUE, width = 8, collapsible = FALSE,
+            theme_box(title = "Time Course", status = "primary", solidHeader = TRUE, width = 8, collapsible = FALSE,
                 fluidRow(
                   column(12, align = "right",
                          radioGroupButtons(
@@ -180,7 +180,7 @@ mod_time_course_ui <- function(id) {
 
           fluidRow(
             column(width = 12,
-                   box(title = "Time Course Summary Statistics", status = "info", solidHeader = TRUE, width = 12,
+                   theme_box(title = "Time Course Summary Statistics", status = "info", solidHeader = TRUE, width = 12,
                        htmlOutput(ns("tc_summary_table"))
                    )
             )
@@ -253,10 +253,12 @@ mod_time_course_server <- function(id, rv) {
         # For single group, use gray for individual traces; otherwise use group colors
         groups <- unique(rv$long$Group)
         if (length(groups) == 1) {
-          p <- p + geom_line(data=rv$long, aes(x=Time, y=dFF0, group=interaction(Group, Cell)),
+          p <- p + geom_line(data=rv$long, aes(x=Time, y=dFF0, group=interaction(Group, Cell),
+                                               text = paste0("Group: ", Group, "\nCell: ", Cell, "\nTime: ", round(Time, 2), "s\nValue: ", round(dFF0, 3))),
                              inherit.aes=FALSE, alpha=alpha_traces, linewidth=0.4, color="gray50")
         } else {
-          p <- p + geom_line(data=rv$long, aes(x=Time, y=dFF0, group=interaction(Group, Cell), color=Group),
+          p <- p + geom_line(data=rv$long, aes(x=Time, y=dFF0, group=interaction(Group, Cell), color=Group,
+                                               text = paste0("Group: ", Group, "\nCell: ", Cell, "\nTime: ", round(Time, 2), "s\nValue: ", round(dFF0, 3))),
                              inherit.aes=FALSE, alpha=alpha_traces, linewidth=0.4)
         }
       }
@@ -278,9 +280,13 @@ mod_time_course_server <- function(id, rv) {
 
       # Mean line: default black; if a custom color is chosen, map to Group so picker applies
       if (isTRUE(has_line_color)) {
-        p <- p + geom_line(data=rv$summary, aes(x=Time, y=mean_dFF0, color=Group), linewidth=input$tc_line_width %||% 1.6)
+        p <- p + geom_line(data=rv$summary, aes(x=Time, y=mean_dFF0, color=Group,
+                                                text = paste0("Group: ", Group, "\nTime: ", round(Time, 2), "s\nMean: ", round(mean_dFF0, 3), "\nSEM: ", round(sem_dFF0, 3))), 
+                           linewidth=input$tc_line_width %||% 1.6)
       } else {
-        p <- p + geom_line(data=rv$summary, aes(x=Time, y=mean_dFF0), color="black", linewidth=input$tc_line_width %||% 1.6)
+        p <- p + geom_line(data=rv$summary, aes(x=Time, y=mean_dFF0,
+                                                text = paste0("Group: ", Group, "\nTime: ", round(Time, 2), "s\nMean: ", round(mean_dFF0, 3), "\nSEM: ", round(sem_dFF0, 3))), 
+                           color="black", linewidth=input$tc_line_width %||% 1.6)
       }
       
       # Apply colors - only if we have multiple groups or are using custom colors
@@ -500,6 +506,11 @@ mod_time_course_server <- function(id, rv) {
       return(p)
     }
     
+    # Reactive wrapper for the plot object to be shared with other modules
+    tc_plot_reactive <- reactive({
+      build_timecourse_plot()
+    })
+    
     # Render static plot
     output$timecourse_plot <- renderPlot({ 
       req(input$plot_type_toggle == "Static")
@@ -509,18 +520,19 @@ mod_time_course_server <- function(id, rv) {
           annotate("text", x = 0.5, y = 0.45, label = "Time Course will render here", size = 4.5, alpha = 0.6) +
           xlim(0,1) + ylim(0,1)
       } else {
-        build_timecourse_plot()
+        tc_plot_reactive()
       }
     })
     
     # Render interactive plot
     output$timecourse_plotly <- plotly::renderPlotly({
       req(input$plot_type_toggle == "Interactive")
-      p <- build_timecourse_plot()
-      plotly::ggplotly(p, tooltip = c("x","y","colour")) |>
+      p <- tc_plot_reactive()
+      plotly::ggplotly(p, tooltip = "text") |>
         plotly::layout(
           yaxis = list(title = "ΔF/F₀"),
-          legend = list(orientation = if (identical(input$tc_legend_pos, "none")) "h" else NULL)
+          legend = list(orientation = if (identical(input$tc_legend_pos, "none")) "h" else NULL),
+          dragmode = "zoom"
         )
     })
     
@@ -582,19 +594,22 @@ mod_time_course_server <- function(id, rv) {
     # Download handler
     output$dl_timecourse_plot_local <- downloadHandler(
       filename = function() {
-        base_name <- if (!is.null(rv$groups) && length(rv$groups) > 0) {
-          paste(rv$groups, collapse = "_")
-        } else {
-          "timecourse"
-        }
-        sprintf("%s Time Course Plot.%s", base_name, input$tc_dl_fmt)
+        build_export_filename(
+          rv,
+          parts = "timecourse",
+          ext = input$tc_dl_fmt %||% "png"
+        )
       },
       content = function(file) {
         req(rv$summary)
-        p <- build_timecourse_plot()
+        p <- tc_plot_reactive()
         ggplot2::ggsave(file, plot = p, width = input$tc_dl_w, height = input$tc_dl_h, dpi = input$tc_dl_dpi)
       }
     )
     
+    # Return the plot reactive for external use (e.g. global export)
+    list(
+      plot = tc_plot_reactive
+    )
   })
 }

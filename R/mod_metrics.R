@@ -4,7 +4,7 @@ mod_metrics_ui <- function(id) {
   ns <- NS(id)
   tabItem(tabName = "metrics",
           fluidRow(
-            box(title = "Controls", status = "primary", solidHeader = TRUE, width = 4,
+            theme_box(title = "Controls", status = "primary", solidHeader = TRUE, width = 4,
                 # Metric Selection Accordion
                 accordion(
                   id = ns("metric_accordion"),
@@ -65,7 +65,7 @@ mod_metrics_ui <- function(id) {
                   )
                 )
             ),
-            box(title = "Metrics Plot", status = "primary", solidHeader = TRUE, width = 8,
+            theme_box(title = "Metrics Plot", status = "primary", solidHeader = TRUE, width = 8,
                 fluidRow(
                   column(12, align = "right",
                          radioGroupButtons(
@@ -105,7 +105,17 @@ mod_metrics_server <- function(id, rv) {
     
     # Reactive expression to build the plot object
     metrics_plot_obj <- reactive({
-      req(rv$metrics)
+      # Empty state check
+      if (is.null(rv$metrics) || nrow(rv$metrics) == 0) {
+        return(
+          ggplot() + 
+            theme_void() +
+            annotate("text", x = 0.5, y = 0.6, label = "Upload data in 'Load Data' then click Process", size = 6, alpha = 0.7) +
+            annotate("text", x = 0.5, y = 0.45, label = "Metrics plot will render here", size = 4.5, alpha = 0.6) +
+            xlim(0,1) + ylim(0,1)
+        )
+      }
+
       metric <- input$metric_name
       df <- dplyr::filter(rv$metrics, is.finite(.data[[metric]]))
       validate(need(nrow(df) > 0, "No finite values for this metric."))
@@ -141,7 +151,8 @@ mod_metrics_server <- function(id, rv) {
           df2 <- df2 |> dplyr::mutate(Cell_Idx = dplyr::row_number())
         }
         bar_fill <- input$metric_bar_color %||% "#B3B3B3"
-        p <- ggplot(df2, aes(x = Cell_Idx, y = .data[[metric]])) +
+        p <- ggplot(df2, aes(x = Cell_Idx, y = .data[[metric]], 
+                             text = paste0("Cell: ", Cell, "\nGroup: ", Group, "\nValue: ", round(.data[[metric]], 3)))) +
           geom_col(width = 0.85, alpha = 0.9, color = "black", fill = bar_fill, linewidth = 0.2)
         
         # Highlight extremes
@@ -161,13 +172,15 @@ mod_metrics_server <- function(id, rv) {
         df$One <- "Cells"
         p <- ggplot(df, aes(x = One, y = .data[[metric]])) +
           geom_boxplot(outlier.shape = NA, width = 0.25, fill = "grey85", color = "black") +
-          geom_jitter(width = 0.12, height = 0, size = 1, alpha = 0.5) +
+          geom_jitter(width = 0.12, height = 0, size = 1, alpha = 0.5, 
+                      aes(text = paste0("Cell: ", Cell, "\nGroup: ", Group, "\nValue: ", round(.data[[metric]], 3)))) +
           labs(x = NULL, y = y_lab, title = title_txt) + base
       } else { # violin
         df$One <- "Cells"
         p <- ggplot(df, aes(x = One, y = .data[[metric]])) +
           geom_violin(trim = FALSE, fill = "grey85", color = "black", width = 0.8) +
-          geom_jitter(width = 0.12, height = 0, size = 1, alpha = 0.4) +
+          geom_jitter(width = 0.12, height = 0, size = 1, alpha = 0.4,
+                      aes(text = paste0("Cell: ", Cell, "\nGroup: ", Group, "\nValue: ", round(.data[[metric]], 3)))) +
           labs(x = NULL, y = y_lab, title = title_txt) + base
       }
       
@@ -194,11 +207,12 @@ mod_metrics_server <- function(id, rv) {
 
     output$metrics_plotly <- plotly::renderPlotly({
       req(metrics_plot_obj())
-      plotly::ggplotly(metrics_plot_obj(), tooltip = c("x", "y", "text")) %>%
+      plotly::ggplotly(metrics_plot_obj(), tooltip = "text") %>%
         plotly::layout(
           hoverlabel = list(bgcolor = "white", font = list(family = input$metric_font %||% "sans")),
           xaxis = list(fixedrange = FALSE),
-          yaxis = list(fixedrange = FALSE)
+          yaxis = list(fixedrange = FALSE),
+          dragmode = "zoom"
         ) %>%
         plotly::config(
           displayModeBar = TRUE,
@@ -221,13 +235,12 @@ mod_metrics_server <- function(id, rv) {
     
     output$dl_plot <- downloadHandler(
       filename = function() {
-        base_name <- if (!is.null(rv$files) && nrow(rv$files) > 0) {
-          tools::file_path_sans_ext(basename(rv$files$name[1]))
-        } else {
-          "data"
-        }
-        metric_name <- gsub(" ", "_", tolower(input$selected_metric %||% "metric"))
-        sprintf("%s_%s_plot_%s.%s", base_name, metric_name, Sys.Date(), input$dl_format)
+        metric_name <- gsub(" ", "_", tolower(input$metric_name %||% "metric"))
+        build_export_filename(
+          rv,
+          parts = c(metric_name, "plot"),
+          ext = input$dl_format %||% "png"
+        )
       },
       content = function(file) {
         ggsave(file, plot = metrics_plot_obj(),

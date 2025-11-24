@@ -25,7 +25,7 @@ mod_metrics_explained_ui <- function(id) {
           # --- Download and Plot Area ---
           fluidRow(
             # Left Column: Explanations (conditionally shown)
-            column(width = 5,
+            theme_box(title = "Explanation & Controls", status = "primary", solidHeader = TRUE, width = 5, collapsible = FALSE,
               # This is where all the conditional panels for text will go
               h4("Explanation"),
               
@@ -308,7 +308,7 @@ mod_metrics_explained_ui <- function(id) {
             ),
 
             # Right Column: The plot itself (static only - annotations don't convert to plotly)
-            column(width = 7,
+            theme_box(title = "Visualization", status = "primary", solidHeader = TRUE, width = 7, collapsible = FALSE,
               plotOutput(ns("explanation_plot"), height = "600px")
             )
           )
@@ -340,21 +340,6 @@ mod_metrics_explained_server <- function(id, rv) {
         choices = cell_choices,
         selected = cell_choices[1],
         width = "100%"
-      )
-    })
-
-    # Also update the selector when metrics change to ensure binding
-    observe({
-      req(rv$metrics)
-      cell_choices <- rv$metrics$Cell_ID
-      names(cell_choices) <- paste(rv$metrics$Group, "-", rv$metrics$Cell_Label)
-
-      # Use updateSelectInput to ensure proper binding even in accordion
-      updateSelectInput(
-        session = session,
-        inputId = "selected_cell",
-        choices = cell_choices,
-        selected = isolate(input$selected_cell) %||% cell_choices[1]
       )
     })
 
