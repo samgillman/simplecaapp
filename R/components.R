@@ -98,37 +98,61 @@ stat_card <- function(value, label, width = 12, style = "") {
   div(
     class = "stat-card",
     style = paste(
-      "background: var(--color-gray-50);",
+      "background: var(--color-white);",
       "border: 1px solid var(--color-gray-100);",
       "text-align: center;",
-      "padding: 24px 16px;",
+      "padding: 16px 12px;",
       "border-radius: var(--radius-md);",
       "box-shadow: var(--shadow-level-1);",
-      "margin-bottom: 12px;",
+      "margin-bottom: 8px;",
       style
     ),
-    h3(value, style = "margin: 0 0 6px 0; font-size: 40px; font-weight: 700; line-height: 1; color: var(--color-primary-blue);"),
-    p(label, style = "margin: 0; font-size: 13px; color: var(--color-gray-600); font-weight: 500; letter-spacing: 0.3px; text-transform: uppercase;")
+    h3(value, style = "margin: 0 0 6px 0; font-size: 32px; font-weight: 700; line-height: 1; color: var(--color-primary-blue);"),
+    p(label, style = "margin: 0; font-size: 10px; color: var(--color-gray-600); font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase;")
   )
 }
 
 #' Processing Status Step
 #'
 #' A visual indicator for a step in the processing pipeline.
+#' Renders as a compact horizontal step with icon, label, and status text.
 #'
 #' @param icon_name FontAwesome icon name
 #' @param title Step title
-#' @param status_text Status text output
+#' @param status_text Status text output (reactive textOutput)
 #' @param color Color variable (e.g., "var(--color-success)")
 #'
 #' @return A UI element for the status step
 status_step <- function(icon_name, title, status_text, color = "var(--color-primary-blue)") {
   column(3, align = "center",
-    div(style = "padding: 8px;",
-      icon(icon_name, class = "fa-2x", style = paste0("color: ", color, "; margin-bottom: 10px; display: block; transition: all 0.3s ease;")),
-      h5(title, style = "margin: 0 0 6px 0; font-weight: 600; font-size: 14px; color: var(--color-gray-900);"),
-      div(status_text, style = "font-size: 12px; color: var(--color-gray-600); line-height: 1.4;")
+    div(
+      class = "status-step",
+      div(class = "status-step-icon",
+        style = paste0("color: ", color, ";"),
+        icon(icon_name)
+      ),
+      div(class = "status-step-label", title),
+      div(class = "status-step-text", status_text)
     )
+  )
+}
+
+#' Empty State Placeholder
+#'
+#' A styled placeholder shown when a module has no data to display.
+#'
+#' @param icon_name FontAwesome icon name
+#' @param title Main message
+#' @param subtitle Secondary message
+#'
+#' @return A div containing the empty state UI
+empty_state <- function(icon_name = "chart-line", title = "No Data Available",
+                        subtitle = "Load and process data to see results here.") {
+  div(
+    class = "empty-state-container",
+    icon(icon_name, class = "fa-3x"),
+    h4(title),
+    p(subtitle)
   )
 }
 

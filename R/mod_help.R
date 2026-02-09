@@ -26,8 +26,8 @@ mod_help_ui <- function(id) {
                             tags$li(tags$b("Process:"), " Choose a baseline correction method (e.g., frame range, rolling min) and click 'Process Data'."),
                             tags$li(tags$b("Visualize:"), " Check the Time Course and Heatmap tabs to inspect signal quality."),
                             tags$li(tags$b("Analyze:"), " Use the Metrics tab to quantify peaks, AUC, rise times, etc."),
-                            tags$li(tags$b("Explain:"), " Use the Metric Explanations tab to visualize how metrics are calculated on your data."),
-                            tags$li(tags$b("Export:"), " Download high-res figures and data tables from the Export tab.")
+                            tags$li(tags$b("Explain:"), " Use Metrics > Explanations to visualize how metrics are calculated on your data."),
+                            tags$li(tags$b("Export:"), " Download high-res figures and data tables from the Data & Export tab.")
                     )
                 )
             ),

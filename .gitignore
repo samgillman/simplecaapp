@@ -19,6 +19,7 @@ renv/local/
 
 # macOS files
 .DS_Store
+._*
 
 # Posit Connect / shinyapps.io deployment configs
 .posit/

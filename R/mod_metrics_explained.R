@@ -3,282 +3,43 @@
 mod_metrics_explained_ui <- function(id) {
   ns <- NS(id)
   tabItem(tabName = "metrics_explained",
-          h2("Visual Metric Explanations"),
-          p("Select a metric and then a cell to see a visual breakdown of the calculation using your own data."),
-          br(),
-          
-          # Selector for which metric to explain
-          selectInput(ns("metric_to_explain"), "Select Metric to Explain:",
-                      choices = c("Peak ΔF/F₀" = "peak_dff0",
-                                  "Response Amplitude" = "response_amplitude",
-                                  "Time to Peak" = "time_to_peak",
-                                  "Signal-to-Noise Ratio (SNR)" = "snr",
-                                  "Baseline Standard Deviation" = "baseline_sd",
-                                  "Rise Time (10-90%)" = "rise_time",
-                                  "Time to % Peak" = "time_to_percent_peak",
-                                  "FWHM & Half-Width" = "fwhm",
-                                  "Area Under Curve (AUC)" = "auc",
-                                  "Calcium Entry Rate (ΔF/F₀/s)" = "ca_entry_rate"
-                                  ),
-                      selected = "peak_dff0"),
-          
-          # --- Download and Plot Area ---
           fluidRow(
-            # Left Column: Explanations (conditionally shown)
-            theme_box(title = "Explanation & Controls", status = "primary", solidHeader = TRUE, width = 5, collapsible = FALSE,
-              # This is where all the conditional panels for text will go
-              h4("Explanation"),
-              
-              # --- UI for Peak dF/F0 Explanation ---
-              conditionalPanel(
-                condition = paste0("input['", ns("metric_to_explain"), "'] == 'peak_dff0'"),
-                h4("Definition", style = "color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 5px;"),
-                p("Peak ΔF/F₀ represents the maximum fluorescence response intensity of the cell. It is the highest point reached in the signal after baseline correction and indicates the strength of the cellular response."),
-                
-                h4("Key Terms", style = "color: #2c3e50; margin-top: 20px;"),
-                tags$ul(
-                  tags$li(HTML("<b>F(t):</b> Raw fluorescence intensity at time t")),
-                  tags$li(HTML("<b>F₀ (Baseline):</b> Average fluorescence during the baseline period (stable, pre-response phase)")),
-                  tags$li(HTML("<b>ΔF/F₀:</b> Normalized change in fluorescence: (F(t) - F₀) / F₀")),
-                  tags$li(HTML("<b>Peak:</b> The maximum value of the ΔF/F₀ trace"))
-                ),
-                
-                h4("For This Cell", style = "color: #2c3e50; margin-top: 20px;"),
-                uiOutput(ns("peak_data_points_ui")),
-                
-                h4("Calculation", style = "color: #2c3e50; margin-top: 20px;"),
-                withMathJax(),
-                p("The peak ΔF/F₀ is calculated by finding the maximum value after baseline correction:"),
-                helpText("$$ \\text{Peak } \\Delta F/F_0 = \\max\\left(\\frac{F(t) - F_0}{F_0}\\right) $$"),
-                uiOutput(ns("peak_calculation_ui"))
-              ),
-
-              # --- UI for Response Amplitude Explanation ---
-              conditionalPanel(
-                condition = paste0("input['", ns("metric_to_explain"), "'] == 'response_amplitude'"),
-                h4("Definition", style = "color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 5px;"),
-                p("Response Amplitude measures the magnitude of the cellular response from the baseline (resting state) to the peak fluorescence. In ΔF/F₀ normalized data, this is equivalent to the Peak ΔF/F₀ value, as the baseline is set to zero during normalization."),
-
-                h4("Key Terms", style = "color: #2c3e50; margin-top: 20px;"),
-                tags$ul(
-                  tags$li(HTML("<b>Baseline (F₀):</b> The resting fluorescence level before stimulation")),
-                  tags$li(HTML("<b>Peak Response:</b> The maximum fluorescence value reached")),
-                  tags$li(HTML("<b>Response Amplitude:</b> The difference between peak and baseline")),
-                  tags$li(HTML("<b>Normalized Data:</b> After ΔF/F₀ transformation, baseline = 0"))
-                ),
-
-                h4("For This Cell", style = "color: #2c3e50; margin-top: 20px;"),
-                uiOutput(ns("response_amp_data_points_ui")),
-
-                h4("Calculation", style = "color: #2c3e50; margin-top: 20px;"),
-                withMathJax(),
-                p("Response Amplitude is calculated as the peak value minus the baseline:"),
-                helpText("$$ \\text{Response Amplitude} = \\text{Peak} - \\text{Baseline} $$"),
-                p("For ΔF/F₀ normalized data where baseline = 0:"),
-                helpText("$$ \\text{Response Amplitude} = \\text{Peak } \\Delta F/F_0 - 0 = \\text{Peak } \\Delta F/F_0 $$"),
-                p("Units: ΔF/F₀ (unitless)"),
-                uiOutput(ns("response_amp_calculation_ui"))
-              ),
-
-              # --- UI for Time to Peak Explanation ---
-              conditionalPanel(
-                condition = paste0("input['", ns("metric_to_explain"), "'] == 'time_to_peak'"),
-                h4("Definition", style = "color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 5px;"),
-                p("Time to Peak measures the duration from the start of the recording until the fluorescence signal reaches its maximum value. It indicates how quickly the cell responds to stimulation and reaches peak activity."),
-                
-                h4("Key Terms", style = "color: #2c3e50; margin-top: 20px;"),
-                tags$ul(
-                  tags$li(HTML("<b>Recording Start:</b> Time = 0 seconds (beginning of measurement)")),
-                  tags$li(HTML("<b>Peak ΔF/F₀:</b> The maximum fluorescence response value")),
-                  tags$li(HTML("<b>Peak Time:</b> The exact time point when the signal first reaches its maximum")),
-                  tags$li(HTML("<b>Response Latency:</b> The delay between stimulus and peak response"))
-                ),
-                
-                h4("For This Cell", style = "color: #2c3e50; margin-top: 20px;"),
-                uiOutput(ns("ttpk_data_points_ui")),
-                
-                h4("Calculation", style = "color: #2c3e50; margin-top: 20px;"),
-                withMathJax(),
-                p("Time to Peak is determined by identifying when the signal first reaches its maximum value:"),
-                helpText("$$ t_{\\text{peak}} = \\text{argmax}_{t} \\left( \\frac{F(t) - F_0}{F_0} \\right) $$"),
-                uiOutput(ns("ttpk_calculation_ui"))
-              ),
-              
-              # --- UI for SNR Explanation ---
-              conditionalPanel(
-                condition = paste0("input['", ns("metric_to_explain"), "'] == 'snr'"),
-                h4("Definition", style = "color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 5px;"),
-                p("Signal-to-Noise Ratio (SNR) quantifies the strength of the cellular response relative to background noise. A higher SNR indicates a clearer, more reliable signal that can be distinguished from random fluctuations."),
-                
-                h4("Key Terms", style = "color: #2c3e50; margin-top: 20px;"),
-                tags$ul(
-                  tags$li(HTML("<b>Signal:</b> The response amplitude (Peak ΔF/F₀ value)")),
-                  tags$li(HTML("<b>Noise:</b> Random fluctuations in the baseline fluorescence")),
-                  tags$li(HTML("<b>Baseline SD:</b> Standard deviation of fluorescence during the stable baseline period")),
-                  tags$li(HTML("<b>Response Amplitude:</b> The magnitude of the peak response above baseline"))
-                ),
-                
-                h4("For This Cell", style = "color: #2c3e50; margin-top: 20px;"),
-                uiOutput(ns("snr_data_points_ui")),
-                
-                h4("Calculation", style = "color: #2c3e50; margin-top: 20px;"),
-                withMathJax(),
-                p("SNR is calculated by dividing the response amplitude by the baseline noise:"),
-                helpText("$$ \\text{SNR} = \\frac{\\text{Response Amplitude}}{\\text{Baseline Standard Deviation}} $$"),
-                uiOutput(ns("snr_calculation_ui"))
-              ),
-
-              # --- UI for Baseline SD Explanation ---
-              conditionalPanel(
-                condition = paste0("input['", ns("metric_to_explain"), "'] == 'baseline_sd'"),
-                h4("Definition", style = "color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 5px;"),
-                p("Baseline Standard Deviation (Baseline SD) quantifies the level of noise or random fluctuation in the fluorescence signal during the resting state before stimulation. It represents the inherent variability of the measurement system and is crucial for assessing signal quality."),
-
-                h4("Key Terms", style = "color: #2c3e50; margin-top: 20px;"),
-                tags$ul(
-                  tags$li(HTML("<b>Baseline Period:</b> The time window before stimulation when the cell is at rest")),
-                  tags$li(HTML("<b>Standard Deviation (SD):</b> A measure of variability or spread in the data")),
-                  tags$li(HTML("<b>Noise Floor:</b> The minimum detectable signal change above background fluctuations")),
-                  tags$li(HTML("<b>Signal Quality:</b> Lower baseline SD indicates cleaner, more reliable measurements"))
-                ),
-
-                h4("For This Cell", style = "color: #2c3e50; margin-top: 20px;"),
-                uiOutput(ns("baseline_sd_data_points_ui")),
-
-                h4("Calculation", style = "color: #2c3e50; margin-top: 20px;"),
-                withMathJax(),
-                p("Baseline SD is the standard deviation of the ΔF/F₀ values during the baseline period:"),
-                helpText("$$ \\text{Baseline SD} = \\sqrt{\\frac{1}{n-1} \\sum_{i=1}^{n} \\left(x_i - \\bar{x}\\right)^2} $$"),
-                p("where x₁, x₂, ..., xₙ are the ΔF/F₀ values during the baseline frames and x̄ is their mean."),
-                p("Units: ΔF/F₀ (unitless)"),
-                uiOutput(ns("baseline_sd_calculation_ui"))
-              ),
-
-              # --- UI for Rise Time Explanation ---
-              conditionalPanel(
-                condition = paste0("input['", ns("metric_to_explain"), "'] == 'rise_time'"),
-                h4("Definition", style = "color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 5px;"),
-                p("Rise Time (10-90%) measures the speed of the signal's initial ascent during activation. It quantifies how quickly the fluorescence signal increases from 10% to 90% of its peak amplitude, indicating the rapidity of the cellular response."),
-                
-                h4("Key Terms", style = "color: #2c3e50; margin-top: 20px;"),
-                tags$ul(
-                  tags$li(HTML("<b>10% Point:</b> Time when signal first reaches 10% of response amplitude")),
-                  tags$li(HTML("<b>90% Point:</b> Time when signal first reaches 90% of response amplitude")),
-                  tags$li(HTML("<b>Response Amplitude:</b> Peak ΔF/F₀ value above baseline")),
-                  tags$li(HTML("<b>Rise Phase:</b> The steepest portion of the signal's ascent"))
-                ),
-                
-                h4("For This Cell", style = "color: #2c3e50; margin-top: 20px;"),
-                uiOutput(ns("rise_time_data_points_ui")),
-                
-                h4("Calculation", style = "color: #2c3e50; margin-top: 20px;"),
-                withMathJax(),
-                p("Rise time is calculated as the duration between the 10% and 90% amplitude points:"),
-                helpText("$$ \\text{Rise Time} = t_{90\\%} - t_{10\\%} $$"),
-                uiOutput(ns("rise_time_calculation_ui"))
-              ),
-              
-              # --- UI for Time to % Peak Explanation ---
-              conditionalPanel(
-                condition = paste0("input['", ns("metric_to_explain"), "'] == 'time_to_percent_peak'"),
-                h4("Definition", style = "color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 5px;"),
-                p("Time to % Peak measures how long it takes for the signal to reach specific percentages (25%, 50%, 75%) of its peak amplitude. This provides a detailed profile of the response kinetics during the rising phase."),
-                
-                h4("Key Terms", style = "color: #2c3e50; margin-top: 20px;"),
-                tags$ul(
-                  tags$li(HTML("<b>Peak Amplitude:</b> Maximum ΔF/F₀ value reached by the cell")),
-                  tags$li(HTML("<b>25% Threshold:</b> One-quarter of the peak amplitude")),
-                  tags$li(HTML("<b>50% Threshold:</b> Half of the peak amplitude")),
-                  tags$li(HTML("<b>75% Threshold:</b> Three-quarters of the peak amplitude")),
-                  tags$li(HTML("<b>Rising Phase:</b> Period when signal increases toward peak"))
-                ),
-                
-                h4("For This Cell", style = "color: #2c3e50; margin-top: 20px;"),
-                uiOutput(ns("ttp_data_points_ui")),
-                
-                h4("Calculation", style = "color: #2c3e50; margin-top: 20px;"),
-                withMathJax(),
-                p("Each time point is determined when the signal first crosses the threshold:"),
-                helpText("$$ t_{25\\%} = \\text{Time when } \\Delta F/F_0 \\text{ first reaches } 0.25 \\times \\text{Peak} $$"),
-                helpText("$$ t_{50\\%} = \\text{Time when } \\Delta F/F_0 \\text{ first reaches } 0.50 \\times \\text{Peak} $$"),
-                helpText("$$ t_{75\\%} = \\text{Time when } \\Delta F/F_0 \\text{ first reaches } 0.75 \\times \\text{Peak} $$"),
-                uiOutput(ns("ttp_calculation_ui"))
-              ),
-              
-              # --- UI for FWHM Explanation ---
-              conditionalPanel(
-                condition = paste0("input['", ns("metric_to_explain"), "'] == 'fwhm'"),
-                h4("Definition", style = "color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 5px;"),
-                p("Full-Width at Half-Maximum (FWHM) measures the total duration that a signal remains above 50% of its peak amplitude. It quantifies the temporal extent of the cellular response, indicating how long the activation persists."),
-                
-                h4("Key Terms", style = "color: #2c3e50; margin-top: 20px;"),
-                tags$ul(
-                  tags$li(HTML("<b>Half-Maximum:</b> 50% of the peak ΔF/F₀ value")),
-                  tags$li(HTML("<b>Left Crossing:</b> Time when signal rises above 50% (t<sub>left</sub>)")),
-                  tags$li(HTML("<b>Right Crossing:</b> Time when signal falls below 50% (t<sub>right</sub>)")),
-                  tags$li(HTML("<b>Half-Width (HWHM):</b> Exactly half of the FWHM duration"))
-                ),
-                
-                h4("For This Cell", style = "color: #2c3e50; margin-top: 20px;"),
-                uiOutput(ns("fwhm_data_points_ui")),
-                
-                h4("Calculation", style = "color: #2c3e50; margin-top: 20px;"),
-                withMathJax(),
-                p("FWHM is calculated as the time difference between crossing points at half-maximum:"),
-                helpText("$$ \\text{FWHM} = t_{\\text{right}} - t_{\\text{left}} $$"),
-                uiOutput(ns("fwhm_calculation_ui"))
-              ),
-              
-              # --- UI for AUC Explanation ---
-              conditionalPanel(
-                condition = paste0("input['", ns("metric_to_explain"), "'] == 'auc'"),
-                h4("Definition", style = "color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 5px;"),
-                p("Area Under Curve (AUC) represents the total integrated response over the entire recording duration. It quantifies the cumulative amount of cellular activity by measuring the total area between the fluorescence trace and the baseline, providing a comprehensive measure of the overall response magnitude and duration."),
-                h4("Key Terms", style = "color: #2c3e50; margin-top: 20px;"),
-                tags$ul(
-                  tags$li(HTML("<b>Integration:</b> Mathematical process of calculating the area under a curve")),
-                  tags$li(HTML("<b>Trapezoidal Rule:</b> Numerical method for approximating definite integrals")),
-                  tags$li(HTML("<b>Time Points:</b> Discrete sampling intervals (t₀, t₁, t₂, ... tₙ)")),
-                  tags$li(HTML("<b>Signal Values:</b> ΔF/F₀ measurements at each time point")),
-                  tags$li(HTML("<b>Cumulative Response:</b> Total amount of signal change over the entire recording"))
-                ),
-                h4("For This Cell", style = "color: #2c3e50; margin-top: 20px;"),
-                uiOutput(ns("auc_data_points_ui")),
-                h4("Calculation", style = "color: #2c3e50; margin-top: 20px;"),
-                withMathJax(),
-                p("In this app, AUC is calculated using the trapezoidal rule with the following steps:"),
-                tags$ol(
-                  tags$li("Calculate time differences between consecutive points: Δt = t(i+1) - t(i)"),
-                  tags$li("Calculate average heights between consecutive points: heights = (y(i+1) + y(i)) / 2"),
-                  tags$li("Sum the products: AUC = Σ(Δt × heights)")
-                ),
-                helpText("$$ \\text{AUC} = \\sum_{i=1}^{n-1} \\Delta t_i \\times \\frac{y_i + y_{i+1}}{2} $$"),
-                p("where Δt_i = t_{i+1} - t_i and y_i represents the ΔF/F₀ values at each time point."),
-                uiOutput(ns("auc_calculation_ui"))
-              ),
-              
-              # --- UI for Calcium Entry Rate Explanation ---
-              conditionalPanel(
-                condition = paste0("input['", ns("metric_to_explain"), "'] == 'ca_entry_rate'"),
-                h4("Definition", style = "color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 5px;"),
-                p("Calcium Entry Rate estimates the speed of calcium influx during the initial rising phase of the response. It measures how quickly the fluorescence signal increases between 10% and 90% of the peak amplitude."),
-                
-                h4("Key Terms", style = "color: #2c3e50; margin-top: 20px;"),
-                tags$ul(
-                  tags$li(HTML("<b>10% Point:</b> The time and amplitude when the signal first reaches 10% of its peak value")),
-                  tags$li(HTML("<b>90% Point:</b> The time and amplitude when the signal first reaches 90% of its peak value")),
-                  tags$li(HTML("<b>Rise Time:</b> The duration between the 10% and 90% points (t<sub>90%</sub> - t<sub>10%</sub>)")),
-                  tags$li(HTML("<b>Rate:</b> The slope of the line connecting these two points"))
-                ),
-                
-                h4("For This Cell", style = "color: #2c3e50; margin-top: 20px;"),
-                uiOutput(ns("ca_data_points_ui")),
-                
-                h4("Calculation", style = "color: #2c3e50; margin-top: 20px;"),
-                withMathJax(),
-                p("The calcium entry rate is calculated as the slope between the 10% and 90% points:"),
-                uiOutput(ns("ca_calculation_ui"))
-              ),
+            column(width = 12,
+              theme_box(
+                title = "Visual Metric Explanations",
+                icon = icon("graduation-cap"),
+                status = "primary",
+                width = 12,
+                collapsible = FALSE,
+                div(
+                  style = "display: flex; align-items: center; gap: 16px;",
+                  div(style = "flex: 1;",
+                    p("Select a metric and a cell to see a visual breakdown of the calculation using your own data.",
+                      class = "text-muted", style = "margin: 0;")
+                  ),
+                  div(style = "width: 280px;",
+                    selectInput(ns("metric_to_explain"), NULL,
+                                choices = c("Peak \u0394F/F\u2080" = "peak_dff0",
+                                            "Response Amplitude" = "response_amplitude",
+                                            "Time to Peak" = "time_to_peak",
+                                            "Signal-to-Noise Ratio (SNR)" = "snr",
+                                            "Baseline Standard Deviation" = "baseline_sd",
+                                            "Rise Time (10-90%)" = "rise_time",
+                                            "Time to % Peak" = "time_to_percent_peak",
+                                            "FWHM & Half-Width" = "fwhm",
+                                            "Area Under Curve (AUC)" = "auc",
+                                            "Calcium Entry Rate (\u0394F/F\u2080/s)" = "ca_entry_rate"),
+                                selected = "peak_dff0", width = "100%")
+                  )
+                )
+              )
+            )
+          ),
+          fluidRow(
+            # Left Column: Explanations
+            theme_box(title = "Explanation & Controls", icon = icon("book-open"), status = "primary", solidHeader = TRUE, width = 4, collapsible = FALSE,
+              # Dynamic Explanation UI
+              uiOutput(ns("explanation_ui")),
 
               # Cell Selection Accordion
               accordion(
@@ -291,10 +52,10 @@ mod_metrics_explained_ui <- function(id) {
                 )
               ),
 
-              # Download Options Accordion
+              # Export Accordion
               accordion(
                 id = ns("download_accordion"),
-                title = "Download Options",
+                title = "Export",
                 icon = "download",
                 expanded = FALSE,
                 content = div(
@@ -302,14 +63,17 @@ mod_metrics_explained_ui <- function(id) {
                     column(6, selectInput(ns("dl_format"), "Format", c("PNG"="png", "PDF"="pdf", "SVG"="svg", "TIFF"="tiff"), "png")),
                     column(6, numericInput(ns("dl_dpi"), "DPI", 300, 72, 600, 5))
                   ),
-                  downloadButton(ns("dl_plot"), "Download Plot", class = "btn-primary", style = "width: 100%; margin-top: 10px;")
+                  downloadButton(ns("dl_plot"), "Download Plot", class = "btn-primary", style = "width: 100%; margin-top: 8px;")
                 )
               )
             ),
 
-            # Right Column: The plot itself (static only - annotations don't convert to plotly)
-            theme_box(title = "Visualization", status = "primary", solidHeader = TRUE, width = 7, collapsible = FALSE,
-              plotOutput(ns("explanation_plot"), height = "600px")
+            # Right Column: The plot
+            theme_box(title = "Visualization", icon = icon("chart-line"), status = "primary", solidHeader = TRUE, width = 8, collapsible = FALSE,
+              div(
+                style = "height: clamp(400px, 65vh, 700px); overflow: hidden;",
+                plotOutput(ns("explanation_plot"), height = "100%")
+              )
             )
           )
   )
@@ -318,6 +82,11 @@ mod_metrics_explained_ui <- function(id) {
 mod_metrics_explained_server <- function(id, rv) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
+    
+    output$explanation_ui <- renderUI({
+      req(input$metric_to_explain)
+      get_metric_explanation_content(input$metric_to_explain, ns)
+    })
     
     # Helper to safely get baseline frames (defaults to 1-20 if not set)
     # Using reactive isolation to access current value of rv$baseline_frames or default
@@ -383,7 +152,7 @@ mod_metrics_explained_server <- function(id, rv) {
       req(selected_cell_data())
       data <- selected_cell_data()
       
-      div(style = "background-color: #f8f9fa; padding: 15px; border-radius: 5px; border-left: 4px solid #3498db;",
+      div(class = "metric-data-box",
         tags$ul(style = "margin-bottom: 0;",
           tags$li(sprintf("Baseline fluorescence (F₀): %.2f", data$f0)),
           tags$li(sprintf("Peak fluorescence (F): %.2f", data$peak_f)),
@@ -402,10 +171,10 @@ mod_metrics_explained_server <- function(id, rv) {
                          data$peak_f, data$f0, data$f0)),
         helpText(sprintf("$$ = \\frac{%.2f}{%.2f} = %.3f $$",
                          data$peak_f - data$f0, data$f0, data$metric$Peak_dFF0)),
-        div(style = "background-color: #d4edda; padding: 10px; border-radius: 5px; margin-top: 10px; border: 1px solid #c3e6cb;",
-          h5("Result:", style = "margin: 0; color: #155724;"),
+        div(class = "metric-result-box",
+          h5("Result:"),
           p(sprintf("Peak ΔF/F₀ = %.3f", data$metric$Peak_dFF0), 
-            style = "margin: 5px 0 0 0; font-weight: bold; color: #155724;")
+            style = "margin: 5px 0 0 0;")
         )
       ))
     })
@@ -414,7 +183,7 @@ mod_metrics_explained_server <- function(id, rv) {
       req(selected_cell_data())
       data <- selected_cell_data()
       
-      div(style = "background-color: #f8f9fa; padding: 15px; border-radius: 5px; border-left: 4px solid #3498db;",
+      div(class = "metric-data-box",
         tags$ul(style = "margin-bottom: 0;",
           tags$li(sprintf("Peak ΔF/F₀: %.3f", data$metric$Peak_dFF0)),
           tags$li(sprintf("Response amplitude: %.3f", data$metric$Response_Amplitude)),
@@ -433,10 +202,10 @@ mod_metrics_explained_server <- function(id, rv) {
         helpText(sprintf("$$ \\text{SNR} = \\frac{\\text{Response Amplitude}}{\\text{Baseline SD}} = \\frac{%.3f}{%.3f} $$", 
                          data$metric$Response_Amplitude, data$metric$Baseline_SD)),
         helpText(sprintf("$$ \\text{SNR} = %.3f $$", data$metric$SNR)),
-        div(style = "background-color: #d4edda; padding: 10px; border-radius: 5px; margin-top: 10px; border: 1px solid #c3e6cb;",
-          h5("Result:", style = "margin: 0; color: #155724;"),
+        div(class = "metric-result-box",
+          h5("Result:"),
           p(sprintf("Signal-to-Noise Ratio = %.3f", data$metric$SNR), 
-            style = "margin: 5px 0 0 0; font-weight: bold; color: #155724;")
+            style = "margin: 5px 0 0 0;")
         )
       ))
     })
@@ -445,7 +214,7 @@ mod_metrics_explained_server <- function(id, rv) {
       req(selected_cell_data())
       data <- selected_cell_data()
 
-      div(style = "background-color: #f8f9fa; padding: 15px; border-radius: 5px; border-left: 4px solid #3498db;",
+      div(class = "metric-data-box",
         tags$ul(style = "margin-bottom: 0;",
           tags$li(sprintf("Peak ΔF/F₀: %.3f", data$metric$Peak_dFF0)),
           tags$li(sprintf("Baseline value: 0 (after normalization)")),
@@ -462,10 +231,10 @@ mod_metrics_explained_server <- function(id, rv) {
         p("For this cell:"),
         helpText(sprintf("$$ \\text{Response Amplitude} = \\text{Peak } \\Delta F/F_0 - \\text{Baseline} $$")),
         helpText(sprintf("$$ = %.3f - 0 = %.3f $$", data$metric$Peak_dFF0, data$metric$Response_Amplitude)),
-        div(style = "background-color: #d4edda; padding: 10px; border-radius: 5px; margin-top: 10px; border: 1px solid #c3e6cb;",
-          h5("Result:", style = "margin: 0; color: #155724;"),
+        div(class = "metric-result-box",
+          h5("Result:"),
           p(sprintf("Response Amplitude = %.3f ΔF/F₀", data$metric$Response_Amplitude),
-            style = "margin: 5px 0 0 0; font-weight: bold; color: #155724;")
+            style = "margin: 5px 0 0 0;")
         )
       ))
     })
@@ -477,7 +246,7 @@ mod_metrics_explained_server <- function(id, rv) {
       baseline_vals <- data$processed_trace$dFF0[get_bl()[1]:get_bl()[2]]
       n_frames <- length(baseline_vals)
 
-      div(style = "background-color: #f8f9fa; padding: 15px; border-radius: 5px; border-left: 4px solid #3498db;",
+      div(class = "metric-data-box",
         tags$ul(style = "margin-bottom: 0;",
           tags$li(sprintf("Baseline frames: %d to %d", get_bl()[1], get_bl()[2])),
           tags$li(sprintf("Number of baseline points: %d", n_frames)),
@@ -500,10 +269,10 @@ mod_metrics_explained_server <- function(id, rv) {
         helpText(sprintf("$$ \\bar{x} = %.4f $$", mean(baseline_vals, na.rm = TRUE))),
         helpText("$$ \\text{SD} = \\sqrt{\\frac{1}{n-1} \\sum_{i=1}^{n} (x_i - \\bar{x})^2} $$"),
         helpText(sprintf("$$ \\text{Baseline SD} = %.4f $$", data$metric$Baseline_SD)),
-        div(style = "background-color: #d4edda; padding: 10px; border-radius: 5px; margin-top: 10px; border: 1px solid #c3e6cb;",
-          h5("Result:", style = "margin: 0; color: #155724;"),
+        div(class = "metric-result-box",
+          h5("Result:"),
           p(sprintf("Baseline SD = %.4f ΔF/F₀", data$metric$Baseline_SD),
-            style = "margin: 5px 0 0 0; font-weight: bold; color: #155724;")
+            style = "margin: 5px 0 0 0;")
         )
       ))
     })
@@ -523,7 +292,7 @@ mod_metrics_explained_server <- function(id, rv) {
       p10_val <- 0.10 * data$metric$Response_Amplitude
       p90_val <- 0.90 * data$metric$Response_Amplitude
       
-      div(style = "background-color: #f8f9fa; padding: 15px; border-radius: 5px; border-left: 4px solid #3498db;",
+      div(class = "metric-data-box",
         tags$ul(style = "margin-bottom: 0;",
           tags$li(sprintf("Response amplitude: %.3f ΔF/F₀", data$metric$Response_Amplitude)),
           tags$li(sprintf("10%% point: %.3f ΔF/F₀ at %.2f seconds", p10_val, t10)),
@@ -549,10 +318,10 @@ mod_metrics_explained_server <- function(id, rv) {
         p("Rise time is calculated by subtracting the time points:"),
         helpText(sprintf("$$ \\text{Rise Time} = t_{90\\%%} - t_{10\\%%} = %.2f - %.2f $$", t90, t10)),
         helpText(sprintf("$$ \\text{Rise Time} = %.2f \\text{ seconds} $$", data$metric$Rise_Time)),
-        div(style = "background-color: #d4edda; padding: 10px; border-radius: 5px; margin-top: 10px; border: 1px solid #c3e6cb;",
-          h5("Result:", style = "margin: 0; color: #155724;"),
+        div(class = "metric-result-box",
+          h5("Result:"),
           p(sprintf("Rise Time (10-90%%) = %.2f seconds", data$metric$Rise_Time), 
-            style = "margin: 5px 0 0 0; font-weight: bold; color: #155724;")
+            style = "margin: 5px 0 0 0;")
         )
       ))
     })
@@ -566,7 +335,7 @@ mod_metrics_explained_server <- function(id, rv) {
       p50_val <- 0.50 * data$metric$Peak_dFF0
       p75_val <- 0.75 * data$metric$Peak_dFF0
       
-      div(style = "background-color: #f8f9fa; padding: 15px; border-radius: 5px; border-left: 4px solid #3498db;",
+      div(class = "metric-data-box",
         tags$ul(style = "margin-bottom: 0;",
           tags$li(sprintf("Peak ΔF/F₀: %.3f", data$metric$Peak_dFF0)),
           tags$li(sprintf("25%% threshold: %.3f ΔF/F₀ at %.2f seconds", p25_val, data$metric$Time_to_25_Peak)),
@@ -590,14 +359,14 @@ mod_metrics_explained_server <- function(id, rv) {
         helpText(sprintf("$$ t_{25\\%%} = \\text{time when } \\Delta F/F_0 = %.3f = %.2f \\text{ s} $$", p25_val, data$metric$Time_to_25_Peak)),
         helpText(sprintf("$$ t_{50\\%%} = \\text{time when } \\Delta F/F_0 = %.3f = %.2f \\text{ s} $$", p50_val, data$metric$Time_to_50_Peak)),
         helpText(sprintf("$$ t_{75\\%%} = \\text{time when } \\Delta F/F_0 = %.3f = %.2f \\text{ s} $$", p75_val, data$metric$Time_to_75_Peak)),
-        div(style = "background-color: #d4edda; padding: 10px; border-radius: 5px; margin-top: 10px; border: 1px solid #c3e6cb;",
-          h5("Results:", style = "margin: 0; color: #155724;"),
+        div(class = "metric-result-box",
+          h5("Results:"),
           p(sprintf("25%% Peak: %.2f s", data$metric$Time_to_25_Peak), 
-            style = "margin: 5px 0 0 0; font-weight: bold; color: #155724;"),
+            style = "margin: 5px 0 0 0;"),
           p(sprintf("50%% Peak: %.2f s", data$metric$Time_to_50_Peak), 
-            style = "margin: 5px 0 0 0; font-weight: bold; color: #155724;"),
+            style = "margin: 5px 0 0 0;"),
           p(sprintf("75%% Peak: %.2f s", data$metric$Time_to_75_Peak), 
-            style = "margin: 5px 0 0 0; font-weight: bold; color: #155724;")
+            style = "margin: 5px 0 0 0;")
         )
       ))
     })
@@ -606,7 +375,7 @@ mod_metrics_explained_server <- function(id, rv) {
       req(selected_cell_data())
       data <- selected_cell_data()
       
-      div(style = "background-color: #f8f9fa; padding: 15px; border-radius: 5px; border-left: 4px solid #3498db;",
+      div(class = "metric-data-box",
         tags$ul(style = "margin-bottom: 0;",
           tags$li(sprintf("Recording start: 0.00 seconds")),
           tags$li(sprintf("Peak ΔF/F₀ value: %.3f", data$metric$Peak_dFF0)),
@@ -624,10 +393,10 @@ mod_metrics_explained_server <- function(id, rv) {
         p("The time to peak is found by identifying when the signal reaches its maximum:"),
         helpText(sprintf("$$ t_{\\text{peak}} = \\text{time when } \\Delta F/F_0 = %.3f $$", data$metric$Peak_dFF0)),
         helpText(sprintf("$$ t_{\\text{peak}} = %.2f \\text{ seconds} $$", data$metric$Time_to_Peak)),
-        div(style = "background-color: #d4edda; padding: 10px; border-radius: 5px; margin-top: 10px; border: 1px solid #c3e6cb;",
-          h5("Result:", style = "margin: 0; color: #155724;"),
+        div(class = "metric-result-box",
+          h5("Result:"),
           p(sprintf("Time to Peak = %.2f seconds", data$metric$Time_to_Peak), 
-            style = "margin: 5px 0 0 0; font-weight: bold; color: #155724;")
+            style = "margin: 5px 0 0 0;")
         )
       ))
     })
@@ -674,7 +443,7 @@ mod_metrics_explained_server <- function(id, rv) {
       times <- fwhm_times()
       metric <- selected_cell_data()$metric
       
-      div(style = "background-color: #f8f9fa; padding: 15px; border-radius: 5px; border-left: 4px solid #3498db;",
+      div(class = "metric-data-box",
         tags$ul(style = "margin-bottom: 0;",
           tags$li(sprintf("Peak ΔF/F₀: %.3f", metric$Peak_dFF0)),
           tags$li(sprintf("Half-maximum (50%%): %.3f", times$half_max_y)),
@@ -697,7 +466,7 @@ mod_metrics_explained_server <- function(id, rv) {
           tagList(
             helpText(sprintf("$$ \\text{FWHM} = t_{\\text{end}} - t_{\\text{left}} = %.2f - %.2f = %.2f \\text{ s} $$",
                              times$t_right, times$t_left, metric$FWHM)),
-            p("Note: This is a sustained response (signal doesn't return to 50%)", style = "font-style: italic; color: #856404;")
+            p("Note: This is a sustained response (signal doesn't return to 50%)", class = "metric-note")
           )
         } else {
           helpText(sprintf("$$ \\text{FWHM} = t_{\\text{right}} - t_{\\text{left}} = %.2f - %.2f = %.2f \\text{ s} $$",
@@ -705,12 +474,12 @@ mod_metrics_explained_server <- function(id, rv) {
         },
         helpText(sprintf("$$ \\text{Half-Width} = \\frac{\\text{FWHM}}{2} = \\frac{%.2f}{2} = %.2f \\text{ s} $$",
                          metric$FWHM, metric$Half_Width)),
-        div(style = "background-color: #d4edda; padding: 10px; border-radius: 5px; margin-top: 10px; border: 1px solid #c3e6cb;",
-          h5("Result:", style = "margin: 0; color: #155724;"),
+        div(class = "metric-result-box",
+          h5("Result:"),
           p(sprintf("FWHM = %.2f seconds", metric$FWHM), 
-            style = "margin: 5px 0 0 0; font-weight: bold; color: #155724;"),
+            style = "margin: 5px 0 0 0;"),
           p(sprintf("Half-Width = %.2f seconds", metric$Half_Width), 
-            style = "margin: 5px 0 0 0; font-weight: bold; color: #155724;")
+            style = "margin: 5px 0 0 0;")
         )
       ))
     })
@@ -726,7 +495,7 @@ mod_metrics_explained_server <- function(id, rv) {
       avg_interval <- total_time / (n_points - 1)
       peak_contrib <- data$metric$Peak_dFF0 * avg_interval  # Approximate peak contribution
       
-      div(style = "background-color: #f8f9fa; padding: 15px; border-radius: 5px; border-left: 4px solid #3498db;",
+      div(class = "metric-data-box",
         tags$ul(style = "margin-bottom: 0;",
           tags$li(sprintf("Recording duration: %.2f seconds", total_time)),
           tags$li(sprintf("Number of data points: %d", n_points)),
@@ -752,10 +521,10 @@ mod_metrics_explained_server <- function(id, rv) {
         helpText("$$ \\text{For each interval: Area}_i = \\frac{y_i + y_{i+1}}{2} \\times \\Delta t_i $$"),
         helpText(sprintf("$$ \\text{With } n = %d \\text{ points over } %.2f \\text{ seconds} $$", n_points, total_time)),
         helpText(sprintf("$$ \\text{Total AUC} = \\sum_{i=1}^{%d} \\text{Area}_i $$", n_points - 1)),
-        div(style = "background-color: #d4edda; padding: 10px; border-radius: 5px; margin-top: 10px; border: 1px solid #c3e6cb;",
-          h5("Result:", style = "margin: 0; color: #155724;"),
+        div(class = "metric-result-box",
+          h5("Result:"),
           p(sprintf("Area Under Curve = %.2f", data$metric$AUC),
-            style = "margin: 5px 0 0 0; font-weight: bold; color: #155724;"),
+            style = "margin: 5px 0 0 0;"),
           p(if(data$metric$AUC > 50) "Strong cumulative response" else if(data$metric$AUC > 20) "Moderate cumulative response" else "Weak cumulative response",
             style = "margin: 5px 0 0 0; font-style: italic; color: #155724; font-size: 0.9em;")
         )
@@ -777,7 +546,7 @@ mod_metrics_explained_server <- function(id, rv) {
       p10_val <- 0.10 * data$metric$Response_Amplitude
       p90_val <- 0.90 * data$metric$Response_Amplitude
       
-      div(style = "background-color: #f8f9fa; padding: 15px; border-radius: 5px; border-left: 4px solid #3498db;",
+      div(class = "metric-data-box",
         tags$ul(style = "margin-bottom: 0;",
           tags$li(sprintf("10%% point: %.3f ΔF/F₀ at %.2f seconds", p10_val, t10)),
           tags$li(sprintf("90%% point: %.3f ΔF/F₀ at %.2f seconds", p90_val, t90)),
@@ -807,10 +576,10 @@ mod_metrics_explained_server <- function(id, rv) {
                          p90_val, p10_val, t90, t10)),
         helpText(sprintf("$$ = \\frac{%.3f}{%.2f} = %.3f \\text{ ΔF/F₀/s} $$", 
                          p90_val - p10_val, data$metric$Rise_Time, data$metric$Calcium_Entry_Rate)),
-        div(style = "background-color: #d4edda; padding: 10px; border-radius: 5px; margin-top: 10px; border: 1px solid #c3e6cb;",
-          h5("Result:", style = "margin: 0; color: #155724;"),
+        div(class = "metric-result-box",
+          h5("Result:"),
           p(sprintf("Calcium Entry Rate = %.3f ΔF/F₀/s", data$metric$Calcium_Entry_Rate), 
-            style = "margin: 5px 0 0 0; font-weight: bold; color: #155724;")
+            style = "margin: 5px 0 0 0;")
         )
       ))
     })
@@ -936,7 +705,7 @@ mod_metrics_explained_server <- function(id, rv) {
           peak_idx <- which.max(trace$dFF0)
           t10 <- find_rising_crossing_time(trace$dFF0, trace$Time, 0.10 * metric$Response_Amplitude, search_start_idx, peak_idx)
           t90 <- find_rising_crossing_time(trace$dFF0, trace$Time, 0.90 * metric$Response_Amplitude, search_start_idx, peak_idx)
-          validate(need(!is.na(t10) && !is.na(t90), "Could not determine 10% or 90% rise time for this cell."))
+          shiny::validate(shiny::need(!is.na(t10) && !is.na(t90), "Could not determine 10% or 90% rise time for this cell."))
           p10_val <- 0.10 * metric$Response_Amplitude
           p90_val <- 0.90 * metric$Response_Amplitude
           y_offset <- (max(trace$dFF0, na.rm = TRUE) - min(trace$dFF0, na.rm = TRUE)) * 0.05
@@ -981,7 +750,7 @@ mod_metrics_explained_server <- function(id, rv) {
         },
         "fwhm" = {
           times <- fwhm_times()
-          validate(need(!is.null(times), "Could not calculate FWHM for this cell."))
+          shiny::validate(shiny::need(!is.null(times), "Could not calculate FWHM for this cell."))
           y_range <- diff(range(data$processed_trace$dFF0, na.rm = TRUE))
           hwhm_offset <- y_range * 0.15
           annotation_df <- data.frame(
@@ -1026,7 +795,7 @@ mod_metrics_explained_server <- function(id, rv) {
           peak_idx <- which.max(trace$dFF0)
           t10 <- find_rising_crossing_time(trace$dFF0, trace$Time, 0.10 * metric$Response_Amplitude, search_start_idx, peak_idx)
           t90 <- find_rising_crossing_time(trace$dFF0, trace$Time, 0.90 * metric$Response_Amplitude, search_start_idx, peak_idx)
-          validate(need(!is.na(t10) && !is.na(t90), "Could not determine rise time for this cell to calculate rate."))
+          shiny::validate(shiny::need(!is.na(t10) && !is.na(t90), "Could not determine rise time for this cell to calculate rate."))
           p10_val <- 0.10 * metric$Response_Amplitude
           p90_val <- 0.90 * metric$Response_Amplitude
           

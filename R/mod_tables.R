@@ -88,10 +88,21 @@ mod_tables_server <- function(id, rv) {
     })
     
     output$cell_metrics_table <- DT::renderDT({
-      validate(need(rv$metrics, "Please load and process data to view cell metrics."))
+      shiny::validate(shiny::need(has_data(rv$metrics), "No data available. Go to the Load Data tab, upload your files, and click Process Data to view cell metrics."))
       req(rv$metrics)
       metrics <- rv$metrics
       numeric_cols <- vapply(metrics, is.numeric, logical(1))
+      
+      # Ensure DataTables Buttons exports have a stable filename (otherwise defaults to page title / app name)
+      export_base <- sub(
+        "\\.[^.]+$",
+        "",
+        build_export_filename(
+          rv,
+          parts = c("cell_metrics", paste0(nrow(metrics), "_cells")),
+          ext = "csv"
+        )
+      )
       DT::datatable(
         metrics,
         extensions = "Buttons",
@@ -99,7 +110,13 @@ mod_tables_server <- function(id, rv) {
           pageLength = 25,
           scrollX = TRUE,
           dom = 'Bfrtip',
-          buttons = c('copy', 'csv', 'excel'),
+          buttons = list(
+            # Use DT shorthand button names ("csv", "excel") so DT includes the right JS deps (e.g. JSZip for Excel),
+            # and set BOTH `title` and `filename` so downloads don't fall back to document.title.
+            list(extend = "copy", className = "btn btn-default btn-sm"),
+            list(extend = "csv", title = export_base, filename = export_base, className = "btn btn-default btn-sm"),
+            list(extend = "excel", title = export_base, filename = export_base, className = "btn btn-default btn-sm")
+          ),
           columnDefs = list(list(className = 'dt-center', targets = "_all")),
           language = list(search = "Search cells:")
         ),
@@ -110,7 +127,7 @@ mod_tables_server <- function(id, rv) {
     })
     
     output$summary_stats_table <- DT::renderDT({
-      validate(need(rv$metrics, "Please load and process data to view summary statistics."))
+      shiny::validate(shiny::need(has_data(rv$metrics), "No data available. Go to the Load Data tab, upload your files, and click Process Data to view summary statistics."))
       req(rv$metrics)
       df <- rv$metrics
       metric_cols <- setdiff(names(df)[vapply(df, is.numeric, logical(1))], c("Baseline_SD"))
@@ -133,6 +150,16 @@ mod_tables_server <- function(id, rv) {
           values_from = c(Mean, SEM, N),
           names_glue = "{Metric}_{.value}"
         )
+      
+      export_base <- sub(
+        "\\.[^.]+$",
+        "",
+        build_export_filename(
+          rv,
+          parts = c("summary_statistics", paste0(length(unique(df$Group %||% character(0))), "_groups")),
+          ext = "csv"
+        )
+      )
       DT::datatable(
         stats_wide,
         extensions = "Buttons",
@@ -140,7 +167,11 @@ mod_tables_server <- function(id, rv) {
           pageLength = 10,
           scrollX = TRUE,
           dom = 'Bfrtip',
-          buttons = c('copy', 'csv', 'excel')
+          buttons = list(
+            list(extend = "copy", className = "btn btn-default btn-sm"),
+            list(extend = "csv", title = export_base, filename = export_base, className = "btn btn-default btn-sm"),
+            list(extend = "excel", title = export_base, filename = export_base, className = "btn btn-default btn-sm")
+          )
         ),
         rownames = FALSE,
         class = 'display compact stripe hover'
@@ -148,7 +179,7 @@ mod_tables_server <- function(id, rv) {
     })
     
     output$timecourse_summary_table <- DT::renderDT({
-      validate(need(rv$summary, "Please load and process data to view time course summary."))
+      shiny::validate(shiny::need(has_data(rv$summary), "No data available. Go to the Load Data tab, upload your files, and click Process Data to view the time course summary."))
       req(rv$summary)
       s <- rv$summary
       summary_df <- s %>%
@@ -157,6 +188,16 @@ mod_tables_server <- function(id, rv) {
       summary_wide <- summary_df %>%
         dplyr::select(Group, Time, `Mean ± SEM`) %>%
         tidyr::pivot_wider(names_from = Group, values_from = `Mean ± SEM`)
+      
+      export_base <- sub(
+        "\\.[^.]+$",
+        "",
+        build_export_filename(
+          rv,
+          parts = c("timecourse_summary", paste0(length(unique(s$Group %||% character(0))), "_groups")),
+          ext = "csv"
+        )
+      )
       DT::datatable(
         summary_wide,
         extensions = "Buttons",
@@ -164,7 +205,11 @@ mod_tables_server <- function(id, rv) {
           pageLength = 25,
           scrollX = TRUE,
           dom = 'Bfrtip',
-          buttons = c('copy', 'csv', 'excel')
+          buttons = list(
+            list(extend = "copy", className = "btn btn-default btn-sm"),
+            list(extend = "csv", title = export_base, filename = export_base, className = "btn btn-default btn-sm"),
+            list(extend = "excel", title = export_base, filename = export_base, className = "btn btn-default btn-sm")
+          )
         ),
         rownames = FALSE,
         class = 'display compact stripe hover'
@@ -172,12 +217,22 @@ mod_tables_server <- function(id, rv) {
     })
     
     output$raw_data_table <- DT::renderDT({
-      validate(need(rv$dts, "Please load data to view processed traces."))
+      shiny::validate(shiny::need(has_data(rv$dts), "No data available. Go to the Load Data tab, upload your files, and click Process Data to view processed traces."))
       req(rv$dts)
       if (is.null(input$processed_data_group) || !nzchar(input$processed_data_group)) return(NULL)
       if (!(input$processed_data_group %in% names(rv$dts))) return(NULL)
       df <- rv$dts[[input$processed_data_group]]
       numeric_cols <- vapply(df, is.numeric, logical(1))
+      
+      export_base <- sub(
+        "\\.[^.]+$",
+        "",
+        build_export_filename(
+          rv,
+          parts = c("processed", input$processed_data_group %||% "dataset"),
+          ext = "csv"
+        )
+      )
       DT::datatable(
         df,
         extensions = "Buttons",
@@ -185,7 +240,11 @@ mod_tables_server <- function(id, rv) {
           pageLength = 25,
           scrollX = TRUE,
           dom = 'Bfrtip',
-          buttons = c('copy', 'csv', 'excel')
+          buttons = list(
+            list(extend = "copy", className = "btn btn-default btn-sm"),
+            list(extend = "csv", title = export_base, filename = export_base, className = "btn btn-default btn-sm"),
+            list(extend = "excel", title = export_base, filename = export_base, className = "btn btn-default btn-sm")
+          )
         ),
         rownames = FALSE,
         class = 'display compact stripe hover'
