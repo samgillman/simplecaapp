@@ -165,7 +165,7 @@ mod_post_analysis_ui <- function(id) {
                         shinyjs::hidden(
                             div(id = ns("pa_interactive_panel"),
                                 div(
-                                    style = PLOT_HEIGHT_LARGE,
+                                    style = "height: clamp(400px, 75vh, 850px);",
                                     withSpinner(plotlyOutput(ns("pooled_timecourse_plotly"), height = "100%"), type = 4)
                                 )
                             )
@@ -1190,8 +1190,15 @@ mod_post_analysis_server <- function(id) {
             p <- tc_plot_reactive()
             plotly::ggplotly(p, tooltip = "text") |>
                 plotly::layout(
-                    yaxis = list(title = "ΔF/F₀"),
-                    legend = list(orientation = "h"),
+                    yaxis = list(title = "\u0394F/F\u2080"),
+                    legend = list(
+                        orientation = "h",
+                        y = -0.15,
+                        x = 0.5,
+                        xanchor = "center",
+                        font = list(size = 10)
+                    ),
+                    margin = list(t = 40, b = 80, l = 60, r = 20),
                     dragmode = "zoom"
                 )
         })
