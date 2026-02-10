@@ -4296,7 +4296,7 @@
       "checksum": "4d06814d99eb009035f3e8f2f2970ef9"
     },
     ".Rprofile": {
-      "checksum": "6d01f9b43448b55f83da514669d3c5ff"
+      "checksum": "74d2d66adc83ddae3d501ad2ebbe011e"
     },
     ".worktrees/._.DS_Store": {
       "checksum": "c04de0783781239b96d153236ba7b4ad"
@@ -4305,7 +4305,7 @@
       "checksum": "7c9a69f42de0ede2a45c1ffec014f9f4"
     },
     ".worktrees/ui-ux-redesign/.Rprofile": {
-      "checksum": "22fe1c1d0e518f83487bd7dfcbf8ef57"
+      "checksum": "9447bcba3d3807ecc6fbfd56074b4542"
     },
     ".worktrees/ui-ux-redesign/app.R": {
       "checksum": "0feaaed56a72041070ae32711c9de202"
@@ -4437,7 +4437,7 @@
       "checksum": "4077f3ffefbba2299610ed463a25e170"
     },
     "R/mod_post_analysis.R": {
-      "checksum": "4ba85e8eea1fcb8e0f298ce1da6c781c"
+      "checksum": "34c1dccf9d090cff1c013261b94a5d25"
     },
     "R/mod_preproc.R": {
       "checksum": "876c5d07ad15de31c25b481623260d10"
