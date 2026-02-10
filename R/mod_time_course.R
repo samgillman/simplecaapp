@@ -14,9 +14,11 @@ mod_time_course_ui <- function(id) {
                   expanded = TRUE,
                   content = div(
                     switchInput(ns("tc_show_traces"), "Show individual traces",
-                                value = FALSE, size = "mini"),
+                                value = TRUE, size = "mini"),
                     sliderInput(ns("tc_trace_transparency"), "Trace transparency (%)",
                                 0, 100, 50, 1, width = "100%"),
+                    switchInput(ns("tc_show_avg_line"), "Show average trace",
+                                value = TRUE, size = "mini"),
                     switchInput(ns("tc_show_ribbon"), "Show SEM ribbon",
                                 value = TRUE, size = "mini"),
                     sliderInput(ns("tc_line_width"), "Line width",
@@ -276,7 +278,7 @@ mod_time_course_server <- function(id, rv) {
         }
       }
 
-      # Add ribbon and main line
+      # Add ribbon and mean line (conditional on toggle)
       has_line_color <- !is.null(input$tc_line_color) && is.character(input$tc_line_color) &&
         length(input$tc_line_color) == 1 && !is.na(input$tc_line_color) && nzchar(input$tc_line_color)
 
@@ -286,8 +288,10 @@ mod_time_course_server <- function(id, rv) {
         dplyr::count(Group, name = "n_points")
       has_segments <- any(group_counts$n_points > 1)
 
-      # Ribbon
-      if (has_segments) {
+      show_avg <- isTRUE(input$tc_show_avg_line %||% TRUE)
+
+      # Ribbon (only if average trace is shown)
+      if (show_avg && has_segments) {
         p <- p +
           geom_ribbon(data=summary_df,
                       aes(x=Time, ymin=mean_dFF0 - sem_dFF0, ymax=mean_dFF0 + sem_dFF0),
@@ -295,27 +299,29 @@ mod_time_course_server <- function(id, rv) {
                       alpha=if (isTRUE(input$tc_show_ribbon %||% TRUE)) 0.25 else 0, color=NA)
       }
 
-      # Mean line
+      # Mean line (only if average trace is shown)
       lw <- input$tc_line_width %||% 2.0
-      if (isTRUE(has_line_color)) {
-        if (has_segments) {
-          p <- p + geom_line(data=summary_df, aes(x=Time, y=mean_dFF0, color=Group,
-                                                  text = paste0("Group: ", Group, "\nTime: ", round(Time, 2), "s\nMean: ", round(mean_dFF0, 3), "\nSEM: ", round(sem_dFF0, 3))),
-                             linewidth=lw)
+      if (show_avg) {
+        if (isTRUE(has_line_color)) {
+          if (has_segments) {
+            p <- p + geom_line(data=summary_df, aes(x=Time, y=mean_dFF0, color=Group,
+                                                    text = paste0("Group: ", Group, "\nTime: ", round(Time, 2), "s\nMean: ", round(mean_dFF0, 3), "\nSEM: ", round(sem_dFF0, 3))),
+                               linewidth=lw)
+          } else {
+            p <- p + geom_point(data=summary_df, aes(x=Time, y=mean_dFF0, color=Group,
+                                                     text = paste0("Group: ", Group, "\nTime: ", round(Time, 2), "s\nMean: ", round(mean_dFF0, 3), "\nSEM: ", round(sem_dFF0, 3))),
+                                size=2.5)
+          }
         } else {
-          p <- p + geom_point(data=summary_df, aes(x=Time, y=mean_dFF0, color=Group,
-                                                   text = paste0("Group: ", Group, "\nTime: ", round(Time, 2), "s\nMean: ", round(mean_dFF0, 3), "\nSEM: ", round(sem_dFF0, 3))),
-                              size=2.5)
-        }
-      } else {
-        if (has_segments) {
-          p <- p + geom_line(data=summary_df, aes(x=Time, y=mean_dFF0,
-                                                  text = paste0("Group: ", Group, "\nTime: ", round(Time, 2), "s\nMean: ", round(mean_dFF0, 3), "\nSEM: ", round(sem_dFF0, 3))),
-                             color="black", linewidth=lw)
-        } else {
-          p <- p + geom_point(data=summary_df, aes(x=Time, y=mean_dFF0,
-                                                   text = paste0("Group: ", Group, "\nTime: ", round(Time, 2), "s\nMean: ", round(mean_dFF0, 3), "\nSEM: ", round(sem_dFF0, 3))),
-                              color="black", size=2.5)
+          if (has_segments) {
+            p <- p + geom_line(data=summary_df, aes(x=Time, y=mean_dFF0,
+                                                    text = paste0("Group: ", Group, "\nTime: ", round(Time, 2), "s\nMean: ", round(mean_dFF0, 3), "\nSEM: ", round(sem_dFF0, 3))),
+                               color="black", linewidth=lw)
+          } else {
+            p <- p + geom_point(data=summary_df, aes(x=Time, y=mean_dFF0,
+                                                     text = paste0("Group: ", Group, "\nTime: ", round(Time, 2), "s\nMean: ", round(mean_dFF0, 3), "\nSEM: ", round(sem_dFF0, 3))),
+                                color="black", size=2.5)
+          }
         }
       }
 

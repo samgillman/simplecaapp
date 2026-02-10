@@ -899,15 +899,21 @@ mod_post_analysis_server <- function(id) {
 
             # Individual traces if enabled
             if (isTRUE(input$pa_show_traces %||% TRUE)) {
-                p <- p + geom_line(
-                    data = rv$pooled_long,
-                    aes(
-                        x = Time, y = dFF0, group = Cell, color = Source,
-                        text = paste0("Source: ", Source, "\nCell: ", Cell, "\nTime: ", round(Time, 2), "s\nValue: ", round(dFF0, 3))
-                    ),
-                    alpha = alpha_traces,
-                    linewidth = 0.4
-                )
+                trace_df <- rv$pooled_long |>
+                    dplyr::group_by(Source, Cell) |>
+                    dplyr::filter(dplyr::n() > 1) |>
+                    dplyr::ungroup()
+                if (nrow(trace_df) > 0) {
+                    p <- p + geom_line(
+                        data = trace_df,
+                        aes(
+                            x = Time, y = dFF0, group = Cell, color = Source,
+                            text = paste0("Source: ", Source, "\nCell: ", Cell, "\nTime: ", round(Time, 2), "s\nValue: ", round(dFF0, 3))
+                        ),
+                        alpha = alpha_traces,
+                        linewidth = 0.4
+                    )
+                }
             }
 
             # Per-source average lines if enabled

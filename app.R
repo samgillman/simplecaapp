@@ -30,6 +30,7 @@ library(gt)
 library(webshot2)
 library(stringr)
 library(tools)
+library(ggbeeswarm)
 
 # ============================ Source Modules and Helpers =============================
 # Check if R folder exists
