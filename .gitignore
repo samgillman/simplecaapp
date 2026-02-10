@@ -24,7 +24,6 @@ renv/local/
 # Posit Connect / shinyapps.io deployment configs
 .posit/
 rsconnect/
-manifest.json
 
 # Git worktrees
 .worktrees/
