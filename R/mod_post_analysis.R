@@ -34,6 +34,24 @@ mod_post_analysis_ui <- function(id) {
                             buttonLabel = "Browse...",
                             placeholder = "Select file(s) to add"
                         ),
+                        # Experimental group assignment (progressive disclosure)
+                        div(
+                            style = "margin-bottom: 8px;",
+                            checkboxInput(ns("use_groups"),
+                                tags$span(icon("layer-group", style = "margin-right: 4px;"),
+                                          "Assign experimental groups"),
+                                value = FALSE),
+                            conditionalPanel(
+                                paste0("input['", ns("use_groups"), "']"),
+                                div(style = "background: var(--color-gray-50); border: 1px solid var(--color-gray-100); border-radius: 6px; padding: 10px; margin-bottom: 8px;",
+                                    textInput(ns("active_group"), NULL,
+                                        placeholder = "e.g., Sham, MI, Control...",
+                                        width = "100%"),
+                                    p(class = "small-help", icon("info-circle"),
+                                      " Files uploaded while a group is set will be tagged with that group.")
+                                )
+                            )
+                        ),
                         uiOutput(ns("file_list"))
                     ),
                     # Column 2: Column mapping
@@ -372,11 +390,21 @@ mod_post_analysis_server <- function(id) {
                 current <- accumulated_files()
                 existing_names <- sapply(current, function(f) f$name)
 
+                # Capture active group (NULL if grouping disabled or empty)
+                grp <- if (isTRUE(input$use_groups) &&
+                           !is.null(input$active_group) &&
+                           nzchar(trimws(input$active_group))) {
+                    trimws(input$active_group)
+                } else {
+                    NULL
+                }
+
                 for (i in seq_len(nrow(new_files))) {
                     file_info <- list(
                         name = new_files$name[i],
                         size = new_files$size[i],
-                        datapath = new_files$datapath[i]
+                        datapath = new_files$datapath[i],
+                        group = grp
                     )
 
                     if (!(new_files$name[i] %in% existing_names)) {
@@ -417,6 +445,19 @@ mod_post_analysis_server <- function(id) {
             }
         })
 
+        # Handle inline group reassignment from file list
+        observeEvent(input$reassign_group, {
+            info <- input$reassign_group
+            idx <- as.integer(info$idx)
+            new_group <- trimws(info$group)
+
+            current <- accumulated_files()
+            if (idx >= 1 && idx <= length(current)) {
+                current[[idx]]$group <- if (nzchar(new_group)) new_group else NULL
+                accumulated_files(current)
+            }
+        })
+
         # ==================== File List UI ====================
 
         output$file_list <- renderUI({
@@ -442,13 +483,51 @@ mod_post_analysis_server <- function(id) {
                 return(paste0(round(bytes / 1024^2, 1), " MB"))
             }
 
+            show_groups <- isTRUE(input$use_groups)
+
             file_items <- lapply(seq_along(files), function(i) {
                 f <- files[[i]]
+
+                # Group badge (only when grouping is active)
+                group_badge <- if (show_groups) {
+                    if (!is.null(f$group) && nzchar(f$group)) {
+                        tags$span(
+                            f$group,
+                            style = "background: var(--color-primary-blue); color: white; font-size: 10px; padding: 2px 6px; border-radius: 3px; margin-right: 6px; white-space: nowrap;"
+                        )
+                    } else {
+                        tags$span(
+                            "ungrouped",
+                            style = "background: var(--color-gray-100); color: var(--color-gray-500); font-size: 10px; padding: 2px 6px; border-radius: 3px; margin-right: 6px; white-space: nowrap; font-style: italic;"
+                        )
+                    }
+                } else {
+                    NULL
+                }
+
+                # Inline group edit (small text input, only when grouping active)
+                group_edit <- if (show_groups) {
+                    tags$input(
+                        type = "text",
+                        value = f$group %||% "",
+                        placeholder = "group",
+                        style = "width: 65px; font-size: 11px; padding: 2px 4px; border: 1px solid var(--color-gray-200); border-radius: 3px; margin-right: 6px;",
+                        onchange = sprintf(
+                            "Shiny.setInputValue('%s', {idx: %d, group: this.value}, {priority: 'event'})",
+                            ns("reassign_group"), i
+                        )
+                    )
+                } else {
+                    NULL
+                }
+
                 tags$div(
                     style = "display: flex; align-items: center; padding: 8px 10px; background: white; border-radius: 4px; margin-bottom: 4px; border: 1px solid var(--color-gray-100);",
                     icon("file-csv", style = "color: var(--color-primary-blue); margin-right: 8px;"),
-                    tags$span(f$name, style = "flex: 1; font-size: 13px; overflow: hidden; text-overflow: ellipsis;"),
-                    tags$span(format_size(f$size), style = "color: var(--color-gray-600); font-size: 11px; margin-right: 8px;"),
+                    group_badge,
+                    tags$span(f$name, style = "flex: 1; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"),
+                    group_edit,
+                    tags$span(format_size(f$size), style = "color: var(--color-gray-600); font-size: 11px; margin-right: 8px; white-space: nowrap;"),
                     actionLink(
                         inputId = ns(paste0("remove_", i)),
                         label = NULL,
@@ -628,7 +707,12 @@ mod_post_analysis_server <- function(id) {
                         next
                     }
 
-                    file_label <- tools::file_path_sans_ext(basename(f$name))
+                    # Use group name as Source when grouping is active, otherwise filename
+                    file_label <- if (isTRUE(input$use_groups) && !is.null(f$group) && nzchar(f$group)) {
+                        f$group
+                    } else {
+                        tools::file_path_sans_ext(basename(f$name))
+                    }
                     file_valid_cells <- 0L
 
                     for (cell in neuron_cols) {
@@ -638,7 +722,8 @@ mod_post_analysis_server <- function(id) {
                         }
 
                         file_valid_cells <- file_valid_cells + 1L
-                        cell_id <- paste0(file_label, "_", cell)
+                        # Include file index to prevent cell ID collisions within a group
+                        cell_id <- paste0(file_label, "_f", i, "_", cell)
 
                         all_long[[length(all_long) + 1]] <- data.frame(
                             Time = time_vec,
@@ -890,6 +975,14 @@ mod_post_analysis_server <- function(id) {
             }
             names(source_colors) <- sources
 
+            # Short labels for legend readability (mirrors metrics plot pattern)
+            short_labels <- setNames(paste0("S", seq_along(sources)), sources)
+            legend_labels <- setNames(
+                paste0("S", seq_along(sources), "  ",
+                       stringr::str_trunc(sources, 28)),
+                sources
+            )
+
             # Calculate trace alpha from transparency input
             transparency_pct <- as.numeric(input$pa_trace_transparency %||% 50)
             alpha_raw <- (100 - transparency_pct) / 100
@@ -946,7 +1039,7 @@ mod_post_analysis_server <- function(id) {
                     color = line_color,
                     linewidth = input$pa_line_width %||% 1.6
                 ) +
-                scale_color_manual(values = source_colors)
+                scale_color_manual(values = source_colors, labels = legend_labels)
 
             # Labels
             title_txt <- input$pa_title
@@ -966,17 +1059,28 @@ mod_post_analysis_server <- function(id) {
             p <- p + labs(
                 title = title_txt,
                 subtitle = {
-                    fnames <- tools::file_path_sans_ext(rv$file_names)
-                    n_f <- length(fnames)
-                    if (n_f <= 2) {
-                        paste("From:", paste(fnames, collapse = " + "))
+                    # Show group names if grouping active, otherwise filenames
+                    if (n_sources > 1) {
+                        src_names <- sources
+                        n_s <- length(src_names)
+                        if (n_s <= 3) {
+                            paste(src_names, collapse = " vs ")
+                        } else {
+                            paste0(paste(src_names[1:2], collapse = " vs "), " + ", n_s - 2, " more")
+                        }
                     } else {
-                        paste0("From: ", paste(fnames[1:2], collapse = " + "), " + ", n_f - 2, " more")
+                        fnames <- tools::file_path_sans_ext(rv$file_names)
+                        n_f <- length(fnames)
+                        if (n_f <= 2) {
+                            paste("From:", paste(fnames, collapse = " + "))
+                        } else {
+                            paste0("From: ", paste(fnames[1:2], collapse = " + "), " + ", n_f - 2, " more")
+                        }
                     }
                 },
                 x = input$pa_x %||% "Time (s)",
                 y = y_lab,
-                color = "Recording"
+                color = "Source"
             )
 
             # Apply SHARED theme
@@ -988,6 +1092,18 @@ mod_post_analysis_server <- function(id) {
                 legend_pos <- if (n_sources > 1) "bottom" else "none"
             }
             p <- p + theme(legend.position = legend_pos)
+
+            # Compact legend styling for multi-source
+            if (n_sources > 1 && legend_pos != "none") {
+                p <- p + theme(
+                    legend.text = element_text(size = max(7, (input$pa_base_font_size %||% 14) - 4)),
+                    legend.key.size = unit(0.4, "cm"),
+                    legend.spacing.x = unit(0.15, "cm"),
+                    legend.margin = margin(t = 2, b = 2),
+                    legend.box.margin = margin(t = -5)
+                ) +
+                guides(color = guide_legend(ncol = min(n_sources, 4)))
+            }
 
             # Custom axis limits if enabled
             if (isTRUE(input$pa_limits)) {

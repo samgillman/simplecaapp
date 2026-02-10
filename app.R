@@ -70,11 +70,7 @@ utils::globalVariables(c(
 ui <- dashboardPage(
   skin = "blue",
   header = dashboardHeader(
-    title = span(
-      img(src = "logo.svg", height = "30px", style = "vertical-align: middle; margin-right: 8px;"),
-      "SimpleCa²⁺",
-      style = "display: flex; align-items: center; justify-content: center; gap: 4px;"
-    )
+    title = "SimpleCa\u00b2\u207a"
   ),
   sidebar = dashboardSidebar(
     width = 230,
@@ -90,7 +86,7 @@ ui <- dashboardPage(
         menuSubItem("Explanations", tabName = "metrics_explained", icon = icon("lightbulb"))
       ),
       menuItem("Data & Export", tabName = "data_export", icon = icon("download")),
-      tags$li(class = "header", "POOLED ANALYSIS"),
+      tags$li(class = "header", "POST-PROCESSING"),
       menuItem("Post-Analysis", tabName = "post_analysis", icon = icon("layer-group")),
       menuItem("Help", tabName = "help", icon = icon("circle-question"))
     )
