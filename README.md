@@ -188,37 +188,15 @@ Rscript scripts/export_shinylive.R
 Rscript -e 'httpuv::runStaticServer("_shinylive")'   # preview
 ```
 
-Automatic deployment is set up in
-`.github/workflows/deploy-shinylive.yml`. One-time setup (do NOT use
-Cloudflare's "Connect GitHub" flow — Cloudflare's builders have no R; the
-GitHub Action builds the site and uploads the static files):
+The public site is deployed through a maintainer-only GitHub Actions workflow.
+Cloudflare credentials, project administration, DNS, and custom-domain settings
+remain in the maintainer's GitHub and Cloudflare accounts; they are not part of
+the user workflow. The deployment job is restricted to this upstream repository,
+and forks do not receive its repository secrets.
 
-1. Create a Cloudflare API token (**My Profile → API Tokens → Create
-   Token**) with the **Cloudflare Pages: Edit** permission.
-2. In the GitHub repo: **Settings → Secrets and variables → Actions**, add
-   `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` (the account ID is
-   the hex string after `dash.cloudflare.com/` in the dashboard URL).
-
-The workflow creates the Pages project (`simpleca`) automatically on its
-first run. Every push to `main` then rebuilds and publishes the site at
-`https://simpleca.pages.dev`.
-
-#### Custom domain (`simplecalcium.samgillman.org`)
-
-The deploy workflow automatically registers `simplecalcium.samgillman.org`
-with the Pages project. For the domain to go live, DNS must point at the
-Pages site:
-
-- **If `samgillman.org` is managed in this Cloudflare account**: open the
-  zone's DNS settings and confirm a `CNAME` record exists for
-  `simplecalcium` → `simpleca.pages.dev` (proxied). Cloudflare usually
-  creates it when the custom domain is confirmed under
-  **Workers & Pages → simpleca → Custom domains**.
-- **If DNS is hosted elsewhere**: add a `CNAME` record for
-  `simplecalcium` pointing to `simpleca.pages.dev` at your DNS provider.
-
-Certificates are issued automatically once DNS resolves (can take a few
-minutes).
+To host an independent copy, publish the generated `_shinylive` directory to a
+static host, account, and domain that you control. Running or analyzing data in
+the public app does not require a Cloudflare account, deployment, or domain setup.
 
 Notes on the WebAssembly build:
 - The gt-table image export is hidden (it needs a local Chrome); all
