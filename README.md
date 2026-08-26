@@ -45,12 +45,12 @@ Automatic calculation of key calcium imaging metrics:
 - **Multiple export formats**: CSV, Excel, PNG, PDF, TIFF, SVG
 - **Summary statistics**: Mean, SEM, and sample size for all metrics
 - **Interactive tables**: Sortable, searchable data tables with copy/download
-- **Complete protocol**: Step-by-step guide included in the app
+- **Built-in guidance**: Step-by-step help and metric explanations included in the app
 
 ## Installation
 
 ### Prerequisites
-- R (≥ 4.0)
+- R (≥ 4.5)
 - RStudio (recommended)
 
 ### Quick Start
@@ -106,14 +106,13 @@ SimpleCa²⁺ requires data in **wide format** (CSV or Excel):
 4. **Metrics** → Quantify and compare signal properties between groups (with per-metric explanations)
 5. **Data & Export** → Explore numerical results and download all figures and data
 
-For detailed instructions, see [PROTOCOL.md](PROTOCOL.md) or use the built-in Help tab.
+For detailed instructions, use the built-in Help and Metric Explanations tabs.
 
 ## Project Structure
 
 ```
 simplecaapp/
 ├── app.R                 # Main application file
-├── PROTOCOL.md           # Detailed user guide
 ├── README.md             # This file
 ├── renv.lock             # Package dependency lockfile
 ├── R/                    # Shiny modules & helpers
@@ -129,9 +128,11 @@ simplecaapp/
 │   ├── theme.R               # Design tokens & CSS
 │   └── utils.R               # Metrics computation & IO helpers
 ├── scripts/
-│   └── export_shinylive.R    # Build the WebAssembly (browser-only) version
+│   ├── export_shinylive.R    # Build the WebAssembly (browser-only) version
+│   └── configure_repository.sh # Configure repository identity safeguards
 ├── tests/                # testthat unit tests (run: Rscript tests/testthat.R)
-├── www/                  # Static assets (logos, images)
+├── assets/               # Loading screen used by the browser build
+├── .github/workflows/    # Automated tests and Cloudflare deployment
 └── renv/                 # Package management (auto-managed)
 ```
 
@@ -173,7 +174,7 @@ This project uses `renv` for reproducible package management:
 
 ## Deployment
 
-### Option 1: Cloudflare Pages via Shinylive (browser-only, no server)
+### Cloudflare Pages via Shinylive (browser-only, no server)
 
 The app can be compiled to WebAssembly with
 [Shinylive](https://posit-dev.github.io/r-shinylive/) so it runs entirely in
@@ -227,15 +228,6 @@ Notes on the WebAssembly build:
 - Processing runs on the visitor's machine, so very large recordings are
   limited by their browser's memory.
 
-### Option 2: Posit Connect Cloud / shinyapps.io (server-hosted)
-```r
-library(rsconnect)
-rsconnect::deployApp()
-```
-The `manifest.json` used by Posit Connect Cloud git-backed deployment is
-kept in the repo — regenerate it with `rsconnect::writeManifest()` after
-changing dependencies.
-
 ## Citation
 
 If you use SimpleCa²⁺ in your research, please cite:
@@ -256,15 +248,10 @@ archives it and issues the DOI automatically.
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
 ## Support
 
 For questions or issues:
 - Open an issue on GitHub
-- See [PROTOCOL.md](PROTOCOL.md) for detailed usage instructions
 - Check the built-in Help tab in the application
 
 ## Acknowledgments

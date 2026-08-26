@@ -14,16 +14,14 @@ if (!requireNamespace("shinylive", quietly = TRUE)) {
 }
 
 # Stage only the files the app needs. Exporting the repo root would bundle
-# renv/, docs/, manifest.json, tests/ etc. into the published site.
+# development, test, and deployment files into the published site.
 staging <- file.path(tempdir(), "simpleca-shinylive-app")
 unlink(staging, recursive = TRUE)
 dir.create(file.path(staging, "R"), recursive = TRUE)
-dir.create(file.path(staging, "www"))
 
 stopifnot(
   file.copy("app.R", staging),
-  file.copy(list.files("R", full.names = TRUE), file.path(staging, "R")),
-  file.copy(list.files("www", full.names = TRUE), file.path(staging, "www"))
+  file.copy(list.files("R", full.names = TRUE), file.path(staging, "R"))
 )
 
 out_dir <- "_shinylive"

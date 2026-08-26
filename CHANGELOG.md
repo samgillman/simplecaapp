@@ -4,6 +4,8 @@ All notable changes to SimpleCa will be documented in this file.
 
 ## Unreleased
 
+## [1.15.0] - 2026-08-26
+
 ### Added
 - **Precise baseline window entry:** Start and End frame number fields stay synchronized with the baseline range slider, allowing either quick dragging or exact typed values.
 - **Per-file column mapping:** Advanced Options confirms automatic Time/Frame detection and allows an explicit elapsed-time column, frame-index column, generated Time, and exclusion of unwanted numeric columns before analysis.
