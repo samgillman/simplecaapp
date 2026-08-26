@@ -45,12 +45,12 @@ Automatic calculation of key calcium imaging metrics:
 - **Multiple export formats**: CSV, Excel, PNG, PDF, TIFF, SVG
 - **Summary statistics**: Mean, SEM, and sample size for all metrics
 - **Interactive tables**: Sortable, searchable data tables with copy/download
-- **Complete protocol**: Step-by-step guide included in the app
+- **Built-in guidance**: Step-by-step help and metric explanations included in the app
 
 ## Installation
 
 ### Prerequisites
-- R (≥ 4.0)
+- R (≥ 4.5)
 - RStudio (recommended)
 
 ### Quick Start
@@ -106,14 +106,13 @@ SimpleCa²⁺ requires data in **wide format** (CSV or Excel):
 4. **Metrics** → Quantify and compare signal properties between groups (with per-metric explanations)
 5. **Data & Export** → Explore numerical results and download all figures and data
 
-For detailed instructions, see [PROTOCOL.md](PROTOCOL.md) or use the built-in Help tab.
+For detailed instructions, use the built-in Help and Metric Explanations tabs.
 
 ## Project Structure
 
 ```
 simplecaapp/
 ├── app.R                 # Main application file
-├── PROTOCOL.md           # Detailed user guide
 ├── README.md             # This file
 ├── renv.lock             # Package dependency lockfile
 ├── R/                    # Shiny modules & helpers
@@ -129,9 +128,11 @@ simplecaapp/
 │   ├── theme.R               # Design tokens & CSS
 │   └── utils.R               # Metrics computation & IO helpers
 ├── scripts/
-│   └── export_shinylive.R    # Build the WebAssembly (browser-only) version
+│   ├── export_shinylive.R    # Build the WebAssembly (browser-only) version
+│   └── configure_repository.sh # Configure repository identity safeguards
 ├── tests/                # testthat unit tests (run: Rscript tests/testthat.R)
-├── www/                  # Static assets (logos, images)
+├── assets/               # Loading screen used by the browser build
+├── .github/workflows/    # Automated tests and Cloudflare deployment
 └── renv/                 # Package management (auto-managed)
 ```
 
@@ -173,7 +174,7 @@ This project uses `renv` for reproducible package management:
 
 ## Deployment
 
-### Option 1: Cloudflare Pages via Shinylive (browser-only, no server)
+### Cloudflare Pages via Shinylive (browser-only, no server)
 
 The app can be compiled to WebAssembly with
 [Shinylive](https://posit-dev.github.io/r-shinylive/) so it runs entirely in
@@ -187,37 +188,15 @@ Rscript scripts/export_shinylive.R
 Rscript -e 'httpuv::runStaticServer("_shinylive")'   # preview
 ```
 
-Automatic deployment is set up in
-`.github/workflows/deploy-shinylive.yml`. One-time setup (do NOT use
-Cloudflare's "Connect GitHub" flow — Cloudflare's builders have no R; the
-GitHub Action builds the site and uploads the static files):
+The public site is deployed through a maintainer-only GitHub Actions workflow.
+Cloudflare credentials, project administration, DNS, and custom-domain settings
+remain in the maintainer's GitHub and Cloudflare accounts; they are not part of
+the user workflow. The deployment job is restricted to this upstream repository,
+and forks do not receive its repository secrets.
 
-1. Create a Cloudflare API token (**My Profile → API Tokens → Create
-   Token**) with the **Cloudflare Pages: Edit** permission.
-2. In the GitHub repo: **Settings → Secrets and variables → Actions**, add
-   `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` (the account ID is
-   the hex string after `dash.cloudflare.com/` in the dashboard URL).
-
-The workflow creates the Pages project (`simpleca`) automatically on its
-first run. Every push to `main` then rebuilds and publishes the site at
-`https://simpleca.pages.dev`.
-
-#### Custom domain (`simplecalcium.samgillman.org`)
-
-The deploy workflow automatically registers `simplecalcium.samgillman.org`
-with the Pages project. For the domain to go live, DNS must point at the
-Pages site:
-
-- **If `samgillman.org` is managed in this Cloudflare account**: open the
-  zone's DNS settings and confirm a `CNAME` record exists for
-  `simplecalcium` → `simpleca.pages.dev` (proxied). Cloudflare usually
-  creates it when the custom domain is confirmed under
-  **Workers & Pages → simpleca → Custom domains**.
-- **If DNS is hosted elsewhere**: add a `CNAME` record for
-  `simplecalcium` pointing to `simpleca.pages.dev` at your DNS provider.
-
-Certificates are issued automatically once DNS resolves (can take a few
-minutes).
+To host an independent copy, publish the generated `_shinylive` directory to a
+static host, account, and domain that you control. Running or analyzing data in
+the public app does not require a Cloudflare account, deployment, or domain setup.
 
 Notes on the WebAssembly build:
 - The gt-table image export is hidden (it needs a local Chrome); all
@@ -226,15 +205,6 @@ Notes on the WebAssembly build:
   slower than the server version; everything after that is instant.
 - Processing runs on the visitor's machine, so very large recordings are
   limited by their browser's memory.
-
-### Option 2: Posit Connect Cloud / shinyapps.io (server-hosted)
-```r
-library(rsconnect)
-rsconnect::deployApp()
-```
-The `manifest.json` used by Posit Connect Cloud git-backed deployment is
-kept in the repo — regenerate it with `rsconnect::writeManifest()` after
-changing dependencies.
 
 ## Citation
 
@@ -256,15 +226,10 @@ archives it and issues the DOI automatically.
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
 ## Support
 
 For questions or issues:
 - Open an issue on GitHub
-- See [PROTOCOL.md](PROTOCOL.md) for detailed usage instructions
 - Check the built-in Help tab in the application
 
 ## Acknowledgments

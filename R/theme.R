@@ -3,7 +3,7 @@
 
 # App version shown in the sidebar so users can tell which build they see
 # (Shinylive/service-worker caching makes stale builds common)
-SIMPLECA_VERSION <- "1.14.0"
+SIMPLECA_VERSION <- "1.15.0"
 
 # ==================== Color Palette ====================
 

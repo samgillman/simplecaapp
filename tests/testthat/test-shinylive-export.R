@@ -30,3 +30,23 @@ test_that("the Shinylive exporter injects the reusable loading screen", {
   expect_match(exporter, "paste(readLines(splash_path", fixed = TRUE)
   expect_match(exporter, 'paste0(splash, sw_reload, "\\n</body>")', fixed = TRUE)
 })
+
+test_that("production deployment is upstream-only and never manages domains", {
+  workflow <- paste(
+    readLines(
+      file.path(repo_root, ".github", "workflows", "deploy-shinylive.yml"),
+      warn = FALSE
+    ),
+    collapse = "\n"
+  )
+
+  expect_match(
+    workflow,
+    "if: github.repository == 'samgillman/simplecaapp'",
+    fixed = TRUE
+  )
+  expect_false(grepl("pages project create", workflow, fixed = TRUE))
+  expect_false(grepl("/domains", workflow, fixed = TRUE))
+  expect_false(grepl("Attach custom domain", workflow, fixed = TRUE))
+  expect_false(grepl("simplecalcium.samgillman.org", workflow, fixed = TRUE))
+})

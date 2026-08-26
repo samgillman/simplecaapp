@@ -4,6 +4,10 @@ library(htmltools)
 source(file.path(repo_root, "R", "theme.R"))
 source(file.path(repo_root, "R", "components.R"))
 
+test_that("displayed app version matches the current release", {
+  expect_identical(SIMPLECA_VERSION, "1.15.0")
+})
+
 test_that("theme includes responsive, accessible, and contrast-safe states", {
   css <- as.character(get_unified_theme_css())
 

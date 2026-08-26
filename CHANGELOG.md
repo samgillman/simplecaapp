@@ -4,6 +4,8 @@ All notable changes to SimpleCa will be documented in this file.
 
 ## Unreleased
 
+## [1.15.0] - 2026-08-26
+
 ### Added
 - **Precise baseline window entry:** Start and End frame number fields stay synchronized with the baseline range slider, allowing either quick dragging or exact typed values.
 - **Per-file column mapping:** Advanced Options confirms automatic Time/Frame detection and allows an explicit elapsed-time column, frame-index column, generated Time, and exclusion of unwanted numeric columns before analysis.
@@ -11,6 +13,7 @@ All notable changes to SimpleCa will be documented in this file.
 - **Informative browser loading screen:** Cloudflare/Shinylive visitors now see branded, accessible estimated progress, real app-readiness detection, rotating usage tips, the local-processing privacy promise, and a recovery prompt when first-time setup takes unusually long.
 
 ### Improved
+- **Deployment is maintainer-only:** The public workflow only deploys from the upstream repository and no longer creates projects or registers custom domains. Public documentation now separates ordinary browser use from optional self-hosting.
 - **Baseline processing is frame-range only:** The Load Data screen now asks only for a stable baseline frame window. F₀ is always the per-cell mean across those frames; the Rolling Minimum and Percentile controls and processing paths have been removed.
 - **Censored-width summaries are explicit:** Instead of a bare `n=0`, exact FWHM and Half-Width rows state how many responses recovered and how many were right-censored; observed lower bounds remain a separate row.
 - **Metric explanations match the implemented calculations:** AUC is identified as a signed net integral, Time to Peak is distinguished from stimulus latency, the fluorescence rise-rate metric no longer claims to directly measure calcium influx, and Half-Width is identified as the derived value FWHM/2. Explanation plots now reuse the stored post-baseline peak and selected baseline window.
