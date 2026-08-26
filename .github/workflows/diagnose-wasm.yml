@@ -1,0 +1,59 @@
+name: Diagnose wasm downloads
+
+# Builds the same Shinylive/WebAssembly site the deploy publishes, boots it
+# in a real browser, and exercises every download path with full console
+# capture. Diagnostic only — never deploys anything.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    env:
+      R_PROFILE_USER: ${{ github.workspace }}/.github/ci-profile.R
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          use-public-rspm: true
+
+      - name: Install shinylive
+        run: Rscript -e 'install.packages("shinylive")'
+
+      - name: Build Shinylive site
+        run: Rscript scripts/export_shinylive.R
+
+      - name: Serve site
+        run: |
+          du -sh _shinylive
+          ls _shinylive/shinylive/ | head -20
+          # ES modules and wasm need correct MIME types or Chrome refuses them
+          python3 - <<'PYEOF' &
+          import http.server, socketserver, mimetypes, functools
+          mimetypes.add_type('text/javascript', '.mjs')
+          mimetypes.add_type('application/wasm', '.wasm')
+          handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory='_shinylive')
+          with socketserver.ThreadingTCPServer(('127.0.0.1', 8788), handler) as httpd:
+              httpd.serve_forever()
+          PYEOF
+          sleep 2
+          curl -sS -o /dev/null -w "static server: %{http_code}\n" http://127.0.0.1:8788/
+
+      - name: Install Playwright
+        run: |
+          npm init -y > /dev/null
+          npm install playwright > /dev/null
+          npx playwright install --with-deps chromium
+
+      - name: Drive wasm app and capture downloads
+        run: node scripts/diagnose_wasm.js
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: diagnosis
+          path: diagnosis-out/
+
+# retrigger: verify connection-based downloads (v1.14.0)

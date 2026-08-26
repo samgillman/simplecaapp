@@ -1,0 +1,65 @@
+name: Deploy Shinylive to Cloudflare Pages
+
+# Builds the WebAssembly (Shinylive) version of the app and publishes it to
+# Cloudflare Pages. Requires two repository secrets (Settings > Secrets and
+# variables > Actions):
+#   CLOUDFLARE_API_TOKEN   - token with the "Cloudflare Pages: Edit" permission
+#   CLOUDFLARE_ACCOUNT_ID  - the hex string after dash.cloudflare.com/ in the
+#                            dashboard URL
+# The Pages project ("simpleca", Direct Upload mode) is created automatically
+# on the first run — no dashboard setup needed. Do NOT connect the repo to
+# Cloudflare's own git integration: Cloudflare's builders have no R, so the
+# site must be built here and uploaded as static files.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+    env:
+      # Overrides the repo's renv .Rprofile and sets the CRAN mirror; see the
+      # comments in .github/ci-profile.R
+      R_PROFILE_USER: ${{ github.workspace }}/.github/ci-profile.R
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          use-public-rspm: true
+
+      - name: Install shinylive
+        run: Rscript -e 'install.packages("shinylive")'
+
+      - name: Build Shinylive site
+        run: Rscript scripts/export_shinylive.R
+
+      - name: Create Pages project if it doesn't exist
+        uses: cloudflare/wrangler-action@v3
+        continue-on-error: true # errors harmlessly once the project exists
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages project create simpleca --production-branch=main
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy _shinylive --project-name=simpleca
+
+      # Attaching an already-attached domain returns an error response, which
+      # is expected on every run after the first — hence continue-on-error.
+      # DNS still has to point simplecalcium.samgillman.org at
+      # simpleca.pages.dev (CNAME); see README "Custom domain".
+      - name: Attach custom domain (idempotent)
+        continue-on-error: true
+        run: |
+          curl -sS -X POST \
+            "https://api.cloudflare.com/client/v4/accounts/${{ secrets.CLOUDFLARE_ACCOUNT_ID }}/pages/projects/simpleca/domains" \
+            -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            --data '{"name":"simplecalcium.samgillman.org"}'

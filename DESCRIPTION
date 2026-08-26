@@ -1,0 +1,9 @@
+Type: project
+Description: Dependency declarations for tools that scan this project
+    (renv, rsconnect/Posit Connect). ragg is referenced via runtime
+    indirection in app.R so that Shinylive/WebAssembly builds do not
+    require it; declaring it here keeps server deployments installing it.
+    scripts/export_shinylive.R stages only app.R, R/ and www/, so this
+    file is never seen by the Shinylive dependency scanner.
+Imports:
+    ragg

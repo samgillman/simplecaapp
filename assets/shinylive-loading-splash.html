@@ -1,0 +1,590 @@
+<style id="simpleca-splash-style">
+  #simpleca-splash {
+    --simpleca-blue: #2C6FAD;
+    --simpleca-blue-deep: #245C90;
+    --simpleca-ink: #1A2733;
+    --simpleca-slate: #5F7387;
+    --simpleca-mist: #93A4B4;
+    --simpleca-ground: #F5F8FA;
+    --simpleca-card: #FFFFFF;
+    --simpleca-track: #E2EAF1;
+    --simpleca-amber: #B0620F;
+    --simpleca-amber-bg: #FDF4E7;
+    --simpleca-green: #2E7D4F;
+    position: fixed;
+    inset: 0;
+    z-index: 99999;
+    display: grid;
+    place-items: center;
+    overflow: auto;
+    padding: 24px;
+    background: var(--simpleca-ground);
+    color: var(--simpleca-ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+      "Helvetica Neue", Arial, sans-serif;
+    text-align: center;
+    -webkit-font-smoothing: antialiased;
+    transition: opacity 0.55s ease;
+  }
+
+  #simpleca-splash,
+  #simpleca-splash * {
+    box-sizing: border-box;
+  }
+
+  #simpleca-splash.simpleca-splash-hide {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  #simpleca-splash .simpleca-loader {
+    width: min(480px, calc(100vw - 48px));
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  #simpleca-splash .simpleca-logo {
+    margin: 0;
+    color: var(--simpleca-blue);
+    font-size: 34px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+  }
+
+  #simpleca-splash .simpleca-logo sup {
+    font-size: 0.55em;
+    font-weight: 700;
+  }
+
+  #simpleca-splash .simpleca-lab {
+    margin: 6px 0 0;
+    color: var(--simpleca-slate);
+    font-size: 13.5px;
+    line-height: 1.35;
+  }
+
+  #simpleca-splash .simpleca-status-block {
+    width: 100%;
+    margin-top: 40px;
+  }
+
+  #simpleca-splash .simpleca-status-line {
+    min-height: 21px;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    font-size: 14.5px;
+  }
+
+  #simpleca-splash .simpleca-status-text {
+    color: var(--simpleca-ink);
+    font-weight: 500;
+    text-align: left;
+  }
+
+  #simpleca-splash .simpleca-status-pct {
+    flex: 0 0 auto;
+    color: var(--simpleca-slate);
+    font-size: 13.5px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  #simpleca-splash .simpleca-bar {
+    width: 100%;
+    height: 6px;
+    margin-top: 10px;
+    overflow: hidden;
+    border-radius: 3px;
+    background: var(--simpleca-track);
+  }
+
+  #simpleca-splash .simpleca-bar-fill {
+    width: 4%;
+    height: 100%;
+    border-radius: 3px;
+    background: linear-gradient(90deg, var(--simpleca-blue), var(--simpleca-blue-deep));
+    transition: width 0.45s cubic-bezier(0.25, 0.8, 0.4, 1);
+  }
+
+  #simpleca-splash .simpleca-stages {
+    margin-top: 14px;
+    display: flex;
+    justify-content: center;
+    gap: 28px;
+  }
+
+  #simpleca-splash .simpleca-stage {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    color: var(--simpleca-mist);
+    font-size: 12px;
+    letter-spacing: 0.02em;
+  }
+
+  #simpleca-splash .simpleca-stage-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--simpleca-track);
+    transition: background 0.3s ease;
+  }
+
+  #simpleca-splash .simpleca-stage.simpleca-active {
+    color: var(--simpleca-blue);
+    font-weight: 600;
+  }
+
+  #simpleca-splash .simpleca-stage.simpleca-active .simpleca-stage-dot {
+    background: var(--simpleca-blue);
+  }
+
+  #simpleca-splash .simpleca-stage.simpleca-done {
+    color: var(--simpleca-slate);
+  }
+
+  #simpleca-splash .simpleca-stage.simpleca-done .simpleca-stage-dot {
+    background: var(--simpleca-green);
+  }
+
+  #simpleca-splash .simpleca-ready-msg {
+    display: none;
+    margin-top: 14px;
+    color: var(--simpleca-green);
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  #simpleca-splash .simpleca-tip {
+    width: 100%;
+    min-height: 62px;
+    margin-top: 36px;
+    padding: 12px 18px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border: 1px solid var(--simpleca-track);
+    border-radius: 8px;
+    background: var(--simpleca-card);
+    text-align: left;
+  }
+
+  #simpleca-splash .simpleca-tip-label {
+    flex: 0 0 auto;
+    padding: 3px 9px;
+    border: 1px solid currentColor;
+    border-radius: 99px;
+    color: var(--simpleca-blue);
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+  }
+
+  #simpleca-splash .simpleca-tip-text {
+    color: var(--simpleca-slate);
+    font-size: 13.5px;
+    line-height: 1.45;
+    transition: opacity 0.25s ease;
+  }
+
+  #simpleca-splash .simpleca-tip-text.simpleca-swap {
+    opacity: 0;
+  }
+
+  #simpleca-splash .simpleca-tip-text strong {
+    color: var(--simpleca-ink);
+    font-weight: 600;
+  }
+
+  #simpleca-splash .simpleca-privacy {
+    margin-top: 22px;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    color: var(--simpleca-slate);
+    font-size: 13px;
+    line-height: 1.4;
+  }
+
+  #simpleca-splash .simpleca-privacy svg {
+    flex: 0 0 auto;
+    color: var(--simpleca-mist);
+  }
+
+  #simpleca-splash .simpleca-privacy strong {
+    color: var(--simpleca-ink);
+    font-weight: 600;
+  }
+
+  #simpleca-splash .simpleca-stall {
+    width: 100%;
+    margin-top: 22px;
+    padding: 13px 18px;
+    display: none;
+    border: 1px solid #EDD9BC;
+    border-radius: 8px;
+    background: var(--simpleca-amber-bg);
+    color: #6B4A14;
+    font-size: 13.5px;
+    line-height: 1.5;
+    text-align: left;
+  }
+
+  #simpleca-splash .simpleca-stall.simpleca-visible {
+    display: block;
+  }
+
+  #simpleca-splash .simpleca-stall strong {
+    color: var(--simpleca-amber);
+  }
+
+  #simpleca-splash .simpleca-stall button {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--simpleca-blue);
+    cursor: pointer;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  #simpleca-splash .simpleca-stall button:focus-visible {
+    border-radius: 2px;
+    outline: 2px solid var(--simpleca-blue);
+    outline-offset: 2px;
+  }
+
+  #simpleca-splash .simpleca-loader.simpleca-ready .simpleca-bar-fill {
+    background: var(--simpleca-green);
+  }
+
+  #simpleca-splash .simpleca-loader.simpleca-ready .simpleca-ready-msg {
+    display: block;
+  }
+
+  #simpleca-splash .simpleca-loader.simpleca-ready .simpleca-stages {
+    display: none;
+  }
+
+  @media (max-width: 520px) {
+    #simpleca-splash {
+      padding: 20px;
+    }
+
+    #simpleca-splash .simpleca-loader {
+      width: min(480px, calc(100vw - 40px));
+    }
+
+    #simpleca-splash .simpleca-stages {
+      gap: 16px;
+    }
+
+    #simpleca-splash .simpleca-tip {
+      align-items: flex-start;
+    }
+
+    #simpleca-splash .simpleca-privacy {
+      align-items: flex-start;
+      text-align: left;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    #simpleca-splash,
+    #simpleca-splash .simpleca-bar-fill,
+    #simpleca-splash .simpleca-tip-text {
+      transition: none;
+    }
+  }
+</style>
+
+<div id="simpleca-splash">
+  <main class="simpleca-loader" id="simpleca-loader" aria-label="SimpleCa loading">
+    <h1 class="simpleca-logo">SimpleCa<sup>2+</sup></h1>
+    <p class="simpleca-lab">Wang Lab &middot; University of Nebraska Medical Center</p>
+
+    <section class="simpleca-status-block" aria-label="Loading status">
+      <div class="simpleca-status-line">
+        <span class="simpleca-status-text" id="simpleca-status-text" aria-live="polite">
+          Preparing browser runtime&hellip;
+        </span>
+        <span class="simpleca-status-pct" id="simpleca-status-pct">Est. 4%</span>
+      </div>
+      <div
+        class="simpleca-bar"
+        id="simpleca-progress-bar"
+        role="progressbar"
+        aria-label="Estimated app loading progress"
+        aria-valuemin="0"
+        aria-valuemax="100"
+        aria-valuenow="4"
+        aria-valuetext="Estimated 4 percent"
+      >
+        <div class="simpleca-bar-fill" id="simpleca-bar-fill"></div>
+      </div>
+      <div class="simpleca-stages" aria-hidden="true">
+        <div class="simpleca-stage simpleca-active" id="simpleca-stage-0">
+          <span class="simpleca-stage-dot"></span>R runtime
+        </div>
+        <div class="simpleca-stage" id="simpleca-stage-1">
+          <span class="simpleca-stage-dot"></span>Packages
+        </div>
+        <div class="simpleca-stage" id="simpleca-stage-2">
+          <span class="simpleca-stage-dot"></span>Starting
+        </div>
+      </div>
+      <p class="simpleca-ready-msg" id="simpleca-ready-msg" aria-live="polite">
+        Ready &mdash; opening SimpleCa<sup>2+</sup>&hellip;
+      </p>
+    </section>
+
+    <div class="simpleca-stall" id="simpleca-stall" aria-live="polite">
+      <strong>Taking longer than expected.</strong> A slow or restricted network can delay the
+      first download. It is safe to keep waiting, or
+      <button type="button" id="simpleca-refresh">refresh the page</button> to retry.
+    </div>
+
+    <aside class="simpleca-tip" aria-label="SimpleCa tip">
+      <span class="simpleca-tip-label">TIP</span>
+      <span class="simpleca-tip-text" id="simpleca-tip-text"></span>
+    </aside>
+
+    <p class="simpleca-privacy">
+      <svg width="13" height="15" viewBox="0 0 13 15" fill="none" aria-hidden="true">
+        <path
+          d="M6.5 1L1.5 3v4c0 3.2 2.1 5.6 5 6.8 2.9-1.2 5-3.6 5-6.8V3L6.5 1z"
+          stroke="currentColor"
+          stroke-width="1.4"
+          stroke-linejoin="round"
+        />
+        <path
+          d="M4.4 7.3l1.5 1.5 2.7-2.9"
+          stroke="currentColor"
+          stroke-width="1.4"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
+      </svg>
+      <span><strong>Your data never leaves this device.</strong> All processing runs locally in your browser.</span>
+    </p>
+  </main>
+</div>
+
+<script>
+(function() {
+  "use strict";
+
+  var splash = document.getElementById("simpleca-splash");
+  if (!splash) return;
+
+  var loader = document.getElementById("simpleca-loader");
+  var statusText = document.getElementById("simpleca-status-text");
+  var statusPct = document.getElementById("simpleca-status-pct");
+  var progressBar = document.getElementById("simpleca-progress-bar");
+  var barFill = document.getElementById("simpleca-bar-fill");
+  var stall = document.getElementById("simpleca-stall");
+  var tipText = document.getElementById("simpleca-tip-text");
+  var refresh = document.getElementById("simpleca-refresh");
+  var startedAt = Date.now();
+  var currentProgress = 4;
+  var currentStage = -1;
+  var finished = false;
+
+  var STALL_AFTER_MS = 90000;
+  var HARD_TIMEOUT_MS = 240000;
+  var PACKAGE_ESTIMATE_AFTER_MS = 18000;
+
+  var stageLabels = [
+    "Preparing browser runtime\u2026",
+    "Loading analysis packages\u2026",
+    "Starting SimpleCa\u00B2\u207A\u2026"
+  ];
+
+  var tips = [
+    "Upload a <strong>wide-format CSV or Excel</strong> file: one column per cell trace, plus an optional Time or Frame column.",
+    "Switch to <strong>Multiple files</strong> mode to load one file per experimental group and compare them side by side.",
+    "Use <strong>Frame Range</strong> baseline when your recording begins with a resting period.",
+    "ImageJ exports work directly: <strong>Mean1, Mean2, ...</strong> are displayed as Cell 1, Cell 2, ...",
+    "Download <strong>publication-ready PNG or PDF</strong> figures from the Data &amp; Export tab."
+  ];
+
+  var tipIndex = 0;
+  var tickTimer = null;
+  var tipTimer = null;
+
+  function appReady(doc) {
+    try {
+      if (!doc) return false;
+      if (doc.querySelector(".wrapper, .main-header, .content-wrapper")) return true;
+      var frames = doc.querySelectorAll("iframe");
+      for (var i = 0; i < frames.length; i++) {
+        try {
+          if (appReady(frames[i].contentDocument)) return true;
+        } catch (error) {
+          // The exported app is same-origin, but ignore transient frame access errors.
+        }
+      }
+    } catch (error) {
+      return false;
+    }
+    return false;
+  }
+
+  function appErrored() {
+    return Boolean(document.querySelector(".loading-wrapper-error"));
+  }
+
+  function appFrameHasStarted() {
+    var frame = document.querySelector("iframe.app-frame");
+    if (!frame) return false;
+    var src = frame.getAttribute("src");
+    return Boolean(src && src !== "about:blank");
+  }
+
+  function packagesHaveStarted() {
+    try {
+      var resources = window.performance.getEntriesByType("resource");
+      for (var i = 0; i < resources.length; i++) {
+        if (resources[i].name.indexOf("/webr/packages/") !== -1) return true;
+      }
+    } catch (error) {
+      // Resource timing may be restricted; elapsed-time fallback remains safe.
+    }
+    return false;
+  }
+
+  function setStage(stageIndex) {
+    if (stageIndex === currentStage) return;
+    currentStage = stageIndex;
+    statusText.textContent = stageLabels[stageIndex];
+
+    for (var i = 0; i < 3; i++) {
+      var stage = document.getElementById("simpleca-stage-" + i);
+      stage.classList.toggle("simpleca-done", i < stageIndex);
+      stage.classList.toggle("simpleca-active", i === stageIndex);
+    }
+  }
+
+  function setProgress(value, exact) {
+    currentProgress = Math.max(currentProgress, Math.min(100, value));
+    var rounded = Math.round(currentProgress);
+    barFill.style.width = rounded + "%";
+    progressBar.setAttribute("aria-valuenow", String(rounded));
+    progressBar.setAttribute(
+      "aria-valuetext",
+      exact ? "100 percent, app ready" : "Estimated " + rounded + " percent"
+    );
+    statusPct.textContent = exact ? "100%" : "Est. " + rounded + "%";
+  }
+
+  function estimatedProgress(elapsed, stageIndex) {
+    if (stageIndex === 0) {
+      return Math.min(38, 4 + elapsed / 1000 * 1.9);
+    }
+    if (stageIndex === 1) {
+      return Math.min(88, Math.max(38,
+        38 + (elapsed - PACKAGE_ESTIMATE_AFTER_MS) / 1000 * 0.72));
+    }
+    return Math.min(96, Math.max(88, currentProgress + 0.35));
+  }
+
+  function showNextTip() {
+    tipText.classList.add("simpleca-swap");
+    window.setTimeout(function() {
+      if (finished) return;
+      tipText.innerHTML = tips[tipIndex % tips.length];
+      tipIndex += 1;
+      tipText.classList.remove("simpleca-swap");
+    }, 250);
+  }
+
+  function cleanup() {
+    if (tickTimer) window.clearInterval(tickTimer);
+    if (tipTimer) window.clearInterval(tipTimer);
+    tickTimer = null;
+    tipTimer = null;
+  }
+
+  function removeSplash(delay) {
+    window.setTimeout(function() {
+      splash.classList.add("simpleca-splash-hide");
+      window.setTimeout(function() {
+        if (splash.parentNode) splash.parentNode.removeChild(splash);
+        var style = document.getElementById("simpleca-splash-style");
+        if (style && style.parentNode) style.parentNode.removeChild(style);
+      }, 650);
+    }, delay);
+  }
+
+  function markReady() {
+    if (finished) return;
+    finished = true;
+    cleanup();
+    stall.classList.remove("simpleca-visible");
+    setStage(2);
+    setProgress(100, true);
+    statusText.textContent = "Environment ready";
+    for (var i = 0; i < 3; i++) {
+      var stage = document.getElementById("simpleca-stage-" + i);
+      stage.classList.remove("simpleca-active");
+      stage.classList.add("simpleca-done");
+    }
+    loader.classList.add("simpleca-ready");
+    removeSplash(650);
+  }
+
+  function revealNativeError() {
+    if (finished) return;
+    finished = true;
+    cleanup();
+    removeSplash(0);
+  }
+
+  function tick() {
+    var elapsed = Date.now() - startedAt;
+
+    if (appErrored()) {
+      revealNativeError();
+      return;
+    }
+
+    if (appReady(document)) {
+      markReady();
+      return;
+    }
+
+    var stageIndex = appFrameHasStarted() ? 2 :
+      (packagesHaveStarted() || elapsed >= PACKAGE_ESTIMATE_AFTER_MS ? 1 : 0);
+    setStage(stageIndex);
+    setProgress(estimatedProgress(elapsed, stageIndex), false);
+
+    if (elapsed >= STALL_AFTER_MS) {
+      stall.classList.add("simpleca-visible");
+    }
+
+    if (elapsed >= HARD_TIMEOUT_MS) {
+      revealNativeError();
+    }
+  }
+
+  refresh.addEventListener("click", function() {
+    window.location.reload();
+  });
+
+  tipText.innerHTML = tips[tipIndex++];
+  setStage(0);
+  setProgress(4, false);
+  tipTimer = window.setInterval(showNextTip, 7000);
+  tickTimer = window.setInterval(tick, 400);
+  tick();
+
+  window.addEventListener("beforeunload", cleanup, { once: true });
+})();
+</script>

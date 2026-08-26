@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+
+set -eu
+
+message_file="$1"
+
+if grep -Eiq '^[[:space:]]*Co-Authored-By:' "$message_file"; then
+  echo "Commit blocked: co-author trailers are not permitted in this repository." >&2
+  exit 1
+fi
