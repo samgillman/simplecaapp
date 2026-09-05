@@ -34,9 +34,19 @@ mod_load_data_ui <- function(id) {
           # Step 2: Baseline frame window
           div(
             class = "load-step",
-            div(class = "load-step-title", span(class = "load-step-num", "2"), "Baseline frames (F\u2080)"),
-            div(class = "small-help",
-              "F\u2080 is the mean fluorescence across the selected frames. Choose a stable resting period before the response."
+            div(class = "load-step-title", span(class = "load-step-num", "2"), "Input & baseline"),
+            radioButtons(
+              ns("input_data_mode"), "Uploaded trace values",
+              choices = c("Raw fluorescence" = "raw_fluorescence", "Already ΔF/F₀" = "dff0"),
+              selected = "raw_fluorescence", inline = TRUE
+            ),
+            conditionalPanel(
+              sprintf("input['%s'] == 'raw_fluorescence'", ns("input_data_mode")),
+              div(class = "small-help", "F₀ is the mean raw fluorescence across the selected frames; traces are normalized as (F − F₀)/F₀.")
+            ),
+            conditionalPanel(
+              sprintf("input['%s'] == 'dff0'", ns("input_data_mode")),
+              div(class = "small-help", "Uploaded ΔF/F₀ values are preserved exactly. The selected frames define baseline noise and are excluded from response searches.")
             ),
             sliderInput(ns("pp_baseline_frames"), "Baseline Window (frames)", min = 1, max = 100, value = c(1, 20), step = 1, width = "100%"),
             fluidRow(
@@ -63,8 +73,7 @@ mod_load_data_ui <- function(id) {
                 uiOutput(ns("column_mapping_ui"))
               )
             ),
-            p(class = "small-help", style = "margin-bottom: 10px;",
-              HTML("&Delta;F/F&#8320; = (F &minus; F&#8320;)/F&#8320; per cell, then all metrics for every trace.")),
+            uiOutput(ns("processing_formula")),
             primary_button(ns("load_btn"), "Process Data", icon = icon("play"), width = "100%"),
             uiOutput(ns("process_status"))
           )
@@ -112,12 +121,11 @@ format_example_block <- function() {
   )
 }
 
-# Stable dynamic-input suffix for one uploaded file. Upload staging replaces
-# duplicate file names, so a name-derived key remains stable when another file
-# is added or removed from a multi-file batch.
-column_mapping_key <- function(file_name) {
-  clean <- gsub("[^A-Za-z0-9_]+", "_", as.character(file_name))
-  checksum <- sum(utf8ToInt(enc2utf8(as.character(file_name)))) %% 100000L
+# Stable dynamic-input suffix for one browser upload. The caller supplies the
+# upload ID, not the basename, so duplicate filenames can coexist.
+column_mapping_key <- function(upload_id) {
+  clean <- gsub("[^A-Za-z0-9_]+", "_", as.character(upload_id))
+  checksum <- sum(utf8ToInt(enc2utf8(as.character(upload_id)))) %% 100000L
   paste0(clean, "_", checksum)
 }
 
@@ -171,6 +179,7 @@ mod_load_data_server <- function(id, rv) {
         return(invisible(NULL))
       }
 
+      files <- ensure_upload_ids(files)
       schemas <- lapply(seq_len(nrow(files)), function(i) {
         tryCatch({
           dt <- safe_read(files$datapath[i])
@@ -179,7 +188,7 @@ mod_load_data_server <- function(id, rv) {
           list(error = conditionMessage(e), row_count = NA_integer_)
         })
       })
-      names(schemas) <- vapply(files$name, column_mapping_key, character(1))
+      names(schemas) <- vapply(files$upload_id, column_mapping_key, character(1))
       upload_schemas(schemas)
 
       row_counts <- vapply(schemas, function(x) x$row_count %||% NA_integer_, integer(1))
@@ -256,6 +265,15 @@ mod_load_data_server <- function(id, rv) {
       )
     })
 
+    output$processing_formula <- renderUI({
+      text <- if (identical(input$input_data_mode, "dff0")) {
+        "Preserve uploaded ΔF/F₀ per cell, then calculate all metrics."
+      } else {
+        "Normalize raw fluorescence as ΔF/F₀ = (F − F₀)/F₀ per cell, then calculate all metrics."
+      }
+      p(class = "small-help", style = "margin-bottom: 10px;", text)
+    })
+
     # Switching modes discards any pending selection so the feedback panel
     # and Process step always describe files chosen in the current mode
     observeEvent(input$upload_mode, {
@@ -268,19 +286,18 @@ mod_load_data_server <- function(id, rv) {
     
     # Show upload feedback immediately when files are selected, and auto-detect baseline
     observeEvent(input$data_files, {
-      files <- input$data_files
+      files <- ensure_upload_ids(input$data_files)
       if (is.null(files) || nrow(files) == 0) {
         return(invisible(NULL))
       }
 
       # Multi mode accumulates: browsing again adds to the staged list
       # (a native file dialog replaces its selection each time, and files in
-      # different folders can't be picked in one dialog). Re-selecting a
-      # name replaces its older entry.
+      # different folders can't be picked in one dialog). Each selection keeps
+      # its unique browser datapath identity, even when basenames are identical.
       if (identical(input$upload_mode, "multi")) {
         staged <- uploaded_files()
         if (!is.null(staged) && nrow(staged) > 0) {
-          staged <- staged[!(staged$name %in% files$name), , drop = FALSE]
           files <- rbind(staged, files)
         }
       }
@@ -322,7 +339,7 @@ mod_load_data_server <- function(id, rv) {
       if (!is.finite(rate) || rate <= 0) rate <- 1
 
       panels <- lapply(seq_len(nrow(files)), function(i) {
-        key <- column_mapping_key(files$name[i])
+        key <- column_mapping_key(files$upload_id[i])
         schema <- schemas[[key]]
         if (is.null(schema) || !is.null(schema$error)) {
           return(div(
@@ -415,7 +432,7 @@ mod_load_data_server <- function(id, rv) {
     collect_column_mappings <- function(files) {
       schemas <- upload_schemas()
       lapply(seq_len(nrow(files)), function(i) {
-        key <- column_mapping_key(files$name[i])
+        key <- column_mapping_key(files$upload_id[i])
         schema <- schemas[[key]]
         if (is.null(schema) || !is.null(schema$error)) {
           return(list(
@@ -438,6 +455,7 @@ mod_load_data_server <- function(id, rv) {
 
     current_processing_settings <- function(files = uploaded_files()) {
       list(
+        input_data_mode = input$input_data_mode %||% "raw_fluorescence",
         baseline_method = "frame_range",
         baseline_frames = baseline_frames_state(),
         sampling_rate = input$pp_sampling_rate,
@@ -502,6 +520,7 @@ mod_load_data_server <- function(id, rv) {
       }
       
       multi <- identical(input$upload_mode, "multi")
+      display_names <- upload_display_names(files$name)
 
       # Create file list items
       file_items <- lapply(seq_len(nrow(files)), function(i) {
@@ -510,7 +529,7 @@ mod_load_data_server <- function(id, rv) {
           icon("file-csv", style = "color: var(--color-success); margin-right: 10px; font-size: 14px;"),
           tags$span(
             style = "flex: 1; font-size: 13px; font-weight: 500; color: var(--color-gray-900); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;",
-            files$name[i]
+            display_names[i]
           ),
           tags$span(
             style = "font-size: 11px; color: var(--color-gray-600); margin-left: 8px; white-space: nowrap;",
@@ -543,6 +562,15 @@ mod_load_data_server <- function(id, rv) {
             paste0(nrow(files), " file", if (nrow(files) > 1) "s" else "", " ready")
           )
         ),
+
+        if (sum(suppressWarnings(as.numeric(files$size)), na.rm = TRUE) >= 25 * 1024^2) {
+          div(
+            class = "alert alert-warning",
+            style = "font-size: 12px; margin: 0 0 8px 0; padding: 8px 10px;",
+            icon("exclamation-triangle"),
+            " Large browser sessions can require several times the uploaded file size in memory. Consider processing smaller batches if the tab becomes slow."
+          )
+        },
 
         # File list
         tags$div(
@@ -650,7 +678,7 @@ mod_load_data_server <- function(id, rv) {
           duration = 10
         )
       }
-      if (length(processed$dropped_cells) > 0) {
+      if (identical(processed$input_data_mode, "raw_fluorescence") && length(processed$dropped_cells) > 0) {
         showNotification(
           paste0(
             length(processed$dropped_cells),

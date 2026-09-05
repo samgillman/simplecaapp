@@ -13,13 +13,13 @@ Developed by the **Wang Lab** at the University of Nebraska Medical Center (UNMC
 ### Data Processing
 - **Multi-file support**: Load and analyze multiple experimental groups simultaneously
 - **Frame-range baseline correction**: Define a stable baseline window with synchronized slider and typed frame controls; F₀ is the per-cell mean across those frames
-- **ΔF/F₀ normalization**: Standard normalization for comparable calcium signals
+- **Explicit input mode**: Choose raw fluorescence for F₀ normalization or already-processed ΔF/F₀ to preserve uploaded values exactly
 - **Batch processing**: Process multiple datasets at once
 
 ### Visualization Tools
 - **Time course plots**: Average traces with SEM ribbons and individual cell overlays
-- **Heatmaps**: Global activity visualization with customizable sorting and color palettes
-- **Metrics plots**: Per-cell quantification with statistical summaries
+- **Heatmaps**: Signed activity visualization; negative values use a zero-centered diverging scale, and sorting uses post-baseline peaks
+- **Metrics plots**: Per-cell quantification with group-aware statistical summaries and faceted cell bars
 - **Publication-ready outputs**: High-resolution exports (PNG, PDF, TIFF, SVG)
 
 ### Quantitative Analysis
@@ -39,11 +39,12 @@ Automatic calculation of key calcium imaging metrics:
 - **Per-file Column Mapping**: Confirm automatic Time detection, explicitly select elapsed-time or frame-index columns, generate Time from sampling rate, and exclude metadata or unwanted traces before processing
 - **Baseline Period Protection**: Peaks within baseline frames are excluded from analysis
 - **Metric Explanations**: Visual breakdown showing how each metric is calculated using your actual data
-- **Improved ΔF/F₀ Calculation**: Handles edge cases like very small baselines and already-processed data
+- **Safe ΔF/F₀ handling**: Raw traces are normalized once; already-processed traces bypass F₀ validation and are never normalized again
 
 ### Export & Documentation
 - **Multiple export formats**: CSV, Excel, PNG, PDF, TIFF, SVG
 - **Summary statistics**: Mean, SEM, and sample size for all metrics
+- **Processing manifest**: Machine-readable app version, input mode, baseline frames, sampling rate, source files, group labels, and interpretation note
 - **Interactive tables**: Sortable, searchable data tables with copy/download
 - **Built-in guidance**: Step-by-step help and metric explanations included in the app
 
@@ -98,6 +99,16 @@ SimpleCa²⁺ requires data in **wide format** (CSV or Excel):
 - **Cell columns**: Fluorescence values for each cell, with a unique header for each cell.
 - **Column confirmation**: After upload, Advanced Options shows the detected Time source for each file and lets you exclude unwanted numeric columns before analysis.
 
+Choose the input mode before processing:
+
+- **Raw fluorescence** computes F₀ over the selected baseline frames, rejects traces with undefined F₀, and applies `(F - F₀) / F₀`.
+- **Already ΔF/F₀** preserves every uploaded value, calculates baseline SD directly in ΔF/F₀ units, and uses the baseline frames only for noise estimation and to define the post-baseline response region.
+
+SimpleCa²⁺ reports descriptive cell-level summaries. `N_Cells` is the number of
+cells with a finite value, not the number of independent animals or
+preparations. Cells nested within one animal or preparation should not be used
+as independent biological replicates for inferential statistics.
+
 ### Workflow
 
 1. **Load Data** → Upload your files and configure processing options
@@ -145,10 +156,17 @@ Run the suite from the repo root:
 
 ```bash
 Rscript tests/testthat.R
+Rscript tests/smoke-app.R
+Rscript tests/browser-smoke.R
+# After building _shinylive, exercise the WebAssembly deployment itself:
+SIMPLECA_BROWSER_MODE=shinylive Rscript tests/browser-smoke.R
 ```
 
 Tests also run automatically on every push via GitHub Actions
-(`.github/workflows/ci.yml`).
+(`.github/workflows/ci.yml`). CI restores the locked environment, rejects
+unexpected skips, initializes the full app, exercises upload/process/plot/export
+in a real browser, and builds the Shinylive site. Production deployment runs
+only after that workflow succeeds on `main`.
 
 ## Key Dependencies
 
@@ -204,7 +222,9 @@ Notes on the WebAssembly build:
 - First load downloads the R runtime and packages (tens of MB), so it is
   slower than the server version; everything after that is instant.
 - Processing runs on the visitor's machine, so very large recordings are
-  limited by their browser's memory.
+  limited by their browser's memory. The app warns when staged uploads total
+  25 MB or more because parsed and reshaped data can require several times the
+  source-file size; split large batches if the browser becomes slow.
 
 ## Citation
 
@@ -217,6 +237,7 @@ https://simplecalcium.samgillman.org
 ```
 
 The citation will be updated when the accompanying manuscript is published.
+Machine-readable citation metadata are available in `CITATION.cff`.
 To mint a citable DOI for a release: enable this repository in the
 [GitHub–Zenodo integration](https://zenodo.org/account/settings/github/)
 (one-time, requires a Zenodo login), then publish a GitHub release — Zenodo

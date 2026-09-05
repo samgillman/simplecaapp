@@ -9,9 +9,14 @@
 # Preview the result locally:
 #   Rscript -e 'httpuv::runStaticServer("_shinylive")'
 
-if (!requireNamespace("shinylive", quietly = TRUE)) {
-  install.packages("shinylive")
+SHINYLIVE_VERSION <- "0.5.0"
+if (!requireNamespace("shinylive", quietly = TRUE) ||
+    as.character(utils::packageVersion("shinylive")) != SHINYLIVE_VERSION) {
+  if ("shinylive" %in% loadedNamespaces()) unloadNamespace("shinylive")
+  status <- system2(file.path(R.home("bin"), "Rscript"), "scripts/install_shinylive.R")
+  if (!identical(status, 0L)) stop("Pinned Shinylive installation failed.")
 }
+stopifnot(as.character(utils::packageVersion("shinylive")) == SHINYLIVE_VERSION)
 
 # Stage only the files the app needs. Exporting the repo root would bundle
 # development, test, and deployment files into the published site.

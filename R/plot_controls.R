@@ -102,7 +102,7 @@ plot_metric_accordion <- function(ns, prefix = "metric", expanded = TRUE, includ
                 "Rise Time (s)" = "Rise_Time",
                 "FWHM (s)" = "FWHM",
                 "Derived Half-Width (FWHM/2)" = "Half_Width",
-                "10–90% \u0394F/F\u2080 Rise Rate" = "Calcium_Entry_Rate",
+                "10–90% \u0394F/F\u2080 Rise Rate" = "Rise_Rate_10_90_dFF0_per_s",
                 "AUC" = "AUC",
                 "SNR" = "SNR"
             ),

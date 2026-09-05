@@ -60,8 +60,8 @@ test_that("AUC explanation counts the same adjacent observed intervals as metric
 })
 
 test_that("user-facing metric labels describe derived quantities", {
-  expect_match(metric_label("Calcium_Entry_Rate"), "10–90% Rise Rate", fixed = TRUE)
-  expect_match(metric_title("Calcium_Entry_Rate"), "ΔF/F₀ Rise Rate", fixed = TRUE)
+  expect_match(metric_label("Rise_Rate_10_90_dFF0_per_s"), "10–90% Rise Rate", fixed = TRUE)
+  expect_match(metric_title("Rise_Rate_10_90_dFF0_per_s"), "ΔF/F₀ Rise Rate", fixed = TRUE)
   expect_match(metric_label("Half_Width"), "Derived Half-Width", fixed = TRUE)
   expect_match(metric_label("AUC"), "Signed Net AUC", fixed = TRUE)
 })

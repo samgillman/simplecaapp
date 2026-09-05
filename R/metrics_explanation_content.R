@@ -2,18 +2,18 @@ get_metric_explanation_content <- function(metric, ns) {
     switch(metric,
         "peak_dff0" = tagList(
             h4("Definition", class = "metric-section-header"),
-            p("Peak ΔF/F₀ represents the maximum fluorescence response intensity of the cell. It is the highest point reached in the signal after baseline correction and indicates the strength of the cellular response."),
+            p("Peak ΔF/F₀ is the highest finite value after the selected baseline window. Raw-fluorescence inputs are normalized first; already-processed ΔF/F₀ inputs are used unchanged."),
             h4("Key Terms", class = "metric-section-header", style = "margin-top: 20px;"),
             tags$ul(
                 tags$li(HTML("<b>F(t):</b> Raw fluorescence intensity at time t")),
                 tags$li(HTML("<b>F₀ (Baseline):</b> Average fluorescence during the baseline period (stable, pre-response phase)")),
-                tags$li(HTML("<b>ΔF/F₀:</b> Normalized change in fluorescence: (F(t) - F₀) / F₀")),
+                tags$li(HTML("<b>ΔF/F₀:</b> Normalized change in fluorescence: (F(t) - F₀) / F₀, or a value supplied directly in Already ΔF/F₀ mode")),
                 tags$li(HTML("<b>Peak:</b> The maximum value of the ΔF/F₀ trace"))
             ),
             h4("For This Cell", class = "metric-section-header", style = "margin-top: 20px;"),
             uiOutput(ns("peak_data_points_ui")),
             h4("Calculation", class = "metric-section-header", style = "margin-top: 20px;"),
-            p("The peak ΔF/F₀ is calculated by finding the maximum value after baseline correction:"),
+            p("The peak search excludes the complete selected baseline window. Raw-fluorescence mode uses the formula below; Already ΔF/F₀ mode searches the uploaded values directly:"),
             formula_line("Peak ΔF/F<sub>0</sub> = max&#8202;(&#8202;", frac("F(t) − F<sub>0</sub>", "F<sub>0</sub>"), "&#8202;)"),
             uiOutput(ns("peak_calculation_ui"))
         ),

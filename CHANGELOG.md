@@ -4,6 +4,28 @@ All notable changes to SimpleCa will be documented in this file.
 
 ## Unreleased
 
+## [1.16.0] - 2026-09-05
+
+### Added
+- Explicit Raw fluorescence and Already ΔF/F₀ input modes; normalized uploads are preserved exactly and bypass F₀ filtering.
+- Machine-readable processing manifests and `CITATION.cff` release metadata.
+- Full-app and real-browser workflow smoke tests covering upload, processing, plot tabs, CSV download, and figure download.
+- A complete `DESCRIPTION` dependency manifest and CI checks that reject unexpected test skips.
+
+### Changed
+- Per-cell bar plots now assign indices, colors, means, SEMs, and sample sizes within group and facet multiple experimental groups.
+- Heatmaps preserve negative values with a zero-centered diverging scale and use the same post-baseline peak definition as exported metrics for sorting.
+- Rise-rate exports use `Rise_Rate_10_90_dFF0_per_s`; summary exports use `N_Cells`.
+- Cell-level summaries now carry visible warnings that nested cells are not independent biological replicates.
+- Shinylive is pinned to 0.5.0; production deployment is gated on successful tests and build validation.
+
+### Fixed
+- Single-cell and sparse time courses retain finite mean values when SEM is unavailable; only the SEM ribbon is omitted.
+- Duplicate upload basenames are retained using unique upload IDs and numbered display labels.
+- TIFF LZW, Zip, and None compression selections now reach both individual and ZIP figure exports.
+- The global export label now reads “Download Time-Course Summary.”
+- Upload batches of 25 MB or more display a browser-memory warning.
+
 ## [1.15.0] - 2026-08-26
 
 ### Added

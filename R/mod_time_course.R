@@ -205,9 +205,23 @@ mod_time_course_server <- function(id, rv) {
     # Build timecourse plot function
     build_timecourse_plot <- function() {
       req(rv$summary)
-      summary_df <- rv$summary |>
-        dplyr::filter(is.finite(Time), is.finite(mean_dFF0), is.finite(sem_dFF0))
-      if (nrow(summary_df) == 0) {
+      summary_line <- rv$summary |>
+        dplyr::filter(is.finite(Time), is.finite(mean_dFF0)) |>
+        dplyr::mutate(
+          sem_tooltip = ifelse(
+            is.finite(sem_dFF0),
+            format(round(sem_dFF0, 3), trim = TRUE),
+            "unavailable (one cell)"
+          )
+        )
+      summary_ribbon <- summary_line |>
+        dplyr::filter(is.finite(sem_dFF0))
+
+      long_df <- NULL
+      if (!is.null(rv$long) && nrow(rv$long) > 0) {
+        long_df <- rv$long |> dplyr::filter(is.finite(Time), is.finite(dFF0))
+      }
+      if (nrow(summary_line) == 0 && (is.null(long_df) || nrow(long_df) == 0)) {
         return(
           ggplot() + theme_void() +
             annotate("text", x = 0.5, y = 0.55, label = "No valid finite values to plot", size = 5, alpha = 0.7) +
@@ -215,10 +229,6 @@ mod_time_course_server <- function(id, rv) {
         )
       }
 
-      long_df <- NULL
-      if (!is.null(rv$long) && nrow(rv$long) > 0) {
-        long_df <- rv$long |> dplyr::filter(is.finite(Time), is.finite(dFF0))
-      }
       trace_df <- NULL
       show_traces <- isTRUE(input$tc_show_traces)
 
@@ -257,9 +267,12 @@ mod_time_course_server <- function(id, rv) {
 
       ribbon_fill <- if (isTRUE(has_line_color)) input$tc_line_color else "gray50"
 
-      group_counts <- summary_df |>
+      group_counts <- summary_line |>
         dplyr::count(Group, name = "n_points")
       has_segments <- any(group_counts$n_points > 1)
+      ribbon_group_counts <- summary_ribbon |>
+        dplyr::count(Group, name = "n_points")
+      has_ribbon_segments <- nrow(ribbon_group_counts) > 0 && any(ribbon_group_counts$n_points > 1)
 
       show_avg <- isTRUE(input$tc_show_avg_line %||% TRUE)
       show_ribbon <- isTRUE(input$tc_show_ribbon %||% TRUE)
@@ -267,18 +280,18 @@ mod_time_course_server <- function(id, rv) {
       # Ribbon (only if average trace is shown). Explicit group keeps each
       # group's ribbon a separate polygon; without it a multi-file upload
       # draws one self-crossing ribbon sweeping across all groups
-      multi_group <- length(unique(summary_df$Group)) > 1
-      if (show_avg && show_ribbon && has_segments) {
+      multi_group <- length(unique(c(summary_line$Group, long_df$Group %||% character()))) > 1
+      if (show_avg && show_ribbon && has_ribbon_segments) {
         ribbon_alpha <- 0.25
         if (multi_group) {
           p <- p +
-            geom_ribbon(data=summary_df,
+            geom_ribbon(data=summary_ribbon,
                         aes(x=Time, ymin=mean_dFF0 - sem_dFF0, ymax=mean_dFF0 + sem_dFF0,
                             group=Group, fill=Group),
                         alpha=ribbon_alpha, color=NA)
         } else {
           p <- p +
-            geom_ribbon(data=summary_df,
+            geom_ribbon(data=summary_ribbon,
                         aes(x=Time, ymin=mean_dFF0 - sem_dFF0, ymax=mean_dFF0 + sem_dFF0,
                             group=Group),
                         fill=ribbon_fill, alpha=ribbon_alpha, color=NA)
@@ -293,29 +306,29 @@ mod_time_course_server <- function(id, rv) {
             # Explicit group: the per-point tooltip text is a discrete
             # aesthetic, so without this each point becomes its own group
             # and geom_line draws no segments at all
-            p <- p + geom_line(data=summary_df, aes(x=Time, y=mean_dFF0, color=Group, group=Group,
-                                                    text = paste0("Group: ", Group, "\nTime: ", round(Time, 2), "s\nMean: ", round(mean_dFF0, 3), "\nSEM: ", round(sem_dFF0, 3))),
+            p <- p + geom_line(data=summary_line, aes(x=Time, y=mean_dFF0, color=Group, group=Group,
+                                                    text = paste0("Group: ", Group, "\nTime: ", round(Time, 2), "s\nMean: ", round(mean_dFF0, 3), "\nSEM: ", sem_tooltip)),
                                linewidth=lw)
           } else {
-            p <- p + geom_point(data=summary_df, aes(x=Time, y=mean_dFF0, color=Group,
-                                                     text = paste0("Group: ", Group, "\nTime: ", round(Time, 2), "s\nMean: ", round(mean_dFF0, 3), "\nSEM: ", round(sem_dFF0, 3))),
+            p <- p + geom_point(data=summary_line, aes(x=Time, y=mean_dFF0, color=Group,
+                                                     text = paste0("Group: ", Group, "\nTime: ", round(Time, 2), "s\nMean: ", round(mean_dFF0, 3), "\nSEM: ", sem_tooltip)),
                                 size=2.5)
           }
         } else {
           if (has_segments) {
-            p <- p + geom_line(data=summary_df, aes(x=Time, y=mean_dFF0, group=Group,
-                                                    text = paste0("Group: ", Group, "\nTime: ", round(Time, 2), "s\nMean: ", round(mean_dFF0, 3), "\nSEM: ", round(sem_dFF0, 3))),
+            p <- p + geom_line(data=summary_line, aes(x=Time, y=mean_dFF0, group=Group,
+                                                    text = paste0("Group: ", Group, "\nTime: ", round(Time, 2), "s\nMean: ", round(mean_dFF0, 3), "\nSEM: ", sem_tooltip)),
                                color="black", linewidth=lw)
           } else {
-            p <- p + geom_point(data=summary_df, aes(x=Time, y=mean_dFF0,
-                                                     text = paste0("Group: ", Group, "\nTime: ", round(Time, 2), "s\nMean: ", round(mean_dFF0, 3), "\nSEM: ", round(sem_dFF0, 3))),
+            p <- p + geom_point(data=summary_line, aes(x=Time, y=mean_dFF0,
+                                                     text = paste0("Group: ", Group, "\nTime: ", round(Time, 2), "s\nMean: ", round(mean_dFF0, 3), "\nSEM: ", sem_tooltip)),
                                 color="black", size=2.5)
           }
         }
       }
 
       # Apply colors
-      groups <- unique(summary_df$Group)
+      groups <- unique(c(summary_line$Group, if (!is.null(trace_df)) trace_df$Group else character()))
       needs_color_scale <- FALSE
       cols <- NULL
 
@@ -446,7 +459,7 @@ mod_time_course_server <- function(id, rv) {
         # mean makes labels collapse at the bottom whenever an individual trace
         # legitimately extends beyond the summary range.
         y_range <- timecourse_visible_y_range(
-          summary_df, trace_df,
+          summary_line, trace_df,
           show_traces = show_traces,
           show_average = show_avg,
           show_ribbon = show_ribbon
@@ -543,7 +556,7 @@ mod_time_course_server <- function(id, rv) {
     # Render summary table
     output$tc_summary_table <- renderUI({
       req(rv$metrics)
-      metric_cols <- c("Peak_dFF0","AUC","FWHM","FWHM_Lower_Bound","Half_Width","Calcium_Entry_Rate",
+      metric_cols <- c("Peak_dFF0","AUC","FWHM","FWHM_Lower_Bound","Half_Width","Rise_Rate_10_90_dFF0_per_s",
                        "Time_to_Peak","Time_to_25_Peak","Time_to_50_Peak","Time_to_75_Peak","Rise_Time","SNR")
       present <- intersect(metric_cols, names(rv$metrics))
       if (length(present) == 0) return(NULL)
@@ -551,7 +564,7 @@ mod_time_course_server <- function(id, rv) {
       nice_name <- function(cl){
         switch(cl,
                Peak_dFF0 = "Peak \u0394F/F\u2080",
-               Calcium_Entry_Rate = "10–90% \u0394F/F\u2080 Rise Rate",
+               Rise_Rate_10_90_dFF0_per_s = "10–90% \u0394F/F\u2080 Rise Rate",
                Time_to_Peak = "Time to Peak (s)",
                Time_to_25_Peak = "Time to 25% Peak (s)",
                Time_to_50_Peak = "Time to 50% Peak (s)",
@@ -630,7 +643,8 @@ mod_time_course_server <- function(id, rv) {
       content = function(file) {
         req(rv$summary)
         p <- tc_plot_reactive()
-        ggplot2::ggsave(file, plot = p, width = input$tc_dl_w, height = input$tc_dl_h, dpi = input$tc_dl_dpi)
+        save_plot_file(file, p, input$tc_dl_w, input$tc_dl_h,
+                       input$tc_dl_dpi, input$tc_dl_fmt %||% "png")
       }
     )
 

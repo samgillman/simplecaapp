@@ -47,7 +47,7 @@ hm_plot_controls <- function(ns) {
                     step = 0.05,
                     width = "100%"
                   ),
-                  helpText("Use 0 for automatic spacing; enter 0.5 for ticks every 0.5 ΔF/F₀.")
+                  helpText("Use 0 for automatic spacing; enter 0.5 for ticks every 0.5 ΔF/F₀. Negative values are preserved with a zero-centered diverging scale; the palette choice applies to non-negative data.")
                 ),
 
                 div(class = "control-col",
@@ -148,11 +148,14 @@ mod_heatmap_server <- function(id, rv) {
         if (ncol(mat) == 0) return(NULL)
 
         ord <- seq_len(ncol(mat))
+        peaks <- lapply(seq_len(ncol(mat)), function(j) {
+          post_baseline_peak(mat[, j], time_vec, rv$baseline_frames %||% c(1, 20))
+        })
         if (input$hm_sort == "tpeak") {
-          tpk <- apply(mat, 2, function(x) if (all(is.na(x))) Inf else which.max(x))
+          tpk <- vapply(peaks, function(x) if (is.finite(x$time)) x$time else Inf, numeric(1))
           ord <- order(tpk)
         } else if (input$hm_sort == "amp") {
-          amp <- apply(mat, 2, function(x) if (all(is.na(x))) -Inf else max(x, na.rm = TRUE))
+          amp <- vapply(peaks, function(x) if (is.finite(x$value)) x$value else -Inf, numeric(1))
           ord <- order(amp, decreasing = TRUE)
         }
         mat <- mat[, ord, drop=FALSE]
@@ -169,23 +172,17 @@ mod_heatmap_server <- function(id, rv) {
       # Dynamic legend breaks based on actual data range
       rng <- range(all_hm$Value, na.rm = TRUE)
 
-      if (rng[1] < 0) {
-        all_hm_viz <- all_hm
-        all_hm_viz$Value <- pmax(all_hm_viz$Value, 0)
-        rng_viz <- range(all_hm_viz$Value, na.rm = TRUE)
-      } else {
-        all_hm_viz <- all_hm
-        rng_viz <- rng
-      }
-
+      all_hm_viz <- all_hm
       all_hm_viz <- dplyr::arrange(all_hm_viz, Group, Time, Cell)
 
       # Keep automatic spacing by default, or use the positive interval typed
       # by the user. The same reactive plot powers the screen and downloads.
       scale_info <- compute_heatmap_scale(
-        max_value = rng_viz[2],
+        max_value = rng[2],
+        min_value = rng[1],
         interval = input$hm_scale_interval %||% 0
       )
+      lower <- scale_info$lower
       upper <- scale_info$upper
       brks <- scale_info$breaks
 
@@ -205,18 +202,26 @@ mod_heatmap_server <- function(id, rv) {
         }
       }
 
-      ggplot(all_hm_viz, aes(Time, Cell, fill = Value)) +
+      p <- ggplot(all_hm_viz, aes(Time, Cell, fill = Value)) +
         geom_raster() +
         facet_wrap(~ Group, ncol = 1, scales = "free_y",
-                   labeller = ggplot2::as_labeller(pretty_label)) +
-        scale_fill_viridis_c(
-          name   = "\u0394F/F\u2080",
-          option = input$hm_palette,
-          limits = c(0, upper),
-          breaks = brks, labels = brks,
-          oob    = scales::squish,
-          na.value = "gray90"
-        )+
+                   labeller = ggplot2::as_labeller(pretty_label))
+
+      p <- if (isTRUE(scale_info$diverging)) {
+        p + scale_fill_gradient2(
+          name = "\u0394F/F\u2080", low = "#3B4CC0", mid = "white", high = "#B40426",
+          midpoint = 0, limits = c(lower, upper), breaks = brks, labels = brks,
+          oob = scales::squish, na.value = "gray90"
+        )
+      } else {
+        p + scale_fill_viridis_c(
+          name = "\u0394F/F\u2080", option = input$hm_palette,
+          limits = c(lower, upper), breaks = brks, labels = brks,
+          oob = scales::squish, na.value = "gray90"
+        )
+      }
+
+      p +
         guides(fill = guide_colorbar(
           frame.colour = "grey30", frame.linewidth = 0.3,
           ticks.colour = "grey30",
@@ -291,7 +296,8 @@ mod_heatmap_server <- function(id, rv) {
       },
       content = function(file) {
         req(heatmap_plot_reactive())
-        ggplot2::ggsave(file, plot = heatmap_plot_reactive(), width = input$hm_dl_w, height = input$hm_dl_h, dpi = input$hm_dl_dpi)
+        save_plot_file(file, heatmap_plot_reactive(), input$hm_dl_w, input$hm_dl_h,
+                       input$hm_dl_dpi, input$hm_dl_fmt %||% "png")
       }
     )
 

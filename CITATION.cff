@@ -1,0 +1,13 @@
+cff-version: 1.2.0
+message: "If you use SimpleCa²⁺ in your research, please cite this software."
+title: "SimpleCa²⁺: In-browser analysis of calcium imaging data"
+type: software
+authors:
+  - family-names: Gillman
+    given-names: Sam
+    email: samggillman@gmail.com
+version: 1.16.0
+date-released: 2026-09-05
+url: "https://simplecalcium.samgillman.org"
+repository-code: "https://github.com/samgillman/simplecaapp"
+license: MIT

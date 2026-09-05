@@ -1,0 +1,44 @@
+Package: simplecaapp
+Type: Project
+Title: SimpleCa Calcium Imaging Analysis Application
+Version: 1.16.0
+Authors@R: person("Sam", "Gillman", email = "samggillman@gmail.com",
+    role = c("aut", "cre"))
+Description: An interactive Shiny application for processing, visualizing,
+    and exporting descriptive single-cell calcium imaging measurements.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Depends:
+    R (>= 4.5.0)
+Imports:
+    bslib,
+    colourpicker,
+    data.table,
+    dplyr,
+    DT,
+    ggbeeswarm,
+    ggplot2,
+    htmltools,
+    jsonlite,
+    kableExtra,
+    knitr,
+    plotly,
+    purrr,
+    RColorBrewer,
+    readxl,
+    scales,
+    shiny,
+    shinycssloaders,
+    shinydashboard,
+    shinyjs,
+    stringr,
+    tidyr,
+    zoo
+Suggests:
+    chromote,
+    processx,
+    ragg,
+    renv,
+    shinylive (= 0.5.0),
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3
