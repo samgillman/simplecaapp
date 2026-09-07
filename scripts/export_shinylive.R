@@ -38,7 +38,23 @@ unlink(out_dir, recursive = TRUE)
 # after the fatal error.
 old_options <- options(warn = 1)
 tryCatch(
-  shinylive::export(staging, out_dir),
+  withCallingHandlers(
+    shinylive::export(staging, out_dir),
+    error = function(e) {
+      frames <- sys.frames()
+      package_context <- unique(unlist(lapply(frames, function(frame) {
+        if (!exists("pkg", envir = frame, inherits = FALSE)) return(NULL)
+        value <- get("pkg", envir = frame, inherits = FALSE)
+        if (is.character(value) && length(value) == 1) value else NULL
+      }), use.names = FALSE))
+      if (length(package_context)) {
+        message(
+          "Shinylive package context at failure: ",
+          paste(package_context, collapse = ", ")
+        )
+      }
+    }
+  ),
   finally = options(old_options)
 )
 
