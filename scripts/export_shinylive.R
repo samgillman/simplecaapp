@@ -31,7 +31,16 @@ stopifnot(
 
 out_dir <- "_shinylive"
 unlink(out_dir, recursive = TRUE)
-shinylive::export(staging, out_dir)
+# Shinylive currently emits the package name as a warning before failing with
+# an opaque `desc$Repository` error when a resolved dependency is absent from
+# the restored library. Print warnings as they occur so CI identifies the
+# package that must be added to renv.lock instead of hiding that evidence until
+# after the fatal error.
+old_options <- options(warn = 1)
+tryCatch(
+  shinylive::export(staging, out_dir),
+  finally = options(old_options)
+)
 
 # ---- Branded loading splash ------------------------------------------------
 # Shinylive's default is a bare spinner while webR prepares the browser-side R
