@@ -75,6 +75,51 @@ wrap_label <- function(x, width = 18) {
          character(1), USE.NAMES = FALSE)
 }
 
+# Give each browser upload a stable identity that is independent of its
+# basename. Microscopy exports from different folders commonly share names
+# such as Results.csv, while Shiny's temporary datapath remains unique.
+ensure_upload_ids <- function(files) {
+  if (is.null(files) || !is.data.frame(files) || nrow(files) == 0) return(files)
+  if (!("upload_id" %in% names(files))) files$upload_id <- NA_character_
+  missing_id <- is.na(files$upload_id) | !nzchar(as.character(files$upload_id))
+  if (any(missing_id)) {
+    basis <- if ("datapath" %in% names(files)) {
+      as.character(files$datapath)
+    } else {
+      paste(as.character(files$name), seq_len(nrow(files)), sep = "-")
+    }
+    files$upload_id[missing_id] <- paste0("upload-", vapply(
+      basis[missing_id],
+      function(x) {
+        # A small deterministic polynomial hash avoids exposing a browser
+        # temporary path while being far less collision-prone than a byte sum.
+        hash <- Reduce(
+          function(acc, code) (acc * 131 + code) %% 2147483647,
+          utf8ToInt(enc2utf8(x)), init = 0
+        )
+        sprintf("%08x-%d", as.integer(hash), nchar(x))
+      },
+      character(1)
+    ))
+  }
+  files$upload_id <- make.unique(as.character(files$upload_id), sep = "-")
+  files
+}
+
+# Add occurrence numbers only when basenames repeat, keeping upload feedback
+# understandable without treating the display label as file identity.
+upload_display_names <- function(file_names) {
+  file_names <- as.character(file_names)
+  totals <- table(file_names)
+  seen <- integer(length(totals))
+  names(seen) <- names(totals)
+  vapply(file_names, function(name) {
+    if (totals[[name]] <= 1L) return(name)
+    seen[[name]] <<- seen[[name]] + 1L
+    sprintf("%s (%d)", name, seen[[name]])
+  }, character(1), USE.NAMES = FALSE)
+}
+
 #' Deliver a generated file to the visitor's browser as a direct save.
 #'
 #' Shiny's download links are served over HTTP, which in the WebAssembly
@@ -236,23 +281,27 @@ compute_auto_y_step <- function(y_range) {
 # users direct control over the colorbar tick spacing. Limiting the number of
 # intervals prevents an accidental tiny value from generating an enormous
 # legend and freezing the browser build.
-compute_heatmap_scale <- function(max_value, interval = 0, max_intervals = 100L) {
+compute_heatmap_scale <- function(max_value, interval = 0, max_intervals = 100L,
+                                  min_value = 0) {
   max_value <- suppressWarnings(as.numeric(max_value)[1])
-  if (!is.finite(max_value)) {
-    stop("Heatmap color scale requires a finite maximum value.", call. = FALSE)
+  min_value <- suppressWarnings(as.numeric(min_value)[1])
+  if (!is.finite(max_value) || !is.finite(min_value)) {
+    stop("Heatmap color scale requires finite limits.", call. = FALSE)
   }
   max_value <- max(0, max_value)
+  diverging <- min_value < 0
+  scale_max <- if (diverging) max(abs(min_value), abs(max_value)) else max_value
 
   requested <- suppressWarnings(as.numeric(interval)[1])
   use_custom <- is.finite(requested) && requested > 0
-  step <- if (use_custom) requested else compute_auto_y_step(c(0, max_value))
+  step <- if (use_custom) requested else compute_auto_y_step(c(0, scale_max))
 
   max_intervals <- suppressWarnings(as.integer(max_intervals)[1])
   if (!is.finite(max_intervals) || max_intervals < 1L) max_intervals <- 100L
 
   # The tolerance avoids adding an extra interval when floating-point
   # arithmetic puts an exact multiple infinitesimally above its boundary.
-  interval_count <- max(1L, ceiling((max_value / step) - 1e-9))
+  interval_count <- max(1L, ceiling((scale_max / step) - 1e-9))
   if (interval_count > max_intervals) {
     stop(
       sprintf(
@@ -263,12 +312,19 @@ compute_heatmap_scale <- function(max_value, interval = 0, max_intervals = 100L)
     )
   }
 
-  breaks <- signif(seq.int(0L, interval_count) * step, 12)
+  upper <- signif(interval_count * step, 12)
+  breaks <- if (diverging) {
+    signif(seq(-upper, upper, by = step), 12)
+  } else {
+    signif(seq.int(0L, interval_count) * step, 12)
+  }
   list(
     step = step,
-    upper = breaks[length(breaks)],
+    lower = if (diverging) -upper else 0,
+    upper = upper,
     breaks = breaks,
-    automatic = !use_custom
+    automatic = !use_custom,
+    diverging = diverging
   )
 }
 
@@ -385,6 +441,79 @@ build_export_filename <- function(rv, parts = character(), ext = "csv", include_
     sanitized <- c(sanitized, format(Sys.Date()))
   }
   sprintf("%s.%s", paste(sanitized, collapse = "_"), ext)
+}
+
+#' Return cell metrics with stable, scientifically explicit export names.
+#'
+#' Convert the legacy Calcium_Entry_Rate field when older metric tables are
+#' supplied, while current analyses use the explicit name directly.
+metrics_for_export <- function(metrics) {
+  if (is.null(metrics) || !is.data.frame(metrics)) return(metrics)
+  out <- metrics
+  legacy <- "Calcium_Entry_Rate"
+  explicit <- "Rise_Rate_10_90_dFF0_per_s"
+  if (legacy %in% names(out)) {
+    names(out)[names(out) == legacy] <- explicit
+  }
+  out
+}
+
+#' Save a ggplot with consistent raster settings.
+#'
+#' @param compression TIFF compression: lzw, zip, or none.
+save_plot_file <- function(filename, plot, width, height, dpi = 300,
+                           format = NULL, compression = "lzw") {
+  fmt <- tolower(as.character(format %||% tools::file_ext(filename))[1])
+  if (!nzchar(fmt)) stop("A figure format is required.", call. = FALSE)
+  args <- list(
+    filename = filename, plot = plot, width = width, height = height,
+    dpi = dpi, device = fmt
+  )
+  if (identical(fmt, "tiff")) {
+    compression <- match.arg(as.character(compression %||% "lzw"), c("lzw", "zip", "none"))
+    args$compression <- compression
+  }
+  do.call(ggplot2::ggsave, args)
+}
+
+#' Create a machine-readable record of the processing transaction.
+build_processing_manifest <- function(files, groups, settings) {
+  version <- if (exists("SIMPLECA_VERSION", inherits = TRUE)) {
+    get("SIMPLECA_VERSION", inherits = TRUE)
+  } else {
+    "unknown"
+  }
+  source_names <- if (!is.null(files) && "name" %in% names(files)) {
+    paste(as.character(files$name), collapse = "|")
+  } else {
+    ""
+  }
+  upload_ids <- if (!is.null(files) && "upload_id" %in% names(files)) {
+    paste(as.character(files$upload_id), collapse = "|")
+  } else {
+    ""
+  }
+  values <- c(
+    app_version = version,
+    export_schema_version = "2",
+    input_data_mode = settings$input_data_mode,
+    baseline_method = settings$baseline_method,
+    baseline_start_frame = settings$baseline_frames[1],
+    baseline_end_frame = settings$baseline_frames[2],
+    sampling_rate_hz = settings$sampling_rate,
+    peak_search_region = "frames after baseline_end_frame",
+    observational_unit = "cell",
+    source_filenames = source_names,
+    source_upload_ids = upload_ids,
+    group_labels = paste(groups, collapse = "|"),
+    processed_at_utc = format(Sys.time(), tz = "UTC", usetz = TRUE),
+    interpretation_note = paste(
+      "Descriptive cell-level summaries; cells from the same preparation",
+      "or animal are not independent biological replicates."
+    )
+  )
+  data.frame(field = names(values), value = unname(as.character(values)),
+             stringsAsFactors = FALSE)
 }
 
 # Safely read csv or excel files into a data.table
@@ -753,7 +882,13 @@ normalize_load_settings <- function(settings = list()) {
     stop("Column mappings must be supplied as a list.")
   }
 
+  input_data_mode <- as.character(settings$input_data_mode %||% "raw_fluorescence")[1]
+  if (!(input_data_mode %in% c("raw_fluorescence", "dff0"))) {
+    stop("Input data mode must be 'raw_fluorescence' or 'dff0'.")
+  }
+
   list(
+    input_data_mode = input_data_mode,
     baseline_method = method,
     baseline_frames = frames,
     sampling_rate = sampling_rate,
@@ -806,6 +941,7 @@ build_processed_state <- function(files, settings = list(), read_fun = safe_read
     stop("read_fun must be a function.")
   }
   settings <- normalize_load_settings(settings)
+  files <- ensure_upload_ids(files)
   report_progress <- function(amount, detail) {
     if (is.function(progress)) progress(amount, detail)
   }
@@ -846,23 +982,29 @@ build_processed_state <- function(files, settings = list(), read_fun = safe_read
 
       start_frame <- min(nrow(dt), max(1L, settings$baseline_frames[1]))
       end_frame <- min(nrow(dt), max(start_frame, settings$baseline_frames[2]))
-      f0 <- vapply(seq(2, ncol(dt)), function(j) {
-        mean(dt[[j]][start_frame:end_frame], na.rm = TRUE)
-      }, numeric(1))
+      trace_names <- names(dt)[-1]
+      if (identical(settings$input_data_mode, "raw_fluorescence")) {
+        f0 <- vapply(seq(2, ncol(dt)), function(j) {
+          mean(dt[[j]][start_frame:end_frame], na.rm = TRUE)
+        }, numeric(1))
+        f0 <- stats::setNames(f0, trace_names)
+        report_progress(0.2 / n_files, paste0("Computing \u0394F/F\u2080 for: ", basename(file_name)))
 
-      f0 <- stats::setNames(f0, names(dt)[-1])
-      report_progress(0.2 / n_files, paste0("Computing \u0394F/F\u2080 for: ", basename(file_name)))
-
-      bad_f0 <- !is.finite(f0) | f0 <= 1e-6
-      for (k in which(!bad_f0)) {
-        j <- k + 1
-        dt[[j]] <- (dt[[j]] - f0[[k]]) / f0[[k]]
-      }
-      if (any(bad_f0)) {
-        dt[, (names(f0)[bad_f0]) := NULL]
-      }
-      if (ncol(dt) < 2) {
-        stop("all cell traces had a zero, negative, or missing baseline")
+        bad_f0 <- !is.finite(f0) | f0 <= 1e-6
+        for (k in which(!bad_f0)) {
+          j <- k + 1
+          dt[[j]] <- (dt[[j]] - f0[[k]]) / f0[[k]]
+        }
+        if (any(bad_f0)) dt[, (names(f0)[bad_f0]) := NULL]
+        if (ncol(dt) < 2) {
+          stop("all cell traces had a zero, negative, or missing baseline")
+        }
+      } else {
+        # Uploaded values are already in ΔF/F0 units. Preserve them exactly;
+        # the baseline window still defines noise and the excluded peak region.
+        f0 <- stats::setNames(rep(NA_real_, length(trace_names)), trace_names)
+        bad_f0 <- stats::setNames(rep(FALSE, length(trace_names)), trace_names)
+        report_progress(0.2 / n_files, paste0("Preserving uploaded \u0394F/F\u2080 values for: ", basename(file_name)))
       }
 
       # The app promises metrics after processing. Reject a file when none of
@@ -965,11 +1107,14 @@ build_processed_state <- function(files, settings = list(), read_fun = safe_read
     dts = dts,
     raw_traces = raw_traces,
     baselines = baselines,
+    input_data_mode = settings$input_data_mode,
     baseline_method = settings$baseline_method,
     baseline_frames = settings$baseline_frames,
+    sampling_rate = settings$sampling_rate,
     long = long,
     summary = summary,
     metrics = metrics,
+    processing_manifest = build_processing_manifest(accepted_files, labels, settings),
     skipped_files = skipped_details$file,
     skipped_details = skipped_details,
     dropped_cells = dropped_cells,
@@ -980,7 +1125,8 @@ build_processed_state <- function(files, settings = list(), read_fun = safe_read
 # Fields that must always describe the same successfully processed dataset.
 processed_state_fields <- c(
   "files", "groups", "colors", "dts", "raw_traces", "baselines",
-  "baseline_method", "baseline_frames", "long", "summary", "metrics"
+  "input_data_mode", "baseline_method", "baseline_frames", "sampling_rate",
+  "long", "summary", "metrics", "processing_manifest"
 )
 
 #' Clear every field belonging to a processed dataset
@@ -998,11 +1144,14 @@ clear_processed_state <- function(rv) {
     dts = list(),
     raw_traces = list(),
     baselines = list(),
+    input_data_mode = NULL,
     baseline_method = NULL,
     baseline_frames = NULL,
+    sampling_rate = NULL,
     long = NULL,
     summary = NULL,
-    metrics = NULL
+    metrics = NULL,
+    processing_manifest = NULL
   )
   for (field in processed_state_fields) {
     rv[[field]] <- empty[[field]]
@@ -1216,11 +1365,34 @@ empty_metrics_row <- function(baseline_sd = NA_real_) {
   data.frame(
     Peak_dFF0 = NA_real_, Time_to_Peak = NA_real_,
     Time_to_25_Peak = NA_real_, Time_to_50_Peak = NA_real_, Time_to_75_Peak = NA_real_,
-    Rise_Time = NA_real_, Calcium_Entry_Rate = NA_real_, AUC = NA_real_,
+    Rise_Time = NA_real_, Rise_Rate_10_90_dFF0_per_s = NA_real_, AUC = NA_real_,
     Response_Amplitude = NA_real_, FWHM = NA_real_,
     FWHM_Censored = NA, FWHM_Lower_Bound = NA_real_,
     Half_Width = NA_real_, Baseline_SD = baseline_sd, SNR = NA_real_
   )
+}
+
+#' Find the maximum finite signal after the baseline window.
+#'
+#' Shared by metric calculation and heatmap ordering so both views use the
+#' same response region and missing-value rules.
+post_baseline_peak <- function(signal, time_vec, baseline_frames = c(1, 20)) {
+  n <- min(length(signal), length(time_vec))
+  empty <- list(index = NA_integer_, time = NA_real_, value = NA_real_)
+  if (n < 1L) return(empty)
+  frames <- suppressWarnings(as.integer(baseline_frames))
+  if (length(frames) < 2L || any(!is.finite(frames[1:2]))) return(empty)
+  end_frame <- min(n, max(1L, max(frames[1:2])))
+  if (end_frame >= n) return(empty)
+
+  signal <- suppressWarnings(as.numeric(signal[seq_len(n)]))
+  time_vec <- suppressWarnings(as.numeric(time_vec[seq_len(n)]))
+  search <- signal
+  search[!is.finite(search) | !is.finite(time_vec)] <- -Inf
+  search[seq_len(end_frame)] <- -Inf
+  index <- which.max(search)
+  if (length(index) != 1L || index <= end_frame || !is.finite(search[index])) return(empty)
+  list(index = as.integer(index), time = time_vec[index], value = signal[index])
 }
 
 #' Function to calculate various metrics for a single cell's time course data
@@ -1285,20 +1457,15 @@ calculate_cell_metrics <- function(cell_data, time_vec, baseline_frames = c(1, 2
     return(empty_metrics_row())
   }
 
-  # Only look for peaks AFTER the baseline period
-  search_region <- working_signal
-  search_region[!is.finite(search_region) | !is.finite(t)] <- -Inf
-  search_region[seq_len(end_frame)] <- -Inf # Exclude original baseline frames
+  peak <- post_baseline_peak(working_signal, t, c(start_frame, end_frame))
+  peak_idx <- peak$index
+  peak_value <- peak$value
 
-  peak_idx <- which.max(search_region)
-  peak_value <- working_signal[peak_idx]
-
-  # If peak is in baseline or no valid peak found, return NA for all metrics
-  if (peak_idx <= end_frame || !is.finite(peak_value)) {
+  if (!is.finite(peak_idx) || !is.finite(peak_value)) {
     return(empty_metrics_row(baseline_sd = baseline_sd))
   }
 
-  time_to_peak <- t[peak_idx]
+  time_to_peak <- peak$time
   response_amplitude <- peak_value - baseline
 
   # Time to % Peak and Rise Time (Robust version)
@@ -1365,7 +1532,7 @@ calculate_cell_metrics <- function(cell_data, time_vec, baseline_frames = c(1, 2
   data.frame(
     Peak_dFF0 = peak_value, Time_to_Peak = time_to_peak,
     Time_to_25_Peak = tt25, Time_to_50_Peak = tt50, Time_to_75_Peak = tt75,
-    Rise_Time = rise_time, Calcium_Entry_Rate = ca_entry, AUC = auc,
+    Rise_Time = rise_time, Rise_Rate_10_90_dFF0_per_s = ca_entry, AUC = auc,
     Response_Amplitude = response_amplitude, FWHM = fwhm,
     FWHM_Censored = fwhm_censored, FWHM_Lower_Bound = fwhm_lower_bound,
     Half_Width = half_width, Baseline_SD = baseline_sd, SNR = snr
@@ -1477,7 +1644,7 @@ metric_label <- function(metric) {
     Time_to_25_Peak = "Time to 25% Peak (s)",
     Time_to_50_Peak = "Time to 50% Peak (s)",
     Time_to_75_Peak = "Time to 75% Peak (s)",
-    Calcium_Entry_Rate = "10–90% Rise Rate (\u0394F/F\u2080/s)",
+    Rise_Rate_10_90_dFF0_per_s = "10–90% Rise Rate (\u0394F/F\u2080/s)",
     Baseline_SD = "Baseline SD (\u0394F/F\u2080)",
     metric
   )
@@ -1500,7 +1667,7 @@ metric_title <- function(metric) {
     Time_to_25_Peak = "Time to 25% Peak (s)",
     Time_to_50_Peak = "Time to 50% Peak (s)",
     Time_to_75_Peak = "Time to 75% Peak (s)",
-    Calcium_Entry_Rate = "10–90% \u0394F/F\u2080 Rise Rate (\u0394F/F\u2080/s)",
+    Rise_Rate_10_90_dFF0_per_s = "10–90% \u0394F/F\u2080 Rise Rate (\u0394F/F\u2080/s)",
     Baseline_SD = "Baseline SD (\u0394F/F\u2080)",
     metric
   )

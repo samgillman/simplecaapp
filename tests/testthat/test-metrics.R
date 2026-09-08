@@ -27,6 +27,48 @@ test_that("single-group violin plots stay compact", {
   expect_null(metrics_module_env$metrics_plotly_xaxis("recording-1", "boxswarm")$range)
 })
 
+test_that("multi-group cell bars use within-group indices and summaries", {
+  skip_if_not_installed("shiny")
+  skip_if_not_installed("dplyr")
+  skip_if_not_installed("ggplot2")
+  suppressPackageStartupMessages({
+    library(shiny)
+    library(dplyr)
+    library(ggplot2)
+  })
+
+  rv <- shiny::reactiveValues(
+    metrics = data.frame(
+      Group = rep(c("Control", "Treatment"), each = 2),
+      Cell = paste0("Cell", 1:4),
+      Peak_dFF0 = c(1, 2, 10, 20),
+      FWHM_Censored = FALSE
+    ),
+    colors = c(Control = "#111111", Treatment = "#999999"),
+    files = data.frame(name = c("Control.csv", "Treatment.csv"))
+  )
+
+  shiny::testServer(metrics_module_env$mod_metrics_server, args = list(rv = rv), {
+    session$setInputs(
+      metric_name = "Peak_dFF0", metric_plot_style = "bars",
+      metric_sort_cells = TRUE, metric_show_summary = TRUE,
+      metric_inset_scale = 1, metric_highlight_k = 0,
+      metric_bar_color = "#B3B3B3", metric_auto_y = TRUE,
+      metric_title = "", metric_base_font_size = 14,
+      metric_bold_labels = TRUE, metric_font = "Arial"
+    )
+    session$flushReact()
+
+    plot <- session$getReturned()$plot()
+    expect_false(inherits(plot$facet, "FacetNull"))
+    expect_equal(plot$data$Cell_Idx, c(1L, 2L, 1L, 2L))
+    hline <- Filter(function(layer) inherits(layer$geom, "GeomHline"), plot$layers)
+    expect_length(hline, 1)
+    expect_equal(hline[[1]]$data$mean_value, c(1.5, 15))
+    expect_match(plot$labels$caption, "not independent biological replicates", fixed = TRUE)
+  })
+})
+
 test_that("pulse trace metrics match hand-computed ground truth (dFF0 input)", {
   x <- make_pulse_trace()
   t <- pulse_time()
@@ -40,7 +82,7 @@ test_that("pulse trace metrics match hand-computed ground truth (dFF0 input)", {
   expect_equal(m$Time_to_50_Peak, 2.4)
   expect_equal(m$Time_to_75_Peak, 2.65)
   expect_equal(m$Rise_Time, 0.8)
-  expect_equal(m$Calcium_Entry_Rate, 1.0)
+  expect_equal(m$Rise_Rate_10_90_dFF0_per_s, 1.0)
   expect_equal(m$FWHM, 1.0)
   expect_identical(m$FWHM_Censored, FALSE)
   expect_true(is.na(m$FWHM_Lower_Bound))

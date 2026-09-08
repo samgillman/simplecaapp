@@ -5,7 +5,7 @@ source(file.path(repo_root, "R", "theme.R"))
 source(file.path(repo_root, "R", "components.R"))
 
 test_that("displayed app version matches the current release", {
-  expect_identical(SIMPLECA_VERSION, "1.15.0")
+  expect_identical(SIMPLECA_VERSION, "1.16.0")
 })
 
 test_that("theme includes responsive, accessible, and contrast-safe states", {
@@ -66,8 +66,10 @@ test_that("advanced processing settings precede the Process Data action", {
   expect_lt(advanced_position, process_position)
   expect_match(markup, 'aria-expanded="false"', fixed = TRUE)
   expect_match(markup, "Used only when Time is missing", fixed = TRUE)
-  expect_match(markup, "Baseline frames (F\u2080)", fixed = TRUE)
-  expect_match(markup, "F\u2080 is the mean fluorescence across the selected frames", fixed = TRUE)
+  expect_match(markup, "Input &amp; baseline", fixed = TRUE)
+  expect_match(markup, "Raw fluorescence", fixed = TRUE)
+  expect_match(markup, "Already ΔF/F₀", fixed = TRUE)
+  expect_match(markup, "values are preserved exactly", fixed = TRUE)
   expect_false(grepl("pp_baseline_method", markup, fixed = TRUE))
   expect_false(grepl("Rolling Minimum", markup, fixed = TRUE))
   expect_false(grepl("Percentile", markup, fixed = TRUE))

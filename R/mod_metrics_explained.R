@@ -218,6 +218,7 @@ mod_metrics_explained_server <- function(id, rv) {
         processed_trace = processed_trace,
         metric = cell_metric,
         peak_time = peak_time_processed,
+        input_data_mode = rv$input_data_mode %||% "raw_fluorescence",
         f0 = f0,
         peak_f = peak_f_raw
       )
@@ -227,32 +228,48 @@ mod_metrics_explained_server <- function(id, rv) {
       req(selected_cell_data())
       data <- selected_cell_data()
       
-      div(class = "metric-data-box",
-        tags$ul(style = "margin-bottom: 0;",
-          tags$li(sprintf("Baseline fluorescence (F₀): %.2f", data$f0)),
-          tags$li(sprintf("Peak fluorescence (F): %.2f", data$peak_f)),
-          tags$li(sprintf("Time of peak: %.2f seconds", data$peak_time)),
-          tags$li(sprintf("Peak ΔF/F₀ value: %.3f", data$metric$Peak_dFF0))
+      if (identical(data$input_data_mode, "dff0")) {
+        div(class = "metric-data-box",
+          tags$ul(style = "margin-bottom: 0;",
+            tags$li("Input mode: already processed ΔF/F₀ (values preserved)"),
+            tags$li(sprintf("Time of post-baseline peak: %.2f seconds", data$peak_time)),
+            tags$li(sprintf("Peak ΔF/F₀ value: %.3f", data$metric$Peak_dFF0))
+          )
         )
-      )
+      } else {
+        div(class = "metric-data-box",
+          tags$ul(style = "margin-bottom: 0;",
+            tags$li(sprintf("Baseline fluorescence (F₀): %.2f", data$f0)),
+            tags$li(sprintf("Peak fluorescence (F): %.2f", data$peak_f)),
+            tags$li(sprintf("Time of peak: %.2f seconds", data$peak_time)),
+            tags$li(sprintf("Peak ΔF/F₀ value: %.3f", data$metric$Peak_dFF0))
+          )
+        )
+      }
     })
 
     output$peak_calculation_ui <- renderUI({
       req(selected_cell_data())
       data <- selected_cell_data()
       
-      tagList(
-        formula_line("Peak ΔF/F<sub>0</sub> = ",
-                     frac("F<sub>peak</sub> − F<sub>0</sub>", "F<sub>0</sub>"), " = ",
-                     frac(sprintf("%.2f − %.2f", data$peak_f, data$f0), sprintf("%.2f", data$f0))),
-        formula_line("= ", frac(sprintf("%.2f", data$peak_f - data$f0), sprintf("%.2f", data$f0)),
-                     sprintf(" = %.3f", data$metric$Peak_dFF0)),
-        div(class = "metric-result-box",
-          h5("Result:"),
-          p(sprintf("Peak ΔF/F₀ = %.3f", data$metric$Peak_dFF0), 
-            style = "margin: 5px 0 0 0;")
+      if (identical(data$input_data_mode, "dff0")) {
+        tagList(
+          formula_line("Peak ΔF/F<sub>0</sub> = max of uploaded ΔF/F<sub>0</sub> after the baseline window"),
+          formula_line(sprintf("= %.3f", data$metric$Peak_dFF0)),
+          div(class = "metric-result-box", h5("Result:"),
+              p(sprintf("Peak ΔF/F₀ = %.3f", data$metric$Peak_dFF0), style = "margin: 5px 0 0 0;"))
         )
-      )
+      } else {
+        tagList(
+          formula_line("Peak ΔF/F<sub>0</sub> = ",
+                       frac("F<sub>peak</sub> − F<sub>0</sub>", "F<sub>0</sub>"), " = ",
+                       frac(sprintf("%.2f − %.2f", data$peak_f, data$f0), sprintf("%.2f", data$f0))),
+          formula_line("= ", frac(sprintf("%.2f", data$peak_f - data$f0), sprintf("%.2f", data$f0)),
+                       sprintf(" = %.3f", data$metric$Peak_dFF0)),
+          div(class = "metric-result-box", h5("Result:"),
+              p(sprintf("Peak ΔF/F₀ = %.3f", data$metric$Peak_dFF0), style = "margin: 5px 0 0 0;"))
+        )
+      }
     })
 
     output$snr_data_points_ui <- renderUI({
@@ -664,10 +681,10 @@ mod_metrics_explained_server <- function(id, rv) {
         formula_line("10–90% ΔF/F₀ Rise Rate = ", frac("Signal Rise", "Time Interval"), " = ",
                      frac(sprintf("%.3f − %.3f", p90_val, p10_val), sprintf("%.2f − %.2f", t90, t10))),
         formula_line("= ", frac(sprintf("%.3f", p90_val - p10_val), sprintf("%.2f", data$metric$Rise_Time)),
-                     sprintf(" = %.3f ΔF/F₀/s", data$metric$Calcium_Entry_Rate)),
+                     sprintf(" = %.3f ΔF/F₀/s", data$metric$Rise_Rate_10_90_dFF0_per_s)),
         div(class = "metric-result-box",
           h5("Result:"),
-          p(sprintf("10–90%% ΔF/F₀ Rise Rate = %.3f ΔF/F₀/s", data$metric$Calcium_Entry_Rate),
+          p(sprintf("10–90%% ΔF/F₀ Rise Rate = %.3f ΔF/F₀/s", data$metric$Rise_Rate_10_90_dFF0_per_s),
             style = "margin: 5px 0 0 0;")
         )
       )
@@ -981,7 +998,7 @@ mod_metrics_explained_server <- function(id, rv) {
             # top-left label collided with the Δt arrow label)
             annotate("label", x = max(trace$Time, na.rm = TRUE),
                      y = max(trace$dFF0, na.rm = TRUE) + y_range * 0.22,
-                     label = sprintf("10–90%% ΔF/F₀ Rise Rate = %.3f ΔF/F₀/s", data$metric$Calcium_Entry_Rate),
+                     label = sprintf("10–90%% ΔF/F₀ Rise Rate = %.3f ΔF/F₀/s", data$metric$Rise_Rate_10_90_dFF0_per_s),
                      color = "white", fill = expl_accent, fontface = "bold", size = 3.5,
                      hjust = 1, vjust = 0.5, label.size = 0) +
             labs(title = cell_title(metric$Cell_Label), x = "Time (s)", y = "\u0394F/F\u2080") +

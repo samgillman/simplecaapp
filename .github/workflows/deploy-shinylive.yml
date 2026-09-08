@@ -1,20 +1,26 @@
 name: Deploy Shinylive to Cloudflare Pages
 
-# Builds the WebAssembly (Shinylive) version of the app and publishes it to
-# Cloudflare Pages. Deployment credentials and domain configuration are
-# maintainer-managed and are not part of the public user workflow.
+# Publishes the exact WebAssembly artifact tested by CI. Manual runs retain a
+# pinned local build path for maintainers. Deployment credentials and domain
+# configuration are not part of the public user workflow.
 
 on:
-  push:
-    branches: [main]
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
   workflow_dispatch:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   build-deploy:
-    if: github.repository == 'samgillman/simplecaapp'
+    if: >-
+      github.repository == 'samgillman/simplecaapp' &&
+      (github.event_name == 'workflow_dispatch' ||
+       (github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.head_branch == 'main'))
     runs-on: ubuntu-latest
     env:
       # Overrides the repo's renv .Rprofile and sets the CRAN mirror; see the
@@ -22,16 +28,31 @@ jobs:
       R_PROFILE_USER: ${{ github.workspace }}/.github/ci-profile.R
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - uses: r-lib/actions/setup-r@v2
+        if: github.event_name == 'workflow_dispatch'
         with:
+          r-version: '4.5.1'
           use-public-rspm: true
 
-      - name: Install shinylive
-        run: Rscript -e 'install.packages("shinylive")'
+      - name: Install pinned Shinylive
+        if: github.event_name == 'workflow_dispatch'
+        run: Rscript scripts/install_shinylive.R
 
       - name: Build Shinylive site
+        if: github.event_name == 'workflow_dispatch'
         run: Rscript scripts/export_shinylive.R
+
+      - name: Download tested Shinylive site
+        if: github.event_name == 'workflow_run'
+        uses: actions/download-artifact@v4
+        with:
+          name: shinylive-site
+          path: _shinylive
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3

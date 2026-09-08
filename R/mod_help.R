@@ -23,7 +23,7 @@ mod_help_ui <- function(id) {
                 div(class = "help-section",
                     tags$ol(style = "padding-left: 20px; font-size: 16px; line-height: 1.6;",
                             tags$li(tags$b("Load Data:"), " Upload wide-format CSV/Excel files. Time may appear anywhere; use Advanced Options to confirm its source or exclude columns."),
-                            tags$li(tags$b("Process:"), " Select a stable baseline frame window with the slider or typed frame bounds, and click 'Process Data'."),
+                            tags$li(tags$b("Process:"), " Choose Raw fluorescence or Already ΔF/F₀, select a stable baseline frame window, and click 'Process Data'."),
                             tags$li(tags$b("Visualize:"), " Check the Time Course and Heatmap tabs to inspect signal quality."),
                             tags$li(tags$b("Analyze:"), " Use the Metrics tab to quantify peaks, AUC, rise times, etc."),
                             tags$li(tags$b("Explain:"), " Use Metric Explanations (under Reference) to visualize how metrics are calculated on your data."),
@@ -57,8 +57,22 @@ mod_help_ui <- function(id) {
                     
                     div(class = "alert alert-info small", style = "margin-top: 15px;",
                         icon("info-circle"), " A Time column in seconds is recommended. A Frame column or unnamed sequential ImageJ index is converted using the sampling rate; otherwise Time is generated. Advanced Options confirms the detected source and lets you exclude unwanted numeric columns before processing."
+                    ),
+                    div(class = "alert alert-warning small", style = "margin-top: 10px;",
+                        icon("exclamation-triangle"), " Select Raw fluorescence to calculate F₀ and normalize, or Already ΔF/F₀ to preserve uploaded values exactly. The baseline window always defines noise and the post-baseline response search."
                     )
                 )
+              ),
+
+              theme_box(
+                title = "Interpreting Sample Size",
+                icon = icon("users"),
+                status = "primary",
+                width = 12,
+                collapsible = TRUE,
+                collapsed = TRUE,
+                div(class = "alert alert-warning", style = "margin: 0;",
+                    "SimpleCa²⁺ summaries are descriptive and cell-level. N_Cells is not the number of independent animals or preparations. Cells from the same preparation or animal are not independent biological replicates.")
               ),
               
               theme_box(

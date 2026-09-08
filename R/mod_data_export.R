@@ -111,6 +111,12 @@ mod_data_export_ui <- function(id) {
                 uiOutput(ns("export_content"))
               )
             )
+          ),
+          div(
+            class = "alert alert-warning small",
+            style = "margin: 16px 0 0;",
+            icon("info-circle"),
+            " Values are descriptive cell-level summaries. Cells from the same preparation or animal are not independent biological replicates."
           )
       )
     )
@@ -131,7 +137,7 @@ mod_data_export_server <- function(id, rv, metrics_plot_reactive, heatmap_plot_r
     output$cell_metrics_table <- DT::renderDT(server = FALSE, {
       shiny::validate(shiny::need(has_data(rv$metrics), "No data available. Go to the Load Data tab, upload your files, and click Process Data to view cell metrics."))
       req(rv$metrics)
-      metrics <- rv$metrics
+      metrics <- metrics_for_export(rv$metrics)
       numeric_cols <- vapply(metrics, is.numeric, logical(1))
 
       export_base <- sub(
@@ -158,7 +164,7 @@ mod_data_export_server <- function(id, rv, metrics_plot_reactive, heatmap_plot_r
     output$summary_stats_table <- DT::renderDT(server = FALSE, {
       shiny::validate(shiny::need(has_data(rv$metrics), "No data available. Go to the Load Data tab, upload your files, and click Process Data to view summary statistics."))
       req(rv$metrics)
-      df <- rv$metrics
+      df <- metrics_for_export(rv$metrics)
       metric_cols <- setdiff(names(df)[vapply(df, is.numeric, logical(1))], c("Baseline_SD"))
       metric_cols <- intersect(metric_cols, names(df))
       if (length(metric_cols) == 0) return(NULL)
@@ -168,18 +174,18 @@ mod_data_export_server <- function(id, rv, metrics_plot_reactive, heatmap_plot_r
         dplyr::summarise(
           Mean = mean(Value, na.rm = TRUE),
           SD = stats::sd(Value, na.rm = TRUE),
-          N = sum(is.finite(Value)),
-          SEM = SD / pmax(1, sqrt(N)),
+          N_Cells = sum(is.finite(Value)),
+          SEM = SD / pmax(1, sqrt(N_Cells)),
           .groups = "drop"
         ) %>%
         dplyr::mutate(
-          Mean = dplyr::if_else(N > 0, Mean, NA_real_),
-          SD = dplyr::if_else(N > 1, SD, NA_real_),
-          SEM = dplyr::if_else(N > 1, SEM, NA_real_)
+          Mean = dplyr::if_else(N_Cells > 0, Mean, NA_real_),
+          SD = dplyr::if_else(N_Cells > 1, SD, NA_real_),
+          SEM = dplyr::if_else(N_Cells > 1, SEM, NA_real_)
         )
       stats_wide <- stats %>%
-        dplyr::select(Group, Metric, Mean, SEM, N) %>%
-        tidyr::pivot_wider(names_from = Metric, values_from = c(Mean, SEM, N), names_glue = "{Metric}_{.value}")
+        dplyr::select(Group, Metric, Mean, SEM, N_Cells) %>%
+        tidyr::pivot_wider(names_from = Metric, values_from = c(Mean, SEM, N_Cells), names_glue = "{Metric}_{.value}")
 
       export_base <- sub(
         "\\.[^.]+$", "",
@@ -205,7 +211,7 @@ mod_data_export_server <- function(id, rv, metrics_plot_reactive, heatmap_plot_r
       req(rv$summary)
       s <- rv$summary
       summary_df <- s %>%
-        dplyr::transmute(Group, Time, Mean = mean_dFF0, SD = sd_dFF0, SEM = sem_dFF0, N = n_cells)
+        dplyr::transmute(Group, Time, Mean = mean_dFF0, SD = sd_dFF0, SEM = sem_dFF0, N_Cells = n_cells)
       col_name <- "Mean \u00b1 SEM"
       summary_df[[col_name]] <- paste0(round(summary_df$Mean, 4), " \u00b1 ", round(summary_df$SEM, 4))
       summary_wide <- summary_df %>%
@@ -270,7 +276,7 @@ mod_data_export_server <- function(id, rv, metrics_plot_reactive, heatmap_plot_r
       },
       content = function(file) {
         req(rv$metrics)
-        data.table::fwrite(rv$metrics, file)
+        data.table::fwrite(metrics_for_export(rv$metrics), file)
       }
     )
 
@@ -281,7 +287,7 @@ mod_data_export_server <- function(id, rv, metrics_plot_reactive, heatmap_plot_r
       },
       content = function(file) {
         req(rv$metrics)
-        df <- rv$metrics
+        df <- metrics_for_export(rv$metrics)
         metric_cols <- names(df)[vapply(df, is.numeric, logical(1))]
         metric_cols <- setdiff(metric_cols, c("Baseline_SD"))
         tidy <- tidyr::pivot_longer(df, cols = dplyr::all_of(metric_cols), names_to = "Metric", values_to = "Value")
@@ -290,14 +296,14 @@ mod_data_export_server <- function(id, rv, metrics_plot_reactive, heatmap_plot_r
           dplyr::summarise(
             Mean = mean(Value, na.rm = TRUE),
             SD = stats::sd(Value, na.rm = TRUE),
-            N = sum(is.finite(Value)),
-            SEM = SD / pmax(1, sqrt(N)),
+            N_Cells = sum(is.finite(Value)),
+            SEM = SD / pmax(1, sqrt(N_Cells)),
             .groups = "drop"
           ) %>%
           dplyr::mutate(
-            Mean = dplyr::if_else(N > 0, Mean, NA_real_),
-            SD = dplyr::if_else(N > 1, SD, NA_real_),
-            SEM = dplyr::if_else(N > 1, SEM, NA_real_)
+            Mean = dplyr::if_else(N_Cells > 0, Mean, NA_real_),
+            SD = dplyr::if_else(N_Cells > 1, SD, NA_real_),
+            SEM = dplyr::if_else(N_Cells > 1, SEM, NA_real_)
           )
         data.table::fwrite(stats, file)
       }
@@ -309,7 +315,7 @@ mod_data_export_server <- function(id, rv, metrics_plot_reactive, heatmap_plot_r
       },
       content = function(file) {
         req(rv$summary)
-        s <- rv$summary %>% dplyr::transmute(Group, Time, Mean = mean_dFF0, SD = sd_dFF0, SEM = sem_dFF0, N = n_cells)
+        s <- rv$summary %>% dplyr::transmute(Group, Time, Mean = mean_dFF0, SD = sd_dFF0, SEM = sem_dFF0, N_Cells = n_cells)
         data.table::fwrite(s, file)
       }
     )
@@ -342,6 +348,11 @@ mod_data_export_server <- function(id, rv, metrics_plot_reactive, heatmap_plot_r
         data.table::fwrite(rv$dts[[g]], f)
         f
       }, character(1))
+      if (!is.null(rv$processing_manifest)) {
+        manifest_path <- file.path(out_dir, "processing_manifest.csv")
+        data.table::fwrite(rv$processing_manifest, manifest_path)
+        paths <- c(paths, manifest_path)
+      }
       write_zip_archive(file, paths)
     }
     register_browser_download(input, session, "download_raw_all",
@@ -385,10 +396,11 @@ mod_data_export_server <- function(id, rv, metrics_plot_reactive, heatmap_plot_r
             p("Download tabular data for analysis in other software.", class = "text-muted small"),
             div(style = "display: flex; flex-direction: column; gap: 10px;",
               browser_download_button(ns("dl_metrics_csv"), "Download All Metrics (CSV)", class = "btn-primary btn-block"),
-              browser_download_button(ns("dl_summary_csv"), "Download Summary Stats (CSV)", class = "btn-default btn-block"),
+              browser_download_button(ns("dl_summary_csv"), "Download Time-Course Summary (CSV)", class = "btn-default btn-block"),
+              browser_download_button(ns("dl_manifest_csv"), "Download Processing Manifest (CSV)", class = "btn-default btn-block"),
               tags$hr(style = "margin: 10px 0;"),
               div(style = "background: var(--color-gray-50); padding: 10px; border-radius: 4px;",
-                h6("Processed Raw Data", style = "margin-top: 0; font-weight: 600;"),
+                h6("Processed Data", style = "margin-top: 0; font-weight: 600;"),
                 selectInput(ns("exp_dl_group"), NULL, choices = names(rv$dts), width = "100%"),
                 browser_download_button(ns("dl_processed_wide_exp"), "Download Dataset (CSV)", class = "btn-default btn-block"),
                 browser_download_button(ns("dl_processed_all_exp"), "Download All Datasets (ZIP)", class = "btn-default btn-block", style = "margin-top: 8px;")
@@ -445,7 +457,7 @@ mod_data_export_server <- function(id, rv, metrics_plot_reactive, heatmap_plot_r
       },
       content = function(file) {
         req(!is.null(rv$metrics), nrow(rv$metrics) > 0)
-        data.table::fwrite(rv$metrics, file)
+        data.table::fwrite(metrics_for_export(rv$metrics), file)
       }
     )
 
@@ -455,7 +467,22 @@ mod_data_export_server <- function(id, rv, metrics_plot_reactive, heatmap_plot_r
       },
       content = function(file) {
         req(!is.null(rv$summary), nrow(rv$summary) > 0)
-        data.table::fwrite(rv$summary, file)
+        out <- rv$summary |>
+          dplyr::transmute(
+            Group, Time, Mean_dFF0 = mean_dFF0, SD_dFF0 = sd_dFF0,
+            SEM_dFF0 = sem_dFF0, N_Cells = n_cells
+          )
+        data.table::fwrite(out, file)
+      }
+    )
+
+    register_browser_download(input, session, "dl_manifest_csv",
+      filename = function() {
+        build_export_filename(rv, parts = "processing_manifest", ext = "csv")
+      },
+      content = function(file) {
+        req(!is.null(rv$processing_manifest), nrow(rv$processing_manifest) > 0)
+        data.table::fwrite(rv$processing_manifest, file)
       }
     )
 
@@ -465,7 +492,8 @@ mod_data_export_server <- function(id, rv, metrics_plot_reactive, heatmap_plot_r
       },
       content = function(file) {
         req(time_course_plot_reactive())
-        ggplot2::ggsave(file, plot = time_course_plot_reactive(), width = input$exp_w, height = input$exp_h, dpi = input$exp_dpi, device = input$exp_fmt)
+        save_plot_file(file, time_course_plot_reactive(), input$exp_w, input$exp_h,
+                       input$exp_dpi, input$exp_fmt, input$tiff_comp %||% "lzw")
       }
     )
 
@@ -475,7 +503,8 @@ mod_data_export_server <- function(id, rv, metrics_plot_reactive, heatmap_plot_r
       },
       content = function(file) {
         req(heatmap_plot_reactive())
-        ggplot2::ggsave(file, plot = heatmap_plot_reactive(), width = input$exp_w, height = input$exp_h, dpi = input$exp_dpi, device = input$exp_fmt)
+        save_plot_file(file, heatmap_plot_reactive(), input$exp_w, input$exp_h,
+                       input$exp_dpi, input$exp_fmt, input$tiff_comp %||% "lzw")
       }
     )
 
@@ -485,7 +514,8 @@ mod_data_export_server <- function(id, rv, metrics_plot_reactive, heatmap_plot_r
       },
       content = function(file) {
         req(metrics_plot_reactive())
-        ggplot2::ggsave(file, plot = metrics_plot_reactive(), width = input$exp_w, height = input$exp_h, dpi = input$exp_dpi, device = input$exp_fmt)
+        save_plot_file(file, metrics_plot_reactive(), input$exp_w, input$exp_h,
+                       input$exp_dpi, input$exp_fmt, input$tiff_comp %||% "lzw")
       }
     )
 
@@ -497,22 +527,23 @@ mod_data_export_server <- function(id, rv, metrics_plot_reactive, heatmap_plot_r
         tmpdir <- tempdir()
         fmt <- input$exp_fmt %||% "png"
         w <- input$exp_w; h <- input$exp_h; dpi <- input$exp_dpi
+        compression <- input$tiff_comp %||% "lzw"
 
         files_to_zip <- character()
 
         if (!is.null(tryCatch(time_course_plot_reactive(), error = function(e) NULL))) {
           f <- file.path(tmpdir, paste0("timecourse.", fmt))
-          ggplot2::ggsave(f, plot = time_course_plot_reactive(), width = w, height = h, dpi = dpi, device = fmt)
+          save_plot_file(f, time_course_plot_reactive(), w, h, dpi, fmt, compression)
           files_to_zip <- c(files_to_zip, f)
         }
         if (!is.null(tryCatch(heatmap_plot_reactive(), error = function(e) NULL))) {
           f <- file.path(tmpdir, paste0("heatmap.", fmt))
-          ggplot2::ggsave(f, plot = heatmap_plot_reactive(), width = w, height = h, dpi = dpi, device = fmt)
+          save_plot_file(f, heatmap_plot_reactive(), w, h, dpi, fmt, compression)
           files_to_zip <- c(files_to_zip, f)
         }
         if (!is.null(tryCatch(metrics_plot_reactive(), error = function(e) NULL))) {
           f <- file.path(tmpdir, paste0("metrics.", fmt))
-          ggplot2::ggsave(f, plot = metrics_plot_reactive(), width = w, height = h, dpi = dpi, device = fmt)
+          save_plot_file(f, metrics_plot_reactive(), w, h, dpi, fmt, compression)
           files_to_zip <- c(files_to_zip, f)
         }
 

@@ -115,6 +115,47 @@ test_that("build_processed_state uses only the selected frame-range mean", {
   }
 })
 
+test_that("already-normalized input is preserved and zero baselines are retained", {
+  files <- data.frame(
+    name = "normalized.csv", datapath = "normalized",
+    stringsAsFactors = FALSE
+  )
+  settings <- processing_settings
+  settings$input_data_mode <- "dff0"
+  original <- data.table::data.table(
+    Time = pulse_time(),
+    Cell1 = make_pulse_trace(baseline_vals = rep(c(-0.01, 0.01), 10))
+  )
+
+  state <- build_processed_state(files, settings, read_fun = function(path) original)
+
+  expect_identical(state$input_data_mode, "dff0")
+  expect_equal(state$dts$normalized$Cell1, original$Cell1)
+  expect_true(is.na(state$baselines$normalized[["Cell1"]]))
+  expect_length(state$dropped_cells, 0)
+  expect_equal(state$metrics$Baseline_SD, stats::sd(original$Cell1[1:20]))
+  expect_equal(state$metrics$Peak_dFF0, 1)
+  expect_equal(state$summary$n_cells, rep(1L, nrow(original)))
+  expect_true(all(is.na(state$summary$sem_dFF0)))
+  expect_equal(
+    state$processing_manifest$value[state$processing_manifest$field == "input_data_mode"],
+    "dff0"
+  )
+})
+
+test_that("raw fluorescence mode still rejects invalid F0 traces", {
+  files <- data.frame(name = "raw.csv", datapath = "raw", stringsAsFactors = FALSE)
+  expect_error(
+    build_processed_state(
+      files, processing_settings,
+      read_fun = function(path) data.table::data.table(
+        Time = pulse_time(), Cell1 = make_pulse_trace()
+      )
+    ),
+    "zero, negative, or missing baseline"
+  )
+})
+
 test_that("per-file column mappings control Time and trace exclusions", {
   files <- data.frame(
     name = c("elapsed.csv", "frames.csv"),
@@ -378,7 +419,7 @@ test_that("load module applies the uploaded file's column controls", {
     datapath = path,
     stringsAsFactors = FALSE
   )
-  key <- module_env$column_mapping_key(upload$name)
+  key <- module_env$column_mapping_key(ensure_upload_ids(upload)$upload_id)
   rv <- shiny::reactiveValues(
     files = NULL, groups = NULL, dts = list(), long = NULL,
     summary = NULL, metrics = NULL, colors = NULL,
@@ -431,5 +472,49 @@ test_that("load module applies the uploaded file's column controls", {
       "Settings changed — click Process Data to update results",
       fixed = TRUE
     )
+  })
+})
+
+test_that("multi-file staging retains uploads with identical basenames", {
+  skip_if_not_installed("shiny")
+  suppressPackageStartupMessages(library(shiny))
+
+  module_env <- new.env(parent = globalenv())
+  sys.source(file.path(repo_root, "R", "mod_load_data.R"), envir = module_env)
+  module_env$theme_box <- function(...) shiny::div(...)
+  module_env$primary_button <- function(inputId, label, ...) shiny::actionButton(inputId, label)
+
+  paths <- c(tempfile(fileext = ".csv"), tempfile(fileext = ".csv"))
+  on.exit(unlink(paths), add = TRUE)
+  data.table::fwrite(make_raw_recording(), paths[1])
+  data.table::fwrite(make_raw_recording(), paths[2])
+  upload_row <- function(path) data.frame(
+    name = "Results.csv", size = unname(file.info(path)$size),
+    type = "text/csv", datapath = path, stringsAsFactors = FALSE
+  )
+  rv <- shiny::reactiveValues(
+    files = NULL, groups = NULL, dts = list(), long = NULL,
+    summary = NULL, metrics = NULL, colors = NULL,
+    raw_traces = list(), baselines = list(), input_data_mode = NULL,
+    baseline_method = NULL, baseline_frames = NULL, sampling_rate = NULL,
+    processing_manifest = NULL
+  )
+
+  shiny::testServer(module_env$mod_load_data_server, args = list(rv = rv), {
+    session$setInputs(upload_mode = "multi", pp_sampling_rate = 10)
+    session$setInputs(data_files = upload_row(paths[1]))
+    session$flushReact()
+    session$setInputs(data_files = upload_row(paths[2]))
+    session$flushReact()
+
+    feedback <- paste(as.character(output$upload_feedback), collapse = " ")
+    expect_match(feedback, "2 files ready", fixed = TRUE)
+    expect_match(feedback, "Results.csv (1)", fixed = TRUE)
+    expect_match(feedback, "Results.csv (2)", fixed = TRUE)
+
+    session$setInputs(load_btn = 1)
+    session$flushReact()
+    expect_equal(nrow(rv$files), 2)
+    expect_equal(rv$groups, c("Results", "Results_1"))
   })
 })

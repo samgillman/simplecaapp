@@ -39,7 +39,9 @@ mod_metrics_ui <- function(id) {
                 style = "display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap;",
                 div(style = "flex: 1; min-width: 260px; padding-bottom: 6px;",
                   p("Compare a metric across experimental groups. Each point is one cell.",
-                    class = "text-muted", style = "margin: 0;")
+                    class = "text-muted", style = "margin: 0;"),
+                  p("Cell-level descriptive summaries: cells from the same preparation or animal are not independent biological replicates.",
+                    class = "text-warning", style = "margin: 4px 0 0; font-size: 12px;")
                 ),
                 div(style = "width: 280px;",
                   selectInput(ns("metric_name"), "Metric",
@@ -48,7 +50,7 @@ mod_metrics_ui <- function(id) {
                                           "Time to 75% Peak (s)" = "Time_to_75_Peak", "Rise Time (s)" = "Rise_Time",
                                           "FWHM (s)" = "FWHM",
                                           "Derived Half-Width (FWHM/2)" = "Half_Width",
-                                          "10–90% \u0394F/F\u2080 Rise Rate" = "Calcium_Entry_Rate", "AUC" = "AUC",
+                                          "10–90% \u0394F/F\u2080 Rise Rate" = "Rise_Rate_10_90_dFF0_per_s", "AUC" = "AUC",
                                           "SNR" = "SNR"),
                               selected = "Peak_dFF0", width = "100%")
                 ),
@@ -189,7 +191,7 @@ mod_metrics_server <- function(id, rv) {
         "No finite values for the selected metric. Try a different metric."
       }
       shiny::validate(shiny::need(nrow(df) > 0, no_values_message))
-      caption_txt <- if (censored_n > 0) {
+      censored_caption <- if (censored_n > 0) {
         sprintf(
           "%d right-censored response%s excluded from exact %s summaries; observed lower bounds remain in Data & Export.",
           censored_n, if (censored_n == 1) " was" else "s were",
@@ -198,6 +200,11 @@ mod_metrics_server <- function(id, rv) {
       } else {
         NULL
       }
+      cell_level_caption <- paste(
+        "Descriptive cell-level summary; cells from the same preparation or",
+        "animal are not independent biological replicates."
+      )
+      caption_txt <- paste(c(censored_caption, cell_level_caption), collapse = " ")
 
       # Derive typography from consolidated controls
       base_size <- input$metric_base_font_size %||% 14
@@ -217,40 +224,75 @@ mod_metrics_server <- function(id, rv) {
       y_lab <- if (isTRUE(input$metric_auto_y)) metric_label(metric) else input$metric_y_label
       title_txt <- if (nzchar(input$metric_title)) input$metric_title else metric_title(metric)
 
-      # Summary statistics
-      mean_val <- mean(df[[metric]], na.rm = TRUE)
-      sem_val <- stats::sd(df[[metric]], na.rm = TRUE) / sqrt(nrow(df))
-      n_cells <- nrow(df)
-      label_df <- data.frame(xpos = 1.5, ypos = max(df[[metric]], na.rm = TRUE) * 0.98,
-                             label = sprintf("Mean \u00b1 SEM: %.3g \u00b1 %.3g\nn = %d", mean_val, sem_val, n_cells))
+      summary_by_group <- df |>
+        dplyr::group_by(Group) |>
+        dplyr::summarise(
+          mean_value = mean(.data[[metric]], na.rm = TRUE),
+          sem_value = if (dplyr::n() > 1L) stats::sd(.data[[metric]], na.rm = TRUE) / sqrt(dplyr::n()) else NA_real_,
+          n_cells = dplyr::n(),
+          max_value = max(.data[[metric]], na.rm = TRUE),
+          min_value = min(.data[[metric]], na.rm = TRUE),
+          .groups = "drop"
+        ) |>
+        dplyr::mutate(
+          label_y = max_value + pmax(abs(max_value - min_value) * 0.05, abs(max_value) * 0.03, 0.03),
+          label = ifelse(
+            is.finite(sem_value),
+            sprintf("Mean ± SEM: %.3g ± %.3g\nn (cells) = %d", mean_value, sem_value, n_cells),
+            sprintf("Mean: %.3g; SEM unavailable\nn (cells) = %d", mean_value, n_cells)
+          )
+        )
 
       style <- input$metric_plot_style %||% "boxswarm"
       p <- ggplot()
 
       if (identical(style, "bars")) {
-        df2 <- df
+        df2 <- dplyr::group_by(df, Group)
         if (isTRUE(input$metric_sort_cells)) {
-          df2 <- df2 |> dplyr::arrange(.data[[metric]]) |> dplyr::mutate(Cell_Idx = dplyr::row_number())
+          df2 <- df2 |> dplyr::arrange(.data[[metric]], .by_group = TRUE) |>
+            dplyr::mutate(Cell_Idx = dplyr::row_number())
         } else {
           df2 <- df2 |> dplyr::mutate(Cell_Idx = dplyr::row_number())
         }
+        df2 <- dplyr::ungroup(df2)
         bar_fill <- input$metric_bar_color %||% "#B3B3B3"
-        p <- ggplot(df2, aes(x = Cell_Idx, y = .data[[metric]],
+        grp_levels <- unique(as.character(df2$Group))
+        fills <- if (length(grp_levels) == 1L) {
+          stats::setNames(bar_fill, grp_levels)
+        } else {
+          out <- (rv$colors %||% character())[grp_levels]
+          if (any(is.na(out))) {
+            out[is.na(out)] <- scales::hue_pal()(sum(is.na(out)))
+          }
+          stats::setNames(out, grp_levels)
+        }
+        p <- ggplot(df2, aes(x = Cell_Idx, y = .data[[metric]], fill = Group,
                              text = paste0("Cell: ", pretty_cell_label(Cell), "\nGroup: ", Group, "\nValue: ", round(.data[[metric]], 3)))) +
-          geom_col(width = 0.85, alpha = 0.9, color = "black", fill = bar_fill, linewidth = 0.2)
+          geom_col(width = 0.85, alpha = 0.9, color = "black", linewidth = 0.2) +
+          scale_fill_manual(values = fills, guide = "none")
 
-        # Highlight extremes
+        # Highlight extremes within each group rather than across conditions.
         k <- as.integer(input$metric_highlight_k %||% 0)
         if (k > 0) {
-          ord <- order(df2[[metric]])
-          idx <- unique(c(head(ord, k), tail(ord, k)))
-          p <- p + geom_col(data = df2[idx, ], aes(x = Cell_Idx, y = .data[[metric]]),
+          extremes <- df2 |>
+            dplyr::group_by(Group) |>
+            dplyr::mutate(
+              low_rank = rank(.data[[metric]], ties.method = "first"),
+              high_rank = rank(-.data[[metric]], ties.method = "first")
+            ) |>
+            dplyr::filter(low_rank <= k | high_rank <= k) |>
+            dplyr::ungroup()
+          p <- p + geom_col(data = extremes, aes(x = Cell_Idx, y = .data[[metric]]),
                             width = 0.85, fill = "#5bc0de", color = "black", linewidth = 0.2)
         }
 
         p <- p + labs(x = "Cell number", y = y_lab, title = title_txt, caption = caption_txt) + base +
           scale_x_continuous(breaks = scales::pretty_breaks()) +
           theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5, size = max(7, base_size * 0.6)))
+        if (length(grp_levels) > 1L) {
+          p <- p + facet_wrap(~ Group, scales = "free_x",
+                              labeller = ggplot2::as_labeller(pretty_label))
+        }
 
       } else {
         # Box + swarm and violin styles compare experimental groups side by
@@ -280,13 +322,20 @@ mod_metrics_server <- function(id, rv) {
           labs(x = NULL, y = y_lab, title = title_txt, caption = caption_txt) + base
       }
 
-      # Mean +/- SEM overlay: global for the per-cell bar chart, per group
-      # for the group-comparison styles
+      # Mean +/- SEM overlay is group-specific for every plot style.
       if (isTRUE(input$metric_show_summary)) {
         if (identical(style, "bars")) {
-          p <- p + geom_hline(yintercept = mean_val, color = "#0072B2", linewidth = 0.7) +
-            annotate("rect", xmin = -Inf, xmax = Inf, ymin = mean_val - sem_val, ymax = mean_val + sem_val,
-                     alpha = 0.08, fill = "#0072B2")
+          ribbon_stats <- dplyr::filter(summary_by_group, is.finite(sem_value))
+          p <- p +
+            geom_hline(data = summary_by_group, aes(yintercept = mean_value),
+                       inherit.aes = FALSE, color = "#0072B2", linewidth = 0.7)
+          if (nrow(ribbon_stats) > 0) {
+            p <- p + geom_rect(
+              data = ribbon_stats,
+              aes(xmin = -Inf, xmax = Inf, ymin = mean_value - sem_value, ymax = mean_value + sem_value),
+              inherit.aes = FALSE, alpha = 0.08, fill = "#0072B2"
+            )
+          }
         } else {
           p <- p +
             stat_summary(fun = mean, geom = "crossbar", width = 0.55,
@@ -299,10 +348,10 @@ mod_metrics_server <- function(id, rv) {
       # Inset label (bars only)
       if (identical(style, "bars")) {
         lab_size_val <- max(3, base_size * 0.18) * input$metric_inset_scale
-        p <- p + geom_label(data = label_df, aes(x = xpos, y = ypos, label = label),
-                            inherit.aes = FALSE, size = lab_size_val,
-                            label.size = 0.15, alpha = 0.9, hjust = 0,
-                            family = font)
+        p <- p + geom_text(data = summary_by_group, aes(x = Inf, y = label_y, label = label),
+                           inherit.aes = FALSE, size = lab_size_val,
+                           hjust = 1.05, vjust = 0, fontface = "bold",
+                           family = font)
       }
 
       p + scale_y_continuous(labels = scales::label_number(accuracy = 0.01))
@@ -352,9 +401,8 @@ mod_metrics_server <- function(id, rv) {
         )
       },
       content = function(file) {
-        ggsave(file, plot = metrics_plot_obj(),
-               width = input$dl_width, height = input$dl_height,
-               dpi = input$dl_dpi, device = input$dl_format)
+        save_plot_file(file, metrics_plot_obj(), input$dl_width, input$dl_height,
+                       input$dl_dpi, input$dl_format %||% "png")
       }
     )
 

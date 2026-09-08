@@ -9,9 +9,14 @@
 # Preview the result locally:
 #   Rscript -e 'httpuv::runStaticServer("_shinylive")'
 
-if (!requireNamespace("shinylive", quietly = TRUE)) {
-  install.packages("shinylive")
+SHINYLIVE_VERSION <- "0.5.0"
+if (!requireNamespace("shinylive", quietly = TRUE) ||
+    as.character(utils::packageVersion("shinylive")) != SHINYLIVE_VERSION) {
+  if ("shinylive" %in% loadedNamespaces()) unloadNamespace("shinylive")
+  status <- system2(file.path(R.home("bin"), "Rscript"), "scripts/install_shinylive.R")
+  if (!identical(status, 0L)) stop("Pinned Shinylive installation failed.")
 }
+stopifnot(as.character(utils::packageVersion("shinylive")) == SHINYLIVE_VERSION)
 
 # Stage only the files the app needs. Exporting the repo root would bundle
 # development, test, and deployment files into the published site.
@@ -26,7 +31,32 @@ stopifnot(
 
 out_dir <- "_shinylive"
 unlink(out_dir, recursive = TRUE)
-shinylive::export(staging, out_dir)
+# Shinylive currently emits the package name as a warning before failing with
+# an opaque `desc$Repository` error when a resolved dependency is absent from
+# the restored library. Print warnings as they occur so CI identifies the
+# package that must be added to renv.lock instead of hiding that evidence until
+# after the fatal error.
+old_options <- options(warn = 1)
+tryCatch(
+  withCallingHandlers(
+    shinylive::export(staging, out_dir),
+    error = function(e) {
+      frames <- sys.frames()
+      package_context <- unique(unlist(lapply(frames, function(frame) {
+        if (!exists("pkg", envir = frame, inherits = FALSE)) return(NULL)
+        value <- get("pkg", envir = frame, inherits = FALSE)
+        if (is.character(value) && length(value) == 1) value else NULL
+      }), use.names = FALSE))
+      if (length(package_context)) {
+        message(
+          "Shinylive package context at failure: ",
+          paste(package_context, collapse = ", ")
+        )
+      }
+    }
+  ),
+  finally = options(old_options)
+)
 
 # ---- Branded loading splash ------------------------------------------------
 # Shinylive's default is a bare spinner while webR prepares the browser-side R

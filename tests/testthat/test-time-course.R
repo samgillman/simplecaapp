@@ -59,6 +59,51 @@ test_that("clearing the title removes it from the rendered time-course plot", {
   })
 })
 
+test_that("single-cell time courses keep the mean line when SEM is unavailable", {
+  skip_if_not_installed("shiny")
+  skip_if_not_installed("dplyr")
+  skip_if_not_installed("ggplot2")
+  suppressPackageStartupMessages({
+    library(shiny)
+    library(dplyr)
+    library(ggplot2)
+  })
+
+  module_env <- new.env(parent = globalenv())
+  sys.source(file.path(repo_root, "R", "mod_time_course.R"), envir = module_env)
+  rv <- shiny::reactiveValues(
+    summary = data.frame(
+      Time = 0:2, mean_dFF0 = c(0, 1, 0.5), sem_dFF0 = NA_real_,
+      sd_dFF0 = NA_real_, n_cells = 1L, Group = "dataset"
+    ),
+    long = data.frame(
+      Time = 0:2, dFF0 = c(0, 1, 0.5), Cell = "Cell1",
+      Group = "dataset", Cell_ID = "dataset_Cell1"
+    ),
+    metrics = data.frame(Group = "dataset", Peak_dFF0 = 1),
+    groups = "dataset", colors = c(dataset = "#000000"),
+    files = data.frame(name = "dataset.csv")
+  )
+
+  shiny::testServer(module_env$mod_time_course_server, args = list(rv = rv), {
+    session$setInputs(
+      tc_title = "", tc_show_traces = TRUE, tc_trace_transparency = 50,
+      tc_show_avg_line = TRUE, tc_show_ribbon = TRUE,
+      tc_line_color = "#000000", tc_line_width = 2,
+      tc_bold_labels = TRUE, tc_x = "Time (s)", tc_y = "dFF0",
+      tc_base_font_size = 14, tc_font = "Arial", tc_theme = "classic",
+      tc_legend_pos = "auto", tc_log_y = FALSE, tc_limits = FALSE,
+      tc_x_breaks = "", tc_y_breaks = "", tc_tick_format = "number"
+    )
+    session$flushReact()
+
+    plot <- session$getReturned()$plot()
+    expect_false(any(vapply(plot$layers, function(layer) inherits(layer$geom, "GeomRibbon"), logical(1))))
+    expect_true(any(vapply(plot$layers, function(layer) inherits(layer$geom, "GeomLine"), logical(1))))
+    expect_false(grepl("No valid finite values", paste(plot$labels, collapse = " "), fixed = TRUE))
+  })
+})
+
 test_that("time-course summary explains an all-censored width result", {
   skip_if_not_installed("shiny")
   skip_if_not_installed("dplyr")

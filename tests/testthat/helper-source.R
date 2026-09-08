@@ -15,7 +15,7 @@ source(file.path(repo_root, "R", "utils.R"))
 # Exact expectations (piecewise-linear, so trapezoid/interpolation are exact):
 #   Peak_dFF0 = 1.0, Time_to_Peak = 2.9
 #   Time to 10% = 2.0, 25% = 2.15, 50% = 2.4, 75% = 2.65, 90% = 2.8
-#   Rise_Time (10-90%) = 0.8, Calcium_Entry_Rate = 0.8 * 1.0 / 0.8 = 1.0
+#   Rise_Time (10-90%) = 0.8, Rise_Rate_10_90_dFF0_per_s = 0.8 * 1.0 / 0.8 = 1.0
 #   FWHM = 3.4 - 2.4 = 1.0, Half_Width = 0.5
 #   AUC = rise triangle (0.5) + decay triangle (0.5) = 1.0
 make_pulse_trace <- function(baseline_vals = rep(0, 20)) {

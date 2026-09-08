@@ -75,3 +75,58 @@ test_that("base override names per-group downloads after their own file", {
                               include_date = FALSE, base = "b")
   expect_equal(fn, "b_processed.csv")
 })
+
+test_that("upload identity and labels do not collapse duplicate basenames", {
+  files <- data.frame(
+    name = c("Results.csv", "Results.csv", "Other.csv"),
+    datapath = c("/tmp/a/one", "/tmp/b/two", "/tmp/c/three"),
+    stringsAsFactors = FALSE
+  )
+  identified <- ensure_upload_ids(files)
+  expect_length(unique(identified$upload_id), 3)
+  expect_equal(
+    upload_display_names(identified$name),
+    c("Results.csv (1)", "Results.csv (2)", "Other.csv")
+  )
+})
+
+test_that("metric exports use the explicit rise-rate field name", {
+  metrics <- data.frame(Calcium_Entry_Rate = 1.25, Peak_dFF0 = 2)
+  exported <- metrics_for_export(metrics)
+  expect_named(exported, c("Rise_Rate_10_90_dFF0_per_s", "Peak_dFF0"))
+  expect_false("Calcium_Entry_Rate" %in% names(exported))
+})
+
+test_that("processing manifest records scientific provenance", {
+  files <- ensure_upload_ids(data.frame(
+    name = "Results.csv", datapath = "/tmp/upload-a", stringsAsFactors = FALSE
+  ))
+  manifest <- build_processing_manifest(
+    files, "Results",
+    normalize_load_settings(list(
+      input_data_mode = "dff0", baseline_frames = c(2, 8), sampling_rate = 5
+    ))
+  )
+  lookup <- stats::setNames(manifest$value, manifest$field)
+  expect_identical(lookup[["export_schema_version"]], "2")
+  expect_identical(lookup[["input_data_mode"]], "dff0")
+  expect_identical(lookup[["observational_unit"]], "cell")
+  expect_match(lookup[["interpretation_note"]], "not independent", fixed = TRUE)
+})
+
+test_that("TIFF export accepts every advertised compression mode", {
+  skip_if_not_installed("ggplot2")
+  plot <- ggplot2::ggplot(data.frame(x = 1:3, y = 1:3), ggplot2::aes(x, y)) +
+    ggplot2::geom_line()
+
+  for (compression in c("lzw", "zip", "none")) {
+    path <- tempfile(fileext = ".tiff")
+    on.exit(unlink(path), add = TRUE)
+    expect_silent(save_plot_file(
+      path, plot, width = 2, height = 2, dpi = 72,
+      format = "tiff", compression = compression
+    ))
+    expect_true(file.exists(path), info = compression)
+    expect_true(file.info(path)$size > 0, info = compression)
+  }
+})

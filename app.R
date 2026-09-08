@@ -221,8 +221,11 @@ server <- function(input, output, session) {
     colors = NULL,
     raw_traces = list(),
     baselines = list(),
+    input_data_mode = NULL,
     baseline_method = NULL,
-    baseline_frames = NULL
+    baseline_frames = NULL,
+    sampling_rate = NULL,
+    processing_manifest = NULL
   )
 
   # ================== Call All Modules (ONCE EACH) ===================
