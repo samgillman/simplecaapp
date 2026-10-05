@@ -143,7 +143,7 @@ get_metric_explanation_content <- function(metric, ns) {
             h4("Calculation", class = "metric-section-header", style = "margin-top: 20px;"),
             p("FWHM is calculated as the time difference between crossing points at half-maximum:"),
             formula_line("FWHM = t<sub>right</sub> − t<sub>left</sub>"),
-            p("If the right crossing is not observed, exact FWHM is reported as missing and the observed duration from the left crossing to the last sample is reported as a lower bound."),
+            p("If a continuously observed response stays above half-maximum through the end of the recording, exact FWHM is missing and the observed duration is reported as a right-censored lower bound. A missing sample between the peak and a crossing makes the width unknown: FWHM, Half-Width, censoring status, and lower bound are missing. A crossing from a later pulse is never substituted."),
             uiOutput(ns("fwhm_calculation_ui"))
         ),
         "auc" = tagList(

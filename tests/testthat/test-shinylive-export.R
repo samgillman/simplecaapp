@@ -79,3 +79,41 @@ test_that("CI restores dependencies, rejects skips, starts the app, and builds",
   expect_match(workflow, "Rscript scripts/export_shinylive.R", fixed = TRUE)
   expect_match(runner, "Unexpected skipped tests", fixed = TRUE)
 })
+
+
+test_that("deployment admits only successful upstream main pushes or manual main runs", {
+  lines <- readLines(file.path(repo_root, ".github/workflows/deploy-shinylive.yml"))
+  start <- grep("^    if: >-", lines)
+  end <- grep("^    runs-on:", lines)
+  guard <- parse(text = paste(trimws(lines[seq.int(start + 1L, end - 1L)]), collapse = " "))
+  allowed <- function(event = "workflow_run", source_event = "push",
+                      repository = "samgillman/simplecaapp", head_repository = repository,
+                      branch = "main", conclusion = "success", ref = "refs/heads/main") {
+    eval(guard, envir = list(
+      github.repository = repository, github.event_name = event, github.ref = ref,
+      github.event.workflow_run.event = source_event,
+      github.event.workflow_run.head_repository.full_name = head_repository,
+      github.event.workflow_run.head_branch = branch,
+      github.event.workflow_run.conclusion = conclusion
+    ))
+  }
+  expect_true(allowed())
+  expect_false(allowed(source_event = "pull_request"))
+  expect_false(allowed(source_event = "workflow_dispatch"))
+  expect_false(allowed(head_repository = "fork/simplecaapp"))
+  expect_false(allowed(repository = "fork/simplecaapp"))
+  expect_false(allowed(branch = "feature"))
+  expect_false(allowed(conclusion = "failure"))
+  expect_false(allowed(conclusion = "cancelled"))
+  expect_true(allowed(event = "workflow_dispatch"))
+  expect_false(allowed(event = "workflow_dispatch", ref = "refs/heads/feature"))
+  expect_false(allowed(event = "workflow_dispatch", repository = "fork/simplecaapp"))
+})
+
+test_that("the restored build library includes S7 metadata required by WebAssembly ggplot2", {
+  lock <- jsonlite::fromJSON(file.path(repo_root, "renv.lock"), simplifyVector = FALSE)
+  expect_equal(lock$Packages$S7$Version, "0.2.2")
+  expect_equal(lock$Packages$S7$Source, "Repository")
+  expect_true(requireNamespace("S7", quietly = TRUE))
+  expect_type(utils::packageDescription("S7")$Version, "character")
+})

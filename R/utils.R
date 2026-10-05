@@ -554,6 +554,16 @@ safe_read <- function(path) {
   }
 }
 
+# Reject ambiguous names before any name-based selection can drop a column.
+validate_column_headers <- function(dt) {
+  duplicates <- unique(names(dt)[duplicated(names(dt))])
+  if (length(duplicates)) {
+    stop("Duplicate column headers: ", paste(duplicates, collapse = ", "),
+         ". Give every column a unique name before processing.")
+  }
+  invisible(dt)
+}
+
 #' Put a validated time vector first without consuming a cell trace
 #'
 #' A genuine Time column is preferred. A Frame column—or an unnamed sequential
@@ -573,6 +583,7 @@ safe_read <- function(path) {
 ensure_time_first <- function(dt, time_col = NULL, frame_col = NULL,
                               sampling_rate = 1, force_generated = FALSE) {
   dt <- data.table::copy(data.table::as.data.table(dt))
+  validate_column_headers(dt)
   if (ncol(dt) == 0) {
     return(dt)
   }
@@ -751,6 +762,7 @@ inspect_column_mapping <- function(dt, sampling_rate = 1) {
 #' @return Time-normalized table containing only selected numeric traces.
 apply_column_mapping <- function(dt, mapping = NULL, sampling_rate = 1) {
   dt <- data.table::copy(data.table::as.data.table(dt))
+  validate_column_headers(dt)
   mapping <- mapping %||% list()
   mode <- as.character(mapping$time_mode %||% "auto")[1]
   if (!(mode %in% c("auto", "time", "frame", "generated"))) {
@@ -982,6 +994,9 @@ build_processed_state <- function(files, settings = list(), read_fun = safe_read
 
       start_frame <- min(nrow(dt), max(1L, settings$baseline_frames[1]))
       end_frame <- min(nrow(dt), max(start_frame, settings$baseline_frames[2]))
+      if (end_frame >= nrow(dt)) {
+        stop("Baseline must end before the final frame so a post-baseline response interval remains.")
+      }
       trace_names <- names(dt)[-1]
       if (identical(settings$input_data_mode, "raw_fluorescence")) {
         f0 <- vapply(seq(2, ncol(dt)), function(j) {
@@ -1014,6 +1029,9 @@ build_processed_state <- function(files, settings = list(), read_fun = safe_read
       )
       if (nrow(metric_probe) == 0) {
         stop("no cell trace had enough valid samples to compute metrics")
+      }
+      if (!any(is.finite(metric_probe$Peak_dFF0))) {
+        stop("no usable post-baseline observations remain to compute response metrics")
       }
 
       list(
@@ -1314,9 +1332,20 @@ calculate_fwhm_details <- function(signal, time_vec, threshold_half, peak_idx,
     return(empty)
   }
 
+  # The width belongs to the connected observed segment containing this peak.
+  # A gap can hide a recovery/re-rise, so crossings from other segments cannot
+  # establish this peak's exact width or ordinary right censoring.
+  observed <- is.finite(signal[seq_len(n)]) & is.finite(time_vec[seq_len(n)])
+  if (!observed[peak_idx]) return(empty)
+  gaps <- which(!observed)
+  left_gap <- gaps[gaps < peak_idx]
+  right_gap <- gaps[gaps > peak_idx]
+  segment_start <- if (length(left_gap)) max(left_gap) + 1L else 1L
+  segment_end <- if (length(right_gap)) min(right_gap) - 1L else n
+
   left_crossings <- find_threshold_crossings(
     signal, time_vec, threshold_half, direction = "rising",
-    first_upper_idx = max(2L, baseline_end_frame + 1L),
+    first_upper_idx = max(2L, baseline_end_frame + 1L, segment_start + 1L),
     last_upper_idx = peak_idx
   )
   if (length(left_crossings) == 0) return(empty)
@@ -1325,7 +1354,7 @@ calculate_fwhm_details <- function(signal, time_vec, threshold_half, peak_idx,
   right_crossings <- find_threshold_crossings(
     signal, time_vec, threshold_half, direction = "falling",
     first_upper_idx = peak_idx + 1L,
-    last_upper_idx = n
+    last_upper_idx = segment_end
   )
   if (length(right_crossings) > 0) {
     t_right <- right_crossings[1]
@@ -1341,8 +1370,8 @@ calculate_fwhm_details <- function(signal, time_vec, threshold_half, peak_idx,
     return(empty)
   }
 
-  observed <- which(is.finite(signal[seq_len(n)]) & is.finite(time_vec[seq_len(n)]))
-  if (length(observed) == 0) return(empty)
+  if (segment_end < n) return(empty)
+  observed <- which(observed)
   last_idx <- max(observed)
   last_time <- time_vec[last_idx]
   observed_after_peak <- observed[observed >= peak_idx]

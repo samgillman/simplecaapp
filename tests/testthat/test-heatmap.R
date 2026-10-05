@@ -122,3 +122,35 @@ test_that("heatmap keeps negative values and sorts on post-baseline peaks", {
     expect_equal(fill_scale$limits, c(-5, 5))
   })
 })
+
+
+test_that("heatmap tiles respect irregular timestamps in each group", {
+  suppressPackageStartupMessages({library(shiny); library(dplyr); library(ggplot2)})
+  module_env <- new.env(parent = globalenv())
+  sys.source(file.path(repo_root, "R", "mod_heatmap.R"), envir = module_env)
+  time <- c(0:5, 6.5, 8:12)
+  rv <- shiny::reactiveValues(
+    dts = list(irregular = data.table::data.table(Time = time, Cell1 = c(rep(0, 6), 1, rep(0, 5))),
+      regular = data.table::data.table(Time = 0:11, Cell1 = rep(0, 12))),
+    baseline_frames = c(1, 2), groups = c("irregular", "regular")
+  )
+  shiny::testServer(module_env$mod_heatmap_server, args = list(rv = rv), {
+    session$setInputs(hm_sort = "orig", hm_palette = "plasma", hm_scale_interval = 0,
+      hm_title = "Irregular time", hm_center_title = TRUE, hm_x_label = "Time (s)",
+      hm_y_label = "Cell", hm_base_font_size = 14, hm_bold_labels = TRUE, hm_font = "Arial")
+    plot <- session$getReturned()$plot()
+    expect_s3_class(plot$layers[[1]]$geom, "GeomRect")
+    expect_no_warning(built <- ggplot2::ggplot_build(plot))
+    tiles <- built$data[[1]]
+    peak_tile <- tiles[tiles$xmin == 5.75 & tiles$xmax == 7.25, ]
+    expect_equal(nrow(peak_tile), 1L)
+    expect_equal((peak_tile$xmin + peak_tile$xmax) / 2, 6.5)
+    for (panel in unique(tiles$PANEL)) {
+      rows <- tiles[tiles$PANEL == panel, ]
+      rows <- rows[order(rows$xmin), ]
+      expect_equal(rows$xmax[-nrow(rows)], rows$xmin[-1])
+      expect_equal(rows$xmin[1], 0)
+    }
+    expect_equal(max(tiles$xmax), 12)
+  })
+})

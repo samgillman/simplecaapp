@@ -518,3 +518,80 @@ test_that("multi-file staging retains uploads with identical basenames", {
     expect_equal(rv$groups, c("Results", "Results_1"))
   })
 })
+
+
+test_that("duplicate headers are rejected before any distinct trace is lost", {
+  path <- tempfile(fileext = ".csv")
+  on.exit(unlink(path), add = TRUE)
+  writeLines(c("Time,Cell,Cell", sprintf("%d,%d,%d", 0:11,
+    c(100, 100, 200, 300, rep(100, 8)),
+    c(rep(100, 6), 400, rep(100, 5)))), path)
+  dt <- safe_read(path)
+  expect_equal(names(dt), c("Time", "Cell", "Cell"))
+  expect_false(identical(dt[[2]], dt[[3]]))
+  expect_error(inspect_column_mapping(dt), "Duplicate column headers.*Cell")
+  for (mode in c("auto", "time", "generated")) {
+    expect_error(apply_column_mapping(dt, list(time_mode = mode, time_column = "Time")),
+      "Duplicate column headers.*Cell", info = mode)
+  }
+  expect_error(build_processed_state(data.frame(name = "duplicate.csv", datapath = path),
+    modifyList(processing_settings, list(baseline_frames = c(1, 2)))),
+    "Duplicate column headers.*Cell")
+})
+
+test_that("processing requires usable post-baseline observations", {
+  files <- data.frame(name = "recording.csv", datapath = "recording")
+  for (mode in c("raw_fluorescence", "dff0")) {
+    for (end in c(60, 80)) {
+      expect_error(build_processed_state(files,
+        modifyList(processing_settings, list(input_data_mode = mode, baseline_frames = c(1, end))),
+        read_fun = function(path) make_raw_recording(with_time = TRUE)),
+        "Baseline must end before the final frame")
+    }
+    state <- build_processed_state(files,
+      modifyList(processing_settings, list(input_data_mode = mode, baseline_frames = c(1, 59))),
+      read_fun = function(path) make_raw_recording(with_time = TRUE))
+    expect_true(is.finite(state$metrics$Peak_dFF0))
+    dt <- make_raw_recording(with_time = TRUE)
+    dt$Cell1[21:60] <- NA_real_
+    expect_error(build_processed_state(files,
+      modifyList(processing_settings, list(input_data_mode = mode)), read_fun = function(path) dt),
+      "no usable post-baseline observations")
+  }
+})
+
+test_that("processing in the same flush as a baseline edit commits the edited window", {
+  suppressPackageStartupMessages(library(shiny))
+  module_env <- new.env(parent = globalenv())
+  sys.source(file.path(repo_root, "R", "mod_load_data.R"), envir = module_env)
+  module_env$theme_box <- function(...) shiny::div(...)
+  module_env$primary_button <- function(inputId, label, ...) shiny::actionButton(inputId, label)
+  path <- tempfile(fileext = ".csv")
+  on.exit(unlink(path), add = TRUE)
+  data.table::fwrite(make_raw_recording(), path)
+  upload <- data.frame(name = "recording.csv", size = file.info(path)$size,
+    type = "text/csv", datapath = path)
+  rv <- shiny::reactiveValues()
+  shiny::testServer(module_env$mod_load_data_server, args = list(rv = rv), {
+    session$setInputs(upload_mode = "single", pp_sampling_rate = 10,
+      pp_baseline_start = 1, pp_baseline_end = 20, pp_baseline_frames = c(1, 20))
+    session$setInputs(data_files = upload)
+    session$setInputs(load_btn = 1)
+    expect_equal(rv$baseline_frames, c(1L, 20L))
+    # Submit the click before the edit to exercise observer queue ordering.
+    session$setInputs(load_btn = 2, pp_baseline_end = 12)
+    session$flushReact()
+    expect_equal(rv$baseline_frames, c(1L, 12L))
+    expect_equal(nrow(rv$metrics), 1L)
+    expect_identical(process_state(), "success")
+    # Client echoes from synchronized controls must not invalidate this commit.
+    session$setInputs(pp_baseline_frames = c(1, 12))
+    expect_identical(process_state(), "success")
+    session$setInputs(load_btn = 3, pp_baseline_frames = c(2, 10))
+    session$flushReact()
+    expect_equal(rv$baseline_frames, c(2L, 10L))
+    expect_identical(process_state(), "success")
+    session$setInputs(pp_baseline_start = 2, pp_baseline_end = 10)
+    expect_identical(process_state(), "success")
+  })
+})

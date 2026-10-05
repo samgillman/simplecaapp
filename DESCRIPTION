@@ -39,6 +39,7 @@ Suggests:
     processx,
     ragg,
     renv,
+    S7 (= 0.2.2),
     shinylive (= 0.5.0),
     testthat (>= 3.0.0)
 Config/testthat/edition: 3

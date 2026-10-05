@@ -605,6 +605,8 @@ mod_load_data_server <- function(id, rv) {
       )
     })
     
+    # Run after baseline synchronization and stale-state observers in this
+    # flush, so a click delivered with an edit commits the edited settings.
     observeEvent(input$load_btn, {
       req(uploaded_files())
       files <- uploaded_files()
@@ -708,7 +710,7 @@ mod_load_data_server <- function(id, rv) {
           duration = 6
         )
       }
-    })
+    }, priority = -100)
 
     # Inline confirmation under the Process button
     output$process_status <- renderUI({
