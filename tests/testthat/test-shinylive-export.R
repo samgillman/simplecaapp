@@ -65,6 +65,19 @@ test_that("production deployment is upstream-only and never manages domains", {
   expect_match(workflow, "run-id: ${{ github.event.workflow_run.id }}", fixed = TRUE)
 })
 
+test_that("SHA checkouts deploy to the explicit Cloudflare production branch", {
+  lines <- trimws(readLines(file.path(repo_root, ".github/workflows/deploy-shinylive.yml")))
+  command <- sub("^command: ", "", lines[startsWith(lines, "command: ")])
+  expect_length(command, 1L)
+  args <- strsplit(command, "[[:space:]]+")[[1]]
+  expect_equal(args[1:3], c("pages", "deploy", "_shinylive"))
+  expect_identical(sub("^--branch=", "", args[startsWith(args, "--branch=")]), "main")
+  # Selecting production must not replace the immutable checkout or the
+  # successful CI run's tested artifact with a fresh main-branch build.
+  expect_true("ref: ${{ github.event.workflow_run.head_sha || github.sha }}" %in% lines)
+  expect_true("run-id: ${{ github.event.workflow_run.id }}" %in% lines)
+})
+
 test_that("CI restores dependencies, rejects skips, starts the app, and builds", {
   workflow <- paste(
     readLines(file.path(repo_root, ".github", "workflows", "ci.yml"), warn = FALSE),

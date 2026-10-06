@@ -62,4 +62,5 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy _shinylive --project-name=simpleca
+          # Exact-SHA checkout is detached; otherwise Wrangler infers a HEAD preview.
+          command: pages deploy _shinylive --project-name=simpleca --branch=main
