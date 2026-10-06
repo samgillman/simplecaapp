@@ -36,8 +36,10 @@ test_that("the Shinylive exporter injects the reusable loading screen", {
     readLines(file.path(repo_root, "scripts", "install_shinylive.R"), warn = FALSE),
     collapse = "\n"
   )
-  expect_match(installer, "SHINYLIVE_DEPENDENCIES", fixed = TRUE)
-  expect_match(installer, "install.packages(missing_dependencies)", fixed = TRUE)
+  expect_match(installer, "renv::restore(", fixed = TRUE)
+  expect_match(installer, 'packages = c("shinylive", "S7")', fixed = TRUE)
+  expect_match(installer, 'requireNamespace("httr2", quietly = TRUE)', fixed = TRUE)
+  expect_false(grepl('install.packages(missing_dependencies)', installer, fixed = TRUE))
 })
 
 test_that("production deployment is upstream-only and never manages domains", {
@@ -63,6 +65,19 @@ test_that("production deployment is upstream-only and never manages domains", {
   expect_match(workflow, "Rscript scripts/install_shinylive.R", fixed = TRUE)
   expect_match(workflow, "actions/download-artifact@v4", fixed = TRUE)
   expect_match(workflow, "run-id: ${{ github.event.workflow_run.id }}", fixed = TRUE)
+})
+
+test_that("SHA checkouts deploy to the explicit Cloudflare production branch", {
+  lines <- trimws(readLines(file.path(repo_root, ".github/workflows/deploy-shinylive.yml")))
+  command <- sub("^command: ", "", lines[startsWith(lines, "command: ")])
+  expect_length(command, 1L)
+  args <- strsplit(command, "[[:space:]]+")[[1]]
+  expect_equal(args[1:3], c("pages", "deploy", "_shinylive"))
+  expect_identical(sub("^--branch=", "", args[startsWith(args, "--branch=")]), "main")
+  # Selecting production must not replace the immutable checkout or the
+  # successful CI run's tested artifact with a fresh main-branch build.
+  expect_true("ref: ${{ github.event.workflow_run.head_sha || github.sha }}" %in% lines)
+  expect_true("run-id: ${{ github.event.workflow_run.id }}" %in% lines)
 })
 
 test_that("CI restores dependencies, rejects skips, starts the app, and builds", {
@@ -116,4 +131,59 @@ test_that("the restored build library includes S7 metadata required by WebAssemb
   expect_equal(lock$Packages$S7$Source, "Repository")
   expect_true(requireNamespace("S7", quietly = TRUE))
   expect_type(utils::packageDescription("S7")$Version, "character")
+})
+
+# Validate the exporter dependency graph from package DESCRIPTION constraints,
+# including dependencies loaded lazily, without relying on the host library.
+exporter_lock_problems <- function(lock) {
+  packages <- lock$Packages
+  base <- c("R", rownames(utils::installed.packages(priority = "base")))
+  queue <- c("shinylive", "S7")
+  visited <- problems <- character()
+  while (length(queue)) {
+    pkg <- queue[1]
+    queue <- queue[-1]
+    if (pkg %in% c(visited, base)) next
+    visited <- c(visited, pkg)
+    record <- packages[[pkg]]
+    if (is.null(record)) {
+      problems <- c(problems, paste("Missing locked package:", pkg))
+      next
+    }
+    specs <- unlist(record[c("Depends", "Imports", "LinkingTo")], use.names = FALSE)
+    for (spec in specs) {
+      parts <- regmatches(spec, regexec(
+        "^([^ (]+)(?: *\\((>=|<=|==|>|<) *([^ )]+)\\))?$", trimws(spec), perl = TRUE
+      ))[[1]]
+      if (!length(parts)) stop("Unrecognized dependency: ", spec)
+      name <- parts[2]
+      queue <- c(queue, name)
+      version <- if (name == "R") lock$R$Version else packages[[name]]$Version
+      if (length(parts) >= 4 && nzchar(parts[3]) && !is.null(version)) {
+        comparison <- utils::compareVersion(version, parts[4])
+        satisfied <- switch(parts[3], ">=" = comparison >= 0, "<=" = comparison <= 0,
+          "==" = comparison == 0, ">" = comparison > 0, "<" = comparison < 0)
+        if (!satisfied) problems <- c(problems, paste(pkg, "requires", spec, "but locks", version))
+      }
+    }
+  }
+  problems
+}
+
+test_that("exporter dependencies remain compatible with restored application pins", {
+  lock <- jsonlite::fromJSON(file.path(repo_root, "renv.lock"), simplifyVector = FALSE)
+  expect_equal(lock$Packages$shinylive$Version, "0.5.0")
+  expect_equal(lock$Packages$httr2$Version, "1.1.2")
+  expect_equal(lock$Packages$rlang$Version, "1.1.6")
+  expect_equal(lock$Packages$curl$Version, "6.2.2")
+  expect_length(exporter_lock_problems(lock), 0)
+
+  # Reproduce the warmed cache's newer lazy dependency after app restoration.
+  incompatible <- lock
+  incompatible$Packages$httr2$Version <- "1.3.0"
+  incompatible$Packages$httr2$Imports <- c("rlang (>= 1.3.0)", "curl (>= 8.0.0)")
+  expect_equal(length(exporter_lock_problems(incompatible)), 2L)
+  expect_match(paste(exporter_lock_problems(incompatible), collapse = "; "), "rlang.*1.1.6")
+  lock$Packages$httr2 <- NULL
+  expect_match(paste(exporter_lock_problems(lock), collapse = "; "), "Missing locked package: httr2")
 })

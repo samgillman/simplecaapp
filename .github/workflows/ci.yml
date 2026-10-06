@@ -26,8 +26,7 @@ jobs:
             fields <- c("Imports", "Suggests")
             deps <- trimws(unlist(strsplit(paste(desc[1, fields], collapse = ","), ",")))
             deps <- sub("\\s*\\(.*$", "", deps)
-            exempt <- c("shinylive")
-            missing <- deps[!deps %in% exempt & !vapply(deps, requireNamespace, logical(1), quietly = TRUE)]
+            missing <- deps[!vapply(deps, requireNamespace, logical(1), quietly = TRUE)]
             if (length(missing)) stop("Missing dependencies: ", paste(missing, collapse = ", "))
           '
 

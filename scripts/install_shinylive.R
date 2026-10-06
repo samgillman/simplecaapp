@@ -1,48 +1,23 @@
-# Install the exact Shinylive release used by CI and production deployment.
+# Restore the exporter and its recursive dependencies from the same lockfile
+# used by CI. Checking only requireNamespace() is insufficient: cached packages
+# can load successfully yet fail when a dependency is loaded lazily (httr2).
+# Always reconcile a warm library before loading the exporter; never install
+# latest transitive dependencies over the application's pinned rlang/curl.
 SHINYLIVE_VERSION <- "0.5.0"
-# S7 supplies local metadata for the WebAssembly ggplot2 dependency graph,
-# even when the locked native ggplot2 release predates that dependency.
-SHINYLIVE_DEPENDENCIES <- c("archive", "gh", "pkgdepends", "renv", "whisker", "S7")
-SHINYLIVE_SOURCES <- c(
-  paste0("https://cran.r-project.org/src/contrib/shinylive_", SHINYLIVE_VERSION, ".tar.gz"),
-  paste0("https://cran.r-project.org/src/contrib/Archive/shinylive/shinylive_", SHINYLIVE_VERSION, ".tar.gz")
+if (!requireNamespace("renv", quietly = TRUE)) install.packages("renv")
+
+renv::restore(
+  project = ".",
+  lockfile = "renv.lock",
+  packages = c("shinylive", "S7"),
+  library = .libPaths()[1],
+  prompt = FALSE
 )
 
-# Installing a package from an exact source URL uses repos = NULL, so R does
-# not resolve its dependencies automatically. Install those from the selected
-# CRAN mirror before installing the pinned Shinylive tarball.
-missing_dependencies <- SHINYLIVE_DEPENDENCIES[
-  !vapply(SHINYLIVE_DEPENDENCIES, requireNamespace, logical(1), quietly = TRUE)
-]
-if (length(missing_dependencies)) {
-  install.packages(missing_dependencies)
-}
-still_missing <- SHINYLIVE_DEPENDENCIES[
-  !vapply(SHINYLIVE_DEPENDENCIES, requireNamespace, logical(1), quietly = TRUE)
-]
-if (length(still_missing)) {
-  stop("Could not install Shinylive dependencies: ", paste(still_missing, collapse = ", "))
-}
-
-if (requireNamespace("shinylive", quietly = TRUE) &&
-    as.character(utils::packageVersion("shinylive")) == SHINYLIVE_VERSION) {
-  quit(save = "no", status = 0)
-}
-
-errors <- character()
-for (source in SHINYLIVE_SOURCES) {
-  installed <- tryCatch({
-    install.packages(source, repos = NULL, type = "source")
-    requireNamespace("shinylive", quietly = TRUE) &&
-      as.character(utils::packageVersion("shinylive")) == SHINYLIVE_VERSION
-  }, error = function(e) {
-    errors <<- c(errors, paste(source, conditionMessage(e), sep = ": "))
-    FALSE
-  })
-  if (installed) quit(save = "no", status = 0)
-}
-
-stop(
-  "Could not install pinned shinylive ", SHINYLIVE_VERSION, ". ",
-  paste(errors, collapse = " | ")
+# httr2 is used lazily by assets_download(), so exercise it explicitly here.
+stopifnot(
+  requireNamespace("httr2", quietly = TRUE),
+  requireNamespace("shinylive", quietly = TRUE),
+  requireNamespace("S7", quietly = TRUE),
+  as.character(utils::packageVersion("shinylive")) == SHINYLIVE_VERSION
 )
