@@ -339,7 +339,7 @@ test_that("selecting a new file invalidates the previously processed dataset", {
   })
 })
 
-test_that("typed baseline bounds are used for processing", {
+test_that("the canonical browser baseline is used for processing and invalidation", {
   skip_if_not_installed("shiny")
   suppressPackageStartupMessages(library(shiny))
 
@@ -374,14 +374,15 @@ test_that("typed baseline bounds are used for processing", {
     )
     session$setInputs(data_files = upload)
     session$flushReact()
-    session$setInputs(pp_baseline_start = 5, pp_baseline_end = 12)
+    session$setInputs(pp_baseline_start = 5, pp_baseline_end = 12,
+      pp_baseline_frames = c(5, 12))
     session$flushReact()
     session$setInputs(load_btn = 1)
     session$flushReact()
 
     expect_equal(rv$baseline_frames, c(5L, 12L))
 
-    session$setInputs(pp_baseline_start = 6)
+    session$setInputs(pp_baseline_start = 6, pp_baseline_frames = c(6, 12))
     session$flushReact()
     session$flushReact()
 
@@ -579,7 +580,8 @@ test_that("processing in the same flush as a baseline edit commits the edited wi
     session$setInputs(load_btn = 1)
     expect_equal(rv$baseline_frames, c(1L, 20L))
     # Submit the click before the edit to exercise observer queue ordering.
-    session$setInputs(load_btn = 2, pp_baseline_end = 12)
+    session$setInputs(load_btn = 2, pp_baseline_end = 12,
+      pp_baseline_frames = c(1, 12))
     session$flushReact()
     expect_equal(rv$baseline_frames, c(1L, 12L))
     expect_equal(nrow(rv$metrics), 1L)
@@ -591,7 +593,15 @@ test_that("processing in the same flush as a baseline edit commits the edited wi
     session$flushReact()
     expect_equal(rv$baseline_frames, c(2L, 10L))
     expect_identical(process_state(), "success")
-    session$setInputs(pp_baseline_start = 2, pp_baseline_end = 10)
+    # Delayed numeric notifications are not an independent source of truth.
+    session$setInputs(pp_baseline_start = 1, pp_baseline_end = 60)
     expect_identical(process_state(), "success")
+    expect_equal(rv$baseline_frames, c(2L, 10L))
+    expect_equal(nrow(rv$metrics), 1L)
+    # A genuine change to the canonical pair still clears committed results.
+    session$setInputs(pp_baseline_frames = c(2, 11))
+    expect_identical(process_state(), "stale")
+    expect_null(rv$metrics)
+    expect_null(rv$processing_manifest)
   })
 })

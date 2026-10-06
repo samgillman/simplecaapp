@@ -161,3 +161,5 @@ invisible(evaluate(in_app("d.getElementById('data_export-dl_timecourse_plot').cl
 wait_until(in_app("return w.__simplecaDownloads.some(function(x){return /timecourse_plot.*[.]png$/.test(x);});"), "figure download")
 
 cat(browser_mode, "browser upload, immediate baseline edit, plots, CSV download, and figure download passed\n")
+
+source("tests/browser-baseline-sync.R")
