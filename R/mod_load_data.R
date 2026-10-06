@@ -1,5 +1,55 @@
 # R/mod_load_data.R
 
+baseline_controls_script <- function() {
+  htmltools::singleton(tags$script(HTML('
+(function($) {
+  function sync(root, source) {
+    if (!root || root.baselineSyncing) return;
+    var range = root.querySelector("input.js-range-slider");
+    var numbers = root.querySelectorAll("input[type=number]");
+    var binding = $(range).data("shiny-input-binding");
+    var slider = $(range).data("ionRangeSlider");
+    if (!binding || !slider || numbers.length !== 2) return;
+    var frames = binding.getValue(range).slice();
+    var start = numbers[0], end = numbers[1];
+    if (source === start || source === end) {
+      // An empty/partial number is not a new baseline window.
+      if (!source.value.trim() || !Number.isFinite(Number(source.value))) return;
+      var value = Math.max(slider.options.min,
+        Math.min(slider.options.max, Math.trunc(Number(source.value))));
+      if (source === start) {
+        frames = [value, Math.max(value, frames[1])];
+      } else {
+        frames = [Math.min(frames[0], value), value];
+      }
+    }
+    root.baselineSyncing = true;
+    try {
+      start.value = frames[0];
+      end.value = frames[1];
+      // Shiny setValue emits an immediate change, cancelling any queued slider
+      // debounce. Only this canonical pair drives analysis on the server.
+      // Do not rebuild the slider while the user is dragging a handle.
+      if (source !== range) binding.setValue(range, frames);
+    } finally {
+      root.baselineSyncing = false;
+    }
+  }
+  $(document).on("input.simplecaBaseline change.simplecaBaseline",
+    ".simpleca-baseline-controls input", function() {
+      sync(this.closest(".simpleca-baseline-controls"), this);
+    });
+  document.addEventListener("click", function(event) {
+    var button = event.target.closest("button");
+    if (!button || !button.id.endsWith("load_btn")) return;
+    var root = document.getElementById(button.id.slice(0, -8) + "baseline_controls");
+    if (root) sync(root, document.activeElement);
+  }, true);
+})(window.jQuery);
+')))
+}
+
+
 mod_load_data_ui <- function(id) {
   ns <- NS(id)
   tabItem(
@@ -48,10 +98,13 @@ mod_load_data_ui <- function(id) {
               sprintf("input['%s'] == 'dff0'", ns("input_data_mode")),
               div(class = "small-help", "Uploaded ΔF/F₀ values are preserved exactly. The selected frames define baseline noise and are excluded from response searches.")
             ),
-            sliderInput(ns("pp_baseline_frames"), "Baseline Window (frames)", min = 1, max = 100, value = c(1, 20), step = 1, width = "100%"),
-            fluidRow(
-              column(6, numericInput(ns("pp_baseline_start"), "Start frame", value = 1, min = 1, max = 100, step = 1, width = "100%")),
-              column(6, numericInput(ns("pp_baseline_end"), "End frame", value = 20, min = 1, max = 100, step = 1, width = "100%"))
+            baseline_controls_script(),
+            div(id = ns("baseline_controls"), class = "simpleca-baseline-controls",
+              sliderInput(ns("pp_baseline_frames"), "Baseline Window (frames)", min = 1, max = 100, value = c(1, 20), step = 1, width = "100%"),
+              fluidRow(
+                column(6, numericInput(ns("pp_baseline_start"), "Start frame", value = 1, min = 1, max = 100, step = 1, width = "100%")),
+                column(6, numericInput(ns("pp_baseline_end"), "End frame", value = 20, min = 1, max = 100, step = 1, width = "100%"))
+              )
             ),
             div(class = "small-help",
               "This window also defines baseline noise and the frames excluded from response searches."
@@ -205,43 +258,10 @@ mod_load_data_server <- function(id, rv) {
       invisible(NULL)
     }
 
+    # The browser synchronizes the three controls locally and sends one
+    # canonical window. Numeric echoes must never feed back into server updates.
     observeEvent(input$pp_baseline_frames, {
-      frames <- normalize_baseline_frames(input$pp_baseline_frames)
-      if (!identical(frames, baseline_frames_state())) {
-        baseline_frames_state(frames)
-        updateNumericInput(session, "pp_baseline_start", value = frames[1])
-        updateNumericInput(session, "pp_baseline_end", value = frames[2])
-      }
-    }, ignoreInit = TRUE)
-
-    observeEvent(input$pp_baseline_start, {
-      start <- suppressWarnings(as.integer(input$pp_baseline_start)[1])
-      if (!is.finite(start)) return(invisible(NULL))
-      current <- baseline_frames_state()
-      frames <- normalize_baseline_frames(c(start, max(start, current[2])))
-      if (!identical(frames, current)) {
-        set_baseline_controls(
-          frames,
-          update_start = !identical(start, frames[1])
-        )
-      } else if (!identical(start, frames[1])) {
-        updateNumericInput(session, "pp_baseline_start", value = frames[1])
-      }
-    }, ignoreInit = TRUE)
-
-    observeEvent(input$pp_baseline_end, {
-      end <- suppressWarnings(as.integer(input$pp_baseline_end)[1])
-      if (!is.finite(end)) return(invisible(NULL))
-      current <- baseline_frames_state()
-      frames <- normalize_baseline_frames(c(min(current[1], end), end))
-      if (!identical(frames, current)) {
-        set_baseline_controls(
-          frames,
-          update_end = !identical(end, frames[2])
-        )
-      } else if (!identical(end, frames[2])) {
-        updateNumericInput(session, "pp_baseline_end", value = frames[2])
-      }
+      baseline_frames_state(normalize_baseline_frames(input$pp_baseline_frames))
     }, ignoreInit = TRUE)
 
     # Mode-specific uploader: re-rendering on toggle gives a fresh, empty
