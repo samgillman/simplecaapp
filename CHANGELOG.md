@@ -4,6 +4,17 @@ All notable changes to SimpleCa will be documented in this file.
 
 ## Unreleased
 
+### Fixed
+- Reject duplicate column headers before mapping can silently discard a distinct cell trace.
+- Keep FWHM unknown when an observation gap separates the peak from a half-height crossing; later pulses cannot supply an exact width or ordinary right-censored lower bound.
+- Reject baseline windows covering the full recording and files without usable post-baseline observations.
+- Draw heatmaps using midpoint bins on the actual time axis, preserving irregular timestamps without raster shifts or artificial gaps.
+- Process same-flush baseline edits after control synchronization so successful results remain valid.
+- Restore S7 metadata required by Shinylive's WebAssembly ggplot2 dependency graph.
+
+### Changed
+- Restrict automatic deployment to successful upstream CI push runs on main; retain manual deployment from upstream main.
+
 ## [1.16.0] - 2026-09-05
 
 ### Added

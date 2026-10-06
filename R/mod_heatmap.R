@@ -47,7 +47,7 @@ hm_plot_controls <- function(ns) {
                     step = 0.05,
                     width = "100%"
                   ),
-                  helpText("Use 0 for automatic spacing; enter 0.5 for ticks every 0.5 ΔF/F₀. Negative values are preserved with a zero-centered diverging scale; the palette choice applies to non-negative data.")
+                  helpText("Use 0 for automatic spacing; enter 0.5 for ticks every 0.5 ΔF/F₀. Negative values are preserved with a zero-centered diverging scale; the palette choice applies to non-negative data. Tiles span the midpoints between timestamps and stop at the first and last recorded time.")
                 ),
 
                 div(class = "control-col",
@@ -163,6 +163,11 @@ mod_heatmap_server <- function(id, rv) {
         hm <- expand.grid(Time = time_vec, Cell = seq_len(ncol(mat)))
         hm$Value <- as.vector(mat); hm$Group <- label
         hm$Cell_Label <- rep(cell_names[ord], each = length(time_vec))
+        # Nearest-sample bins use actual timestamps, with interior boundaries
+        # halfway between observations and no extrapolation beyond the record.
+        midpoints <- head(time_vec, -1) + diff(time_vec) / 2
+        hm$Time_Min <- rep(c(time_vec[1], midpoints), times = ncol(mat))
+        hm$Time_Max <- rep(c(midpoints, tail(time_vec, 1)), times = ncol(mat))
         hm
       }
 
@@ -203,7 +208,8 @@ mod_heatmap_server <- function(id, rv) {
       }
 
       p <- ggplot(all_hm_viz, aes(Time, Cell, fill = Value)) +
-        geom_raster() +
+        geom_rect(aes(xmin = Time_Min, xmax = Time_Max,
+                      ymin = Cell - 0.5, ymax = Cell + 0.5)) +
         facet_wrap(~ Group, ncol = 1, scales = "free_y",
                    labeller = ggplot2::as_labeller(pretty_label))
 

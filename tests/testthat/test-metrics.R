@@ -275,3 +275,30 @@ test_that("compute_metrics_for_dt labels cells and drops unusable ones", {
   expect_equal(res$Cell_ID, paste("grp1", res$Cell, sep = "_"))
   expect_equal(res$Peak_dFF0[res$Cell == "CellA"], 1.0)
 })
+
+
+test_that("FWHM cannot borrow a later pulse crossing after an observation gap", {
+  raw <- c(100, 100, 200, 300, NA, 100, 200, 100, 100, 100, 100, 100)
+  m <- calculate_cell_metrics(raw, 0:11, c(1, 2))
+  expect_equal(m$Peak_dFF0, 2)
+  expect_equal(m$Time_to_Peak, 3)
+  expect_true(is.na(m$FWHM))
+  expect_true(is.na(m$Half_Width))
+  expect_true(is.na(m$FWHM_Censored))
+  expect_true(is.na(m$FWHM_Lower_Bound))
+})
+
+test_that("FWHM needs a connected observed interval containing the peak", {
+  for (gap in c(28, 32, 50)) {
+    x <- c(rep(0, 20), seq(0.1, 1, by = 0.1), rep(1, 30))
+    x[gap] <- NA_real_
+    m <- calculate_cell_metrics(x, pulse_time(), c(1, 20), data_is_dFF0 = TRUE)
+    expect_true(is.na(m$FWHM_Censored), info = paste("gap", gap))
+    expect_true(is.na(m$FWHM_Lower_Bound), info = paste("gap", gap))
+  }
+  x <- make_pulse_trace()
+  x[50] <- NA_real_ # A gap after observed recovery does not erase exact width.
+  m <- calculate_cell_metrics(x, pulse_time(), c(1, 20), data_is_dFF0 = TRUE)
+  expect_equal(m$FWHM, 1)
+  expect_identical(m$FWHM_Censored, FALSE)
+})

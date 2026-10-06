@@ -18,7 +18,7 @@ Developed by the **Wang Lab** at the University of Nebraska Medical Center (UNMC
 
 ### Visualization Tools
 - **Time course plots**: Average traces with SEM ribbons and individual cell overlays
-- **Heatmaps**: Signed activity visualization; negative values use a zero-centered diverging scale, and sorting uses post-baseline peaks
+- **Heatmaps**: Signed activity visualization; negative values use a zero-centered diverging scale, and sorting uses post-baseline peaks. Each sample spans midpoint boundaries between actual timestamps, clipped to the recording endpoints, including irregularly sampled recordings.
 - **Metrics plots**: Per-cell quantification with group-aware statistical summaries and faceted cell bars
 - **Publication-ready outputs**: High-resolution exports (PNG, PDF, TIFF, SVG)
 
@@ -96,13 +96,15 @@ SimpleCa²⁺ requires data in **wide format** (CSV or Excel):
 - **Frame column (optional alternative)**: Frame numbers are converted to elapsed seconds using the sampling rate configured in Load Data.
 - **Unnamed ImageJ frame index**: A sequential first column with a blank header is recognized as Frame rather than analyzed as a cell trace.
 - **No Time or Frame column**: Time is generated from the sampling rate without discarding any cell column.
-- **Cell columns**: Fluorescence values for each cell, with a unique header for each cell.
+- **Cell columns**: Fluorescence values for each cell, with a unique header for each cell. Duplicate headers are rejected before processing; rename them in the source file so each physical column has an unambiguous identity.
 - **Column confirmation**: After upload, Advanced Options shows the detected Time source for each file and lets you exclude unwanted numeric columns before analysis.
 
 Choose the input mode before processing:
 
 - **Raw fluorescence** computes F₀ over the selected baseline frames, rejects traces with undefined F₀, and applies `(F - F₀) / F₀`.
 - **Already ΔF/F₀** preserves every uploaded value, calculates baseline SD directly in ΔF/F₀ units, and uses the baseline frames only for noise estimation and to define the post-baseline response region.
+
+The baseline must leave at least one finite post-baseline observation in a usable cell trace. Missing samples that interrupt the peak-to-half-maximum interval leave FWHM, Half-Width, censoring status, and lower bound unknown; a later pulse never supplies the missing crossing. Ordinary right censoring requires uninterrupted observations through the end of the recording.
 
 SimpleCa²⁺ reports descriptive cell-level summaries. `N_Cells` is the number of
 cells with a finite value, not the number of independent animals or

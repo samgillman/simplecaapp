@@ -119,6 +119,23 @@ wait_until(
   "processed results"
 )
 
+# A baseline edit immediately followed by Process must survive the slider's
+# asynchronous echo back from the browser (no success-then-stale transition).
+invisible(evaluate(in_app(paste(
+  "w.$('#load_data-pp_baseline_end').val(12).trigger('change');",
+  "d.getElementById('load_data-load_btn').click(); return true;"
+))))
+wait_until(in_app(paste(
+  "var frames=w.Shiny.shinyapp.$inputValues['load_data-pp_baseline_frames'];",
+  "return frames && frames[1] === 12 &&",
+  "d.getElementById('load_data-results_bar').innerText.indexOf('processing complete') >= 0;"
+)), "processing after immediate baseline edit")
+Sys.sleep(2)
+stopifnot(isTRUE(evaluate(in_app(paste(
+  "return d.getElementById('load_data-results_bar').innerText.indexOf('processing complete') >= 0 &&",
+  "d.getElementById('load_data-process_status').innerText.indexOf('Settings changed') < 0;"
+)))))
+
 plot_targets <- c(
   time = "#time_course-timecourse_plot img",
   heatmap = "#heatmap-heatmap_plot img",
@@ -143,4 +160,4 @@ wait_until(in_app("return !!d.getElementById('data_export-dl_timecourse_plot');"
 invisible(evaluate(in_app("d.getElementById('data_export-dl_timecourse_plot').click(); return true;")))
 wait_until(in_app("return w.__simplecaDownloads.some(function(x){return /timecourse_plot.*[.]png$/.test(x);});"), "figure download")
 
-cat(browser_mode, "browser upload, plots, CSV download, and figure download passed\n")
+cat(browser_mode, "browser upload, immediate baseline edit, plots, CSV download, and figure download passed\n")
