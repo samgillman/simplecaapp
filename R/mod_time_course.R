@@ -447,6 +447,7 @@ mod_time_course_server <- function(id, rv) {
       if (!is.null(input$tc_y_breaks) && !is.na(input$tc_y_breaks) && nzchar(input$tc_y_breaks)) {
         yb <- suppressWarnings(as.numeric(strsplit(input$tc_y_breaks, ",")[[1]]))
         yb <- yb[is.finite(yb)]
+        if (isTRUE(input$tc_log_y)) yb <- yb[yb > 0]
         if (length(yb) > 0) {
           y_breaks <- yb
           y_lab_fun <- switch(input$tc_tick_format %||% "number",
@@ -503,7 +504,10 @@ mod_time_course_server <- function(id, rv) {
 
       # Apply Y scale once (log or linear)
       if (isTRUE(input$tc_log_y)) {
-        p <- p + scale_y_log10(breaks = y_breaks, labels = y_lab_fun)
+        # NULL suppresses ticks/labels in ggplot; waiver requests log defaults.
+        p <- p + scale_y_log10(
+          breaks = y_breaks %||% waiver(), labels = y_lab_fun %||% waiver()
+        )
       } else if (!is.null(y_breaks) || !is.null(y_lab_fun)) {
         p <- p + scale_y_continuous(breaks = y_breaks, labels = y_lab_fun)
       }

@@ -355,9 +355,6 @@ mod_load_data_server <- function(id, rv) {
         return(p("Upload a file to confirm Time and exclude columns.", class = "text-muted small"))
       }
 
-      rate <- suppressWarnings(as.numeric(input$pp_sampling_rate %||% 1))
-      if (!is.finite(rate) || rate <= 0) rate <- 1
-
       panels <- lapply(seq_len(nrow(files)), function(i) {
         key <- column_mapping_key(files$upload_id[i])
         schema <- schemas[[key]]
@@ -373,43 +370,58 @@ mod_load_data_server <- function(id, rv) {
         mode_id <- paste0("time_mode_", key)
         column_id <- paste0("time_column_", key)
         exclude_id <- paste0("exclude_columns_", key)
-        current_mode <- input[[mode_id]] %||% "auto"
+        # Rebuild controls only when the uploaded schema changes. Their live
+        # values and sampling-rate feedback must not recreate their own inputs.
+        current_mode <- isolate(input[[mode_id]]) %||% "auto"
         if (!(current_mode %in% c("auto", "time", "frame", "generated"))) current_mode <- "auto"
         detected_column <- schema$time_info$column %||% schema$columns[1]
-        current_column <- input[[column_id]] %||% detected_column
+        current_column <- isolate(input[[column_id]]) %||% detected_column
         if (!(current_column %in% schema$columns)) current_column <- schema$columns[1]
-        current_excluded <- input[[exclude_id]] %||% character()
+        current_excluded <- isolate(input[[exclude_id]]) %||% character()
         current_excluded <- intersect(current_excluded, schema$numeric_columns)
 
-        detection <- switch(schema$time_info$source,
-          time = sprintf("Auto-detected '%s' as elapsed time.", schema$time_info$column),
-          frame = sprintf("Auto-detected '%s' as frame index; converting at %s Hz.", schema$time_info$column, format(rate, trim = TRUE)),
-          inferred_frame = sprintf("Auto-detected the unnamed first column as frame index; converting at %s Hz.", format(rate, trim = TRUE)),
-          generated_invalid_time = sprintf("'%s' is invalid as Time; automatic mode will generate Time at %s Hz.", schema$time_info$column, format(rate, trim = TRUE)),
-          generated_invalid_frame = sprintf("'%s' is invalid as Frame; automatic mode will generate Time at %s Hz.", schema$time_info$column, format(rate, trim = TRUE)),
-          sprintf("No Time/Frame column detected; automatic mode will generate Time at %s Hz.", format(rate, trim = TRUE))
-        )
-        active_source <- switch(current_mode,
-          auto = schema$time_info$column %||% NULL,
-          time = current_column,
-          frame = current_column,
-          generated = schema$time_info$column %||% NULL
-        )
-        active_traces <- setdiff(
-          schema$numeric_columns,
-          c(current_excluded, active_source %||% character())
-        )
-        if (!identical(active_source, "Time")) active_traces <- setdiff(active_traces, "Time")
-        mapping_status <- switch(current_mode,
-          auto = detection,
-          time = sprintf("Using '%s' as elapsed time in seconds.", current_column),
-          frame = sprintf("Using '%s' as frame index and converting at %s Hz.", current_column, format(rate, trim = TRUE)),
-          generated = sprintf("Generating Time from row number at %s Hz.", format(rate, trim = TRUE))
-        )
-        mapping_status <- paste0(
-          mapping_status, " ", length(active_traces), " trace",
-          if (length(active_traces) == 1) "" else "s", " will be analyzed."
-        )
+        status_id <- paste0("mapping_status_", key)
+        output[[status_id]] <- renderText({
+          rate <- suppressWarnings(as.numeric(input$pp_sampling_rate %||% 1))
+          if (!is.finite(rate) || rate <= 0) rate <- 1
+          current_mode <- input[[mode_id]] %||% "auto"
+          current_column <- input[[column_id]] %||% detected_column
+          current_excluded <- input[[exclude_id]] %||% character()
+          detection <- switch(schema$time_info$source,
+            time = sprintf("Auto-detected '%s' as elapsed time.", schema$time_info$column),
+            frame = sprintf("Auto-detected '%s' as frame index; converting at %s Hz.", schema$time_info$column, format(rate, trim = TRUE)),
+            inferred_frame = sprintf("Auto-detected the unnamed first column as frame index; converting at %s Hz.", format(rate, trim = TRUE)),
+            invalid_time = sprintf("'%s' has invalid timestamps; automatic processing is blocked. Correct the timestamps, or confirm the sampling rate above and explicitly choose generated Time.", schema$time_info$column),
+            generated_invalid_frame = sprintf("'%s' is invalid as Frame; automatic mode will generate Time at %s Hz.", schema$time_info$column, format(rate, trim = TRUE)),
+            sprintf("No Time/Frame column detected; automatic mode will generate Time at %s Hz.", format(rate, trim = TRUE))
+          )
+          active_source <- switch(current_mode,
+            auto = schema$time_info$column %||% NULL,
+            time = current_column,
+            frame = current_column,
+            generated = schema$time_info$column %||% NULL
+          )
+          active_traces <- setdiff(
+            schema$numeric_columns,
+            c(current_excluded, active_source %||% character())
+          )
+          if (!identical(active_source, "Time")) active_traces <- setdiff(active_traces, "Time")
+          mapping_status <- switch(current_mode,
+            auto = detection,
+            time = sprintf("Using '%s' as elapsed time in seconds.", current_column),
+            frame = sprintf("Using '%s' as frame index and converting at %s Hz.", current_column, format(rate, trim = TRUE)),
+            generated = sprintf("Generating Time from row number at %s Hz.", format(rate, trim = TRUE))
+          )
+          paste0(
+            mapping_status, " ", length(active_traces), " trace",
+            if (length(active_traces) == 1) "" else "s",
+            if (identical(current_mode, "auto") && identical(schema$time_info$source, "invalid_time")) {
+              " available after resolving Time."
+            } else {
+              " will be analyzed."
+            }
+          )
+        })
 
         div(
           class = "column-mapping-file",
@@ -437,7 +449,7 @@ mod_load_data_server <- function(id, rv) {
             multiple = TRUE,
             options = list(plugins = list("remove_button"), placeholder = "None — analyze all remaining numeric columns")
           ),
-          p(mapping_status, class = "column-mapping-detection")
+          p(textOutput(ns(status_id), inline = TRUE), class = "column-mapping-detection")
         )
       })
 

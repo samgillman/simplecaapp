@@ -163,3 +163,5 @@ wait_until(in_app("return w.__simplecaDownloads.some(function(x){return /timecou
 cat(browser_mode, "browser upload, immediate baseline edit, plots, CSV download, and figure download passed\n")
 
 source("tests/browser-baseline-sync.R")
+
+source("tests/browser-time-validation.R")

@@ -436,8 +436,9 @@ test_that("load module applies the uploaded file's column controls", {
     session$setInputs(data_files = upload)
     session$flushReact()
 
+    invisible(output$column_mapping_ui)
     expect_match(
-      paste(as.character(output$column_mapping_ui), collapse = " "),
+      output[[paste0("mapping_status_", key)]],
       "No Time/Frame column detected",
       fixed = TRUE
     )
@@ -454,6 +455,8 @@ test_that("load module applies the uploaded file's column controls", {
     )
     do.call(session$setInputs, mapping_inputs)
     session$flushReact()
+    expect_match(output[[paste0("mapping_status_", key)]],
+      "Using 'Seconds' as elapsed time in seconds. 1 trace will be analyzed.", fixed = TRUE)
     session$setInputs(load_btn = 1)
     session$flushReact()
 
@@ -604,4 +607,31 @@ test_that("processing in the same flush as a baseline edit commits the edited wi
     expect_null(rv$metrics)
     expect_null(rv$processing_manifest)
   })
+})
+
+
+test_that("invalid timestamps cannot silently double the recording's time scale", {
+  raw <- c(rep(c(99, 101), 5), rep(100, 10),
+    100 * (1 + c(.05, .10, .15, .20, .15, .10, .05)), rep(100, 13))
+  valid <- data.table::data.table(Time = (0:39) / 2, CellA = raw, CellB = raw)
+  invalid <- data.table::copy(valid)
+  invalid$Time[15] <- invalid$Time[14]
+  files <- data.frame(name = "duplicate-time.csv", datapath = "fixture")
+  settings <- list(baseline_frames = c(1, 10), sampling_rate = 1)
+  expect_error(build_processed_state(files, settings, read_fun = function(path) invalid),
+    "finite, strictly increasing")
+
+  actual <- build_processed_state(files, settings, read_fun = function(path) valid)
+  generated <- build_processed_state(files, modifyList(settings, list(
+    sampling_rate = 2, column_mappings = list(list(time_mode = "generated"))
+  )), read_fun = function(path) invalid)
+  for (state in list(actual, generated)) {
+    expect_equal(nrow(state$metrics), 2L)
+    expect_equal(state$dts[[1]]$Time, valid$Time)
+    expect_equal(state$metrics$Time_to_Peak, c(11.5, 11.5))
+    expect_equal(state$metrics$AUC, c(.4025, .4025))
+    expect_equal(state$metrics$Rise_Time, c(1.6, 1.6))
+    expect_equal(state$metrics$FWHM, c(2, 2))
+  }
+  expect_match(generated$time_messages, "2 Hz as selected", fixed = TRUE)
 })
