@@ -569,7 +569,9 @@ validate_column_headers <- function(dt) {
 #' A genuine Time column is preferred. A Frame column—or an unnamed sequential
 #' first column from a common ImageJ CSV export—is converted to elapsed seconds
 #' using the sampling rate. If none is present, a new Time column is generated
-#' and every uploaded column is retained as a potential trace.
+#' and every uploaded column is retained as a potential trace. An existing
+#' invalid Time column is rejected; generating replacement times is an explicit
+#' column-mapping choice, never an automatic repair.
 #'
 #' @param dt A table containing trace data.
 #' @param time_col Optional explicit name of the elapsed-time column.
@@ -672,15 +674,22 @@ ensure_time_first <- function(dt, time_col = NULL, frame_col = NULL,
       all(is.finite(values)) &&
       (length(values) < 2 || all(diff(values) > 0))
 
-    if (!valid && explicit_time) {
-      stop("The selected Time column must contain finite, strictly increasing numeric values.")
+    if (!valid) {
+      stop(errorCondition(
+        sprintf(paste0("Time column '%s' must contain finite, strictly increasing numeric values. ",
+          "Correct duplicate, descending, or missing/nonfinite timestamps, or open Advanced Options, ",
+          "confirm the acquisition sampling rate (Hz), and explicitly choose 'Generate Time from sampling rate'."),
+          original_name),
+        class = "simpleca_invalid_time",
+        time_info = list(source = "invalid_time", column = original_name, sampling_rate = sampling_rate)
+      ))
     }
 
     data.table::setcolorder(dt, c(time_idx, setdiff(seq_len(ncol(dt)), time_idx)))
     data.table::setnames(dt, 1, "Time")
-    dt[[1]] <- if (valid) values else generated_time()
+    dt[[1]] <- values
     attr(dt, "time_info") <- list(
-      source = if (valid) "time" else "generated_invalid_time",
+      source = "time",
       column = original_name,
       sampling_rate = sampling_rate
     )
@@ -740,8 +749,12 @@ numeric_trace_candidates <- function(dt) {
 #' @return List describing columns, automatic Time handling, and trace defaults.
 inspect_column_mapping <- function(dt, sampling_rate = 1) {
   dt <- data.table::copy(data.table::as.data.table(dt))
-  converted <- ensure_time_first(dt, sampling_rate = sampling_rate)
-  info <- attr(converted, "time_info")
+  # Keep mapping/recovery controls available for invalid timestamps without
+  # converting those timestamps or allowing them through processing.
+  info <- tryCatch(
+    attr(ensure_time_first(dt, sampling_rate = sampling_rate), "time_info"),
+    simpleca_invalid_time = function(e) e$time_info
+  )
   candidates <- numeric_trace_candidates(dt)
   source_column <- info$column %||% NULL
   trace_columns <- setdiff(candidates, source_column %||% character())
@@ -788,8 +801,7 @@ apply_column_mapping <- function(dt, mapping = NULL, sampling_rate = 1) {
   # Time/Frame column as metadata rather than accidentally analyzing it.
   auto_source <- NULL
   if (identical(mode, "generated")) {
-    auto_probe <- ensure_time_first(dt, sampling_rate = sampling_rate)
-    auto_source <- attr(auto_probe, "time_info")$column %||% NULL
+    auto_source <- inspect_column_mapping(dt, sampling_rate = sampling_rate)$time_info$column %||% NULL
   }
 
   source_to_remove <- if (identical(mode, "auto")) {
@@ -921,7 +933,6 @@ describe_time_adjustment <- function(info, file_name) {
     frame = sprintf("%s: converted '%s' from frames to seconds at %s Hz.", file_name, info$column, rate),
     inferred_frame = sprintf("%s: treated the unnamed sequential first column as Frame and converted it to seconds at %s Hz.", file_name, rate),
     generated_selected = sprintf("%s: generated Time from row number at %s Hz as selected.", file_name, rate),
-    generated_invalid_time = sprintf("%s: replaced invalid '%s' values using %s Hz.", file_name, info$column, rate),
     generated_invalid_frame = sprintf("%s: replaced invalid '%s' frame values using %s Hz.", file_name, info$column, rate),
     generated_missing = sprintf("%s: generated Time using %s Hz; all uploaded columns were retained as traces.", file_name, rate),
     NULL

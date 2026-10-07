@@ -92,7 +92,7 @@ SimpleCa²⁺ requires data in **wide format** (CSV or Excel):
 | 0.2  | 1.50  | 1.45  | 1.30  |
 | ...  | ...   | ...   | ...   |
 
-- **Time column (recommended)**: Elapsed seconds with a header beginning with "Time"; it may appear anywhere in the table.
+- **Time column (recommended)**: Finite, strictly increasing elapsed seconds with a header beginning with "Time"; it may appear anywhere in the table. Duplicate, descending, or missing/nonfinite timestamps block automatic processing. Correct the timestamps, or explicitly choose generated Time in Advanced Options after confirming the acquisition sampling rate.
 - **Frame column (optional alternative)**: Frame numbers are converted to elapsed seconds using the sampling rate configured in Load Data.
 - **Unnamed ImageJ frame index**: A sequential first column with a blank header is recognized as Frame rather than analyzed as a cell trace.
 - **No Time or Frame column**: Time is generated from the sampling rate without discarding any cell column.

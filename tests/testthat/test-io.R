@@ -48,16 +48,36 @@ test_that("ensure_time_first generates Time without consuming a cell trace", {
   expect_identical(attr(out, "time_info")$source, "generated_missing")
 })
 
-test_that("ensure_time_first replaces invalid Time instead of dropping traces", {
-  dt <- data.table::data.table(
-    Time = c(0, 2, 1),
-    CellA = c(10, 11, 12)
-  )
-  out <- ensure_time_first(dt, sampling_rate = 2)
+test_that("invalid Time is rejected without replacing timestamps or traces", {
+  invalid <- list(c(0, 0.5, 0.5), c(0, 1, 0.5), c(0, NA, 1),
+    c(0, Inf, 1), c(0, NaN, 1), c("0", "bad", "1"))
+  for (time in invalid) {
+    dt <- data.table::data.table(Time = time, CellA = c(10, 11, 12), CellB = c(20, 21, 22))
+    original <- data.table::copy(dt)
+    expect_error(ensure_time_first(dt, sampling_rate = 2), "finite, strictly increasing")
+    expect_error(apply_column_mapping(dt), "Advanced Options")
+    expect_equal(dt, original)
 
-  expect_equal(out$Time, c(0, 0.5, 1))
-  expect_equal(out$CellA, dt$CellA)
-  expect_identical(attr(out, "time_info")$source, "generated_invalid_time")
+    # The mapping UI must still expose the source and recovery controls.
+    schema <- inspect_column_mapping(dt)
+    expect_identical(schema$time_info$source, "invalid_time")
+    expect_identical(schema$time_info$column, "Time")
+    expect_equal(schema$trace_columns, c("CellA", "CellB"))
+    expect_equal(schema$row_count, 3L)
+
+    generated <- apply_column_mapping(dt, list(time_mode = "generated"), sampling_rate = 2)
+    expect_equal(generated$Time, c(0, 0.5, 1))
+    expect_equal(names(generated), c("Time", "CellA", "CellB"))
+    expect_equal(generated$CellA, dt$CellA)
+    expect_identical(attr(generated, "time_info")$source, "generated_selected")
+  }
+})
+
+test_that("valid irregular Time is preserved regardless of the sampling rate", {
+  dt <- data.table::data.table(Time = c(0, 0.5, 1.7, 2), CellA = 11:14)
+  out <- apply_column_mapping(dt, sampling_rate = 20)
+  expect_identical(out$Time, dt$Time)
+  expect_identical(attr(out, "time_info")$source, "time")
 })
 
 test_that("explicit Time and Frame mappings are validated and respected", {
