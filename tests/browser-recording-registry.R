@@ -27,7 +27,14 @@ registry_fixtures <- vapply(seq_len(3), function(i) {
 upload_recordings(registry_fixtures[1:2])
 wait_until(in_app("return d.querySelectorAll('.recording-editor').length===2;"), "duplicate recordings staged")
 invisible(evaluate(in_app("d.getElementById('load_data-load_btn').click();return true;")))
-wait_until(in_app("return d.getElementById('load_data-results_bar').innerText.includes('2 files');"), "both recordings processed")
+wait_for_batch <- function(n) {
+  wait_until(in_app(sprintf(paste(
+    "var bar=d.querySelector('#load_data-results_bar .results-bar-stats');",
+    "return bar && Number(bar.querySelector('b').textContent)===%d &&",
+    "bar.textContent.includes('processing complete');"
+  ), n)), paste(n, "recordings processed"))
+}
+wait_for_batch(2L)
 registry_exports <- function() {
   switch_tab("data_export")
   invisible(evaluate(in_app("w.$('a[data-value=\"Figure Export\"]').tab('show');return true;")))
@@ -39,6 +46,8 @@ registry_exports <- function() {
        counts = read_export("data_export-download_counts", "in_vitro_counts"))
 }
 original <- registry_exports()
+stopifnot(setequal(original$metrics$Group, c("recording", "recording_1")),
+          length(unique(original$metrics$Peak_dFF0)) == 2L)
 switch_tab("load")
 edit_display <- function(field, value) {
   invisible(evaluate(in_app(sprintf(paste(
@@ -59,7 +68,7 @@ switch_tab("load")
 upload_recordings(registry_fixtures[3])
 wait_until(in_app("return d.querySelectorAll('.recording-editor').length===3;"), "third recording staged")
 invisible(evaluate(in_app("d.getElementById('load_data-load_btn').click();return true;")))
-wait_until(in_app("return d.getElementById('load_data-results_bar').innerText.includes('3 files');"), "expanded batch processed")
+wait_for_batch(3L)
 expanded <- registry_exports()
 stopifnot(identical(original$metrics, expanded$metrics[expanded$metrics$Group != "third", ]),
           identical(original$counts, expanded$counts[expanded$counts$Field != "third", ]))
