@@ -3,6 +3,7 @@
 # it is started from the repo root (Rscript tests/testthat.R) or via test_dir().
 repo_root <- normalizePath(file.path(testthat::test_path(), "..", ".."))
 source(file.path(repo_root, "R", "utils.R"))
+source(file.path(repo_root, "R", "responder_plots.R"))
 
 # Synthetic ground-truth trace used across metric tests.
 #

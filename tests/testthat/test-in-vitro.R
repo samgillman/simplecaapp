@@ -67,7 +67,7 @@ test_that("real processing retains invalid F0 names and the module refreshes wit
     library(ggplot2)
     session$setInputs(control = TRUE, control_start = 12, control_end = 15)
     # Each field has one cell in at least one response class (undefined SEM).
-    expect_type(output$population_plot$src, "character")
+    expect_match(output$population_plot$html, "responder-panel")
     expect_type(output$trace$src, "character")
     expect_match(output$headline$html, "3 of 4 evaluable cells")
     windows <- trace_plot(time, raw$Cell1, "Preview")$layers[[1]]$data
@@ -229,7 +229,8 @@ test_that("zero evaluable cells validate all population plots and can recover", 
     expect_match(output$distribution_view$html, "No evaluable cells")
     expect_false(grepl(session$ns("distribution"), output$distribution_view$html, fixed = TRUE))
     expect_match(output$headline$html, "needs -1 to 299 s", fixed = TRUE)
-    for (name in c("distribution", "population_plot", "population_heatmap")) {
+    expect_match(output$population_plot$html, "No evaluable cells")
+    for (name in c("distribution", "population_heatmap")) {
       expect_error(output[[name]], "No evaluable cells", class = "shiny.silent.error")
     }
     # Manual settings changes stay visible to the scorer until corrected.
@@ -237,9 +238,9 @@ test_that("zero evaluable cells validate all population plots and can recover", 
     session$setInputs(baseline = 19)
     expect_equal(results()$counts$Responded, 1)
     expect_match(output$distribution_view$html, session$ns("distribution"), fixed = TRUE)
-    expect_type(output$population_plot$src, "character")
+    expect_match(output$population_plot$html, "responder-panel")
     session$setInputs(floor = 1)
     expect_equal(results()$counts$Percent_responding, 0)
-    expect_type(output$population_plot$src, "character")
+    expect_match(output$population_plot$html, "responder-panel")
   })
 })

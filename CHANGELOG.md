@@ -2,6 +2,13 @@
 
 All notable changes to SimpleCa will be documented in this file.
 
+## Unreleased
+
+### 2026-11-19 — Responder traces by recording
+
+- Percent Responding adds individual cell traces and a combined traces/mean ± SEM view. Multiple uploads appear in labeled recording panels with common axes, per-recording counts and coverage messages, and a Focus control.
+- Plot clicks select the recording and cell for review using stable identifiers. Visibility controls preserve scoring and export denominators. Mean/SEM stays within each recording; missing samples and acquisition gaps remain visible.
+
 ## Deployed updates since 1.16.0
 
 Dates below are successful production deployment dates in US Central time. The November 19 recording-details build reports `v1.16.0` in the sidebar and processing manifest. Its [source snapshot](https://github.com/samgillman/simplecaapp/tree/a35f65b12244dd47d46b6f2004c9e6e9ff1196bb) identifies the exact code.

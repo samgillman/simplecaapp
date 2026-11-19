@@ -55,6 +55,7 @@ mod_help_ui <- function(id) {
                 collapsible = TRUE, collapsed = TRUE,
                 p("Enter the stimulus name and confirm the scoring times against your acquisition log. The suggested start is the last loading-baseline frame. The local baseline ends immediately before the first scoring sample."),
                 p("The larger of the floor and the SD-based threshold sets the required rise. Margin is peak rise divided by that threshold. A spike can have margin above one and still fail the consecutive-sample rule. Select a distribution point to review its cell."),
+                p("Population traces shows one labeled panel per recording with shared axes. Choose Individual traces, Mean ± SEM, or Both; Focus enlarges one recording. Teal solid lines mark responders and orange dashed lines mark nonresponders. Hover identifies the recording and cell; clicking selects both for Cell review. Mean and SEM are computed separately within each recording and response class. Trace visibility does not change percentages or exports."),
                 p("Pooled percent is responders divided by all evaluable cells. Field mean and SD give each evaluable field equal weight. Use the population selector to review KCl or the primary stimulus among KCl responders.")
               ),
               theme_box(
