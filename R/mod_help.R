@@ -22,6 +22,7 @@ mod_help_ui <- function(id) {
                 collapsible = TRUE,
                 
                 div(style = "padding: 10px;",
+                    p("Expand Recording details beneath an uploaded filename to set the display name, plot color and order. Optional condition and experimental unit IDs are saved in the processing manifest. You can edit these details after processing."),
                     p("Your input file should be formatted as a standard wide table:", style = "margin-bottom: 15px;"),
                     
                     tags$table(class = "table table-bordered table-sm", style = "width: 100%; font-family: var(--font-mono); font-size: 13px;",

@@ -22,7 +22,7 @@ auto_plot_title <- function(groups, max_chars = 60) {
   if (is.null(groups) || length(groups) == 0) {
     return("")
   }
-  joined <- pretty_label(paste(groups, collapse = ", "))
+  joined <- paste(groups, collapse = ", ")
   if (nchar(joined) <= max_chars) joined else sprintf("%d groups", length(groups))
 }
 
@@ -104,6 +104,83 @@ ensure_upload_ids <- function(files) {
   }
   files$upload_id <- make.unique(as.character(files$upload_id), sep = "-")
   files
+}
+
+# Keys belong to uploads for the lifetime of a staged batch. Keep them when a
+# sibling with the same basename is removed, skipped, or moved in the display.
+recording_registry <- function(files, previous = NULL) {
+  if (!NROW(files)) return(NULL)
+  files <- ensure_upload_ids(files)
+  existing <- match(files$upload_id, previous$upload_id)
+  fresh <- is.na(existing)
+  stems <- tools::file_path_sans_ext(basename(as.character(files$name)))
+  keys <- stems
+  keys[!fresh] <- previous$key[existing[!fresh]]
+  keys[fresh] <- tail(make.unique(c(keys[!fresh], stems[fresh]), sep = "_"), sum(fresh))
+  meta <- data.frame(
+    upload_id = files$upload_id, key = keys, file = as.character(files$name),
+    label = keys, condition = "", unit_id = "", order = seq_along(keys),
+    color = unname(default_group_colors(keys)), n_cells = 0L,
+    stringsAsFactors = FALSE
+  )
+  if (any(!fresh)) {
+    editable <- c("label", "condition", "unit_id", "order", "color", "n_cells")
+    meta[!fresh, editable] <- previous[existing[!fresh], editable, drop = FALSE]
+    meta$order[fresh] <- max(meta$order[!fresh]) + seq_len(sum(fresh))
+    meta$order <- as.integer(rank(meta$order, ties.method = "first"))
+    # A removal can leave the last surviving recording using the color that
+    # the new upload would otherwise receive.
+    available <- setdiff(unname(default_group_colors(keys)), meta$color[!fresh])
+    if (any(fresh)) meta$color[fresh] <- head(available, sum(fresh))
+  }
+  meta
+}
+
+edit_recording <- function(meta, id, field, value) {
+  allowed <- c("label", "condition", "unit_id", "order", "color")
+  if (!is.character(id) || length(id) != 1L || !is.character(field) ||
+      length(field) != 1L || !field %in% allowed || length(value) != 1L ||
+      !is.character(value) || is.na(value)) return(meta)
+  i <- match(id, meta$upload_id)
+  if (is.na(i)) return(meta)
+  value <- trimws(value)
+  if (field == "order") {
+    position <- suppressWarnings(as.numeric(value))
+    if (!is.finite(position) || position != floor(position) ||
+        position < 1 || position > nrow(meta)) return(meta)
+    others <- setdiff(order(meta$order), i)
+    meta$order[append(others, i, after = position - 1L)] <- seq_len(nrow(meta))
+  } else {
+    if (field == "color" && !grepl("^#[[:xdigit:]]{6}$", value)) return(meta)
+    if (field == "label" && !nzchar(value)) value <- meta$key[i]
+    meta[[field]][i] <- value
+  }
+  meta
+}
+
+# A display-only ordered view. Tables used for analysis retain their source keys.
+recording_view <- function(rv) {
+  meta <- rv$group_meta
+  if (NROW(meta)) {
+    meta <- meta[order(meta$order), , drop = FALSE]
+    keys <- meta$key
+    labels <- meta$label
+    repeated <- duplicated(labels) | duplicated(labels, fromLast = TRUE)
+    labels[repeated] <- paste0(labels[repeated], " (", keys[repeated], ")")
+    palette <- stats::setNames(meta$color, keys)
+  } else {
+    keys <- rv$groups %||% names(rv$dts) %||% unique(rv$metrics$Group) %||% unique(rv$summary$Group)
+    labels <- pretty_label(keys)
+    palette <- rv$colors
+  }
+  label <- function(x) unname(labels[match(as.character(x), keys)])
+  list(levels = keys, labels = labels, label = label, palette = palette)
+}
+
+with_recording_manifest <- function(manifest, meta) {
+  manifest <- manifest[manifest$field != "recording_registry", , drop = FALSE]
+  rbind(manifest, data.frame(field = "recording_registry",
+    value = as.character(jsonlite::toJSON(meta, dataframe = "rows"))))
 }
 
 # Add occurrence numbers only when basenames repeat, keeping upload feedback
@@ -952,7 +1029,7 @@ describe_time_adjustment <- function(info, file_name) {
 #' @param progress Optional function(amount, detail) for progress reporting.
 #' @return A named list containing every processed reactive field plus feedback.
 build_processed_state <- function(files, settings = list(), read_fun = safe_read,
-                                  progress = NULL) {
+                                  progress = NULL, group_meta = NULL) {
   if (is.null(files) || !is.data.frame(files) || nrow(files) == 0) {
     stop("Select at least one file before processing.")
   }
@@ -1089,10 +1166,10 @@ build_processed_state <- function(files, settings = list(), read_fun = safe_read
   accepted_indices <- vapply(records, `[[`, integer(1), "file_index")
   accepted_files <- files[accepted_indices, , drop = FALSE]
   rownames(accepted_files) <- NULL
-  labels <- make.unique(
-    tools::file_path_sans_ext(basename(as.character(accepted_files$name))),
-    sep = "_"
-  )
+  meta <- recording_registry(files, group_meta)[accepted_indices, , drop = FALSE]
+  labels <- meta$key
+  meta$n_cells <- vapply(records, function(x) ncol(x$dt) - 1L, integer(1))
+  view <- recording_view(list(group_meta = meta))
 
   dts <- stats::setNames(lapply(records, `[[`, "dt"), labels)
   raw_traces <- stats::setNames(lapply(records, `[[`, "raw"), labels)
@@ -1140,8 +1217,9 @@ build_processed_state <- function(files, settings = list(), read_fun = safe_read
   list(
     import_audit = audit,
     files = accepted_files,
-    groups = labels,
-    colors = default_group_colors(labels),
+    group_meta = meta,
+    groups = view$levels,
+    colors = view$palette,
     dts = dts,
     raw_traces = raw_traces,
     baselines = baselines,
@@ -1152,7 +1230,7 @@ build_processed_state <- function(files, settings = list(), read_fun = safe_read
     long = long,
     summary = summary,
     metrics = metrics,
-    processing_manifest = build_processing_manifest(accepted_files, labels, settings),
+    processing_manifest = with_recording_manifest(build_processing_manifest(accepted_files, labels, settings), meta),
     skipped_files = skipped_details$file,
     skipped_details = skipped_details,
     dropped_cells = dropped_cells,
@@ -1162,7 +1240,7 @@ build_processed_state <- function(files, settings = list(), read_fun = safe_read
 
 # Fields that must always describe the same successfully processed dataset.
 processed_state_fields <- c(
-  "import_audit", "files", "groups", "colors", "dts", "raw_traces", "baselines",
+  "import_audit", "files", "group_meta", "groups", "colors", "dts", "raw_traces", "baselines",
   "input_data_mode", "baseline_method", "baseline_frames", "sampling_rate",
   "long", "summary", "metrics", "processing_manifest"
 )
@@ -1177,6 +1255,7 @@ processed_state_fields <- c(
 clear_processed_state <- function(rv) {
   empty <- list(
     files = NULL,
+    group_meta = NULL,
     groups = NULL,
     colors = NULL,
     dts = list(),

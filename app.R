@@ -214,6 +214,7 @@ server <- function(input, output, session) {
   # Main reactive values store
   rv <- reactiveValues(
     files = NULL,
+    group_meta = NULL,
     groups = NULL,
     dts = list(),
     long = NULL,

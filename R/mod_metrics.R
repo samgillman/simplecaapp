@@ -118,6 +118,7 @@ metrics_plot_controls <- function(ns) {
 mod_metrics_server <- function(id, rv) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
+    presentation <- reactive(recording_view(rv))
 
     # Toggle between static and interactive plot panels
     observeEvent(input$plot_type_toggle, {
@@ -162,6 +163,9 @@ mod_metrics_server <- function(id, rv) {
         0L
       }
       df <- dplyr::filter(rv$metrics, is.finite(.data[[metric]]))
+      view <- presentation()
+      df$Group <- factor(df$Group, levels = view$levels)
+      df$Recording <- view$label(df$Group)
       no_values_message <- if (censored_n > 0) {
         sprintf(
           "No exact values for this metric; %d response%s right-censored. Observed FWHM lower bounds remain available in Data & Export.",
@@ -240,14 +244,14 @@ mod_metrics_server <- function(id, rv) {
         fills <- if (length(grp_levels) == 1L) {
           stats::setNames(bar_fill, grp_levels)
         } else {
-          out <- (rv$colors %||% character())[grp_levels]
+          out <- (view$palette %||% character())[grp_levels]
           if (any(is.na(out))) {
             out[is.na(out)] <- scales::hue_pal()(sum(is.na(out)))
           }
           stats::setNames(out, grp_levels)
         }
         p <- ggplot(df2, aes(x = Cell_Idx, y = .data[[metric]], fill = Group,
-                             text = paste0("Cell: ", pretty_cell_label(Cell), "\nGroup: ", Group, "\nValue: ", round(.data[[metric]], 3)))) +
+                             text = paste0("Cell: ", pretty_cell_label(Cell), "\nRecording: ", Recording, "\nValue: ", round(.data[[metric]], 3)))) +
           geom_col(width = 0.85, alpha = 0.9, color = "black", linewidth = 0.2) +
           scale_fill_manual(values = fills, guide = "none")
 
@@ -271,14 +275,14 @@ mod_metrics_server <- function(id, rv) {
           theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5, size = max(7, base_size * 0.6)))
         if (length(grp_levels) > 1L) {
           p <- p + facet_wrap(~ Group, scales = "free_x",
-                              labeller = ggplot2::as_labeller(pretty_label))
+                              labeller = ggplot2::as_labeller(view$label))
         }
 
       } else {
         # Box + swarm and violin styles compare experimental groups side by
         # side on the x axis, filled with the group colors used elsewhere.
-        grp_levels <- unique(df$Group)
-        fills <- (rv$colors %||% character(0))[grp_levels]
+        grp_levels <- unique(as.character(df$Group))
+        fills <- (view$palette %||% character(0))[grp_levels]
         fills[is.na(fills)] <- "grey85"
         names(fills) <- grp_levels
 
@@ -295,10 +299,10 @@ mod_metrics_server <- function(id, rv) {
         }
         p <- p +
           geom_jitter(width = 0.12, height = 0, size = 1, alpha = 0.5,
-                      aes(text = paste0("Cell: ", pretty_cell_label(Cell), "\nGroup: ", Group, "\nValue: ", round(.data[[metric]], 3)))) +
+                      aes(text = paste0("Cell: ", pretty_cell_label(Cell), "\nRecording: ", Recording, "\nValue: ", round(.data[[metric]], 3)))) +
           scale_fill_manual(values = fills, guide = "none") +
           # Wrapped labels keep long side-by-side group names from colliding
-          scale_x_discrete(labels = function(x) wrap_label(pretty_label(x), width = 18)) +
+          scale_x_discrete(labels = function(x) wrap_label(view$label(x), width = 18)) +
           labs(x = NULL, y = y_lab, title = title_txt, caption = caption_txt) + base
       }
 

@@ -71,18 +71,19 @@ hm_plot_controls <- function(ns) {
 }
 
 mod_heatmap_server <- function(id, rv) {
-    moduleServer(id, function(input, output, session) {
-      ns <- session$ns
+  moduleServer(id, function(input, output, session) {
+    ns <- session$ns
+    presentation <- reactive(recording_view(rv))
 
     # Auto-title from group names
     last_groups_hm <- reactiveVal(NULL)
 
     last_auto_title_hm <- reactiveVal(NULL)
 
-    observeEvent(rv$groups, {
+    observeEvent(presentation()$labels, {
       req(rv$groups)
-      current_groups <- paste(rv$groups, collapse = ", ")
-      auto_title <- auto_plot_title(rv$groups)
+      current_groups <- paste(presentation()$labels, collapse = ", ")
+      auto_title <- auto_plot_title(presentation()$labels)
       current_title <- isolate(input$hm_title)
       old_groups <- last_groups_hm()
 
@@ -167,7 +168,8 @@ mod_heatmap_server <- function(id, rv) {
       # Dynamic legend breaks based on actual data range
       rng <- range(all_hm$Value, na.rm = TRUE)
 
-      all_hm_viz <- all_hm
+      view <- presentation()
+      all_hm_viz <- dplyr::mutate(all_hm, Group = factor(Group, levels = view$levels))
       all_hm_viz <- dplyr::arrange(all_hm_viz, Group, Time, Cell)
 
       # Keep automatic spacing by default, or use the positive interval typed
@@ -191,7 +193,7 @@ mod_heatmap_server <- function(id, rv) {
       title_text <- input$hm_title
       if (is.null(title_text) || !nzchar(trimws(title_text))) {
         title_text <- if (!is.null(rv$groups) && length(rv$groups) > 0) {
-          auto_plot_title(rv$groups)
+          auto_plot_title(presentation()$labels)
         } else {
           "Heatmap"
         }
@@ -201,7 +203,7 @@ mod_heatmap_server <- function(id, rv) {
         geom_rect(aes(xmin = Time_Min, xmax = Time_Max,
                       ymin = Cell - 0.5, ymax = Cell + 0.5)) +
         facet_wrap(~ Group, ncol = 1, scales = "free_y",
-                   labeller = ggplot2::as_labeller(pretty_label))
+                   labeller = ggplot2::as_labeller(view$label))
 
       p <- if (isTRUE(scale_info$diverging)) {
         p + scale_fill_gradient2(

@@ -121,6 +121,12 @@ cells with a finite value, not the number of independent animals or
 preparations. Cells nested within one animal or preparation should not be used
 as independent biological replicates for inferential statistics.
 
+### Recording details
+
+On **Load Data**, expand **Recording details** beneath a filename to set its display name, condition, experimental unit ID, plot color, and display position. The multi-recording plots and Percent Responding field table use the display names and order. Colors apply to plots that distinguish recordings by color.
+
+You can edit these fields after processing. The processing manifest maps each recording to its source file and the stable group key used in the numerical exports. Condition and experimental unit ID are optional annotations for this version. Summaries continue to use the existing recording and cell definitions.
+
 ### Workflow
 
 1. **Load Data** → Upload your files and configure processing options

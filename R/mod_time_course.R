@@ -115,16 +115,17 @@ tc_plot_controls <- function(ns) {
 mod_time_course_server <- function(id, rv) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
+    presentation <- reactive(recording_view(rv))
 
     # Store the last known groups to detect actual changes
     last_groups <- reactiveVal(NULL)
     last_auto_title <- reactiveVal(NULL)
 
     # Only auto-update title when groups actually change (new data loaded)
-    observeEvent(rv$groups, {
+    observeEvent(presentation()$labels, {
       req(rv$groups)
-      current_groups <- paste(rv$groups, collapse = ", ")
-      auto_title <- auto_plot_title(rv$groups)
+      current_groups <- paste(presentation()$labels, collapse = ", ")
+      auto_title <- auto_plot_title(presentation()$labels)
 
       # Check if this is a real change in groups (new data loaded)
       if (!is.null(last_groups()) && last_groups() != current_groups) {
@@ -159,7 +160,7 @@ mod_time_course_server <- function(id, rv) {
     observeEvent(input$reset_title, {
       req(rv$groups)
       if (length(rv$groups) > 0) {
-        updateTextInput(session, "tc_title", value = auto_plot_title(rv$groups))
+        updateTextInput(session, "tc_title", value = auto_plot_title(presentation()$labels))
       }
     })
 
@@ -194,9 +195,11 @@ mod_time_course_server <- function(id, rv) {
     # Build timecourse plot function
     build_timecourse_plot <- function() {
       req(rv$summary)
+      view <- presentation()
       summary_line <- rv$summary |>
         dplyr::filter(is.finite(Time), is.finite(mean_dFF0)) |>
         dplyr::mutate(
+          Recording = view$label(Group),
           sem_tooltip = ifelse(
             is.finite(sem_dFF0),
             format(round(sem_dFF0, 3), trim = TRUE),
@@ -228,7 +231,8 @@ mod_time_course_server <- function(id, rv) {
         trace_df <- long_df |>
           dplyr::group_by(Group, Cell) |>
           dplyr::filter(dplyr::n() > 1) |>
-          dplyr::ungroup()
+          dplyr::ungroup() |>
+          dplyr::mutate(Recording = view$label(Group))
 
         # Calculate alpha
         transparency_pct <- as.numeric(input$tc_trace_transparency %||% 50)
@@ -240,11 +244,11 @@ mod_time_course_server <- function(id, rv) {
         if (nrow(trace_df) > 0) {
           if (length(groups) == 1) {
             p <- p + geom_line(data=trace_df, aes(x=Time, y=dFF0, group=interaction(Group, Cell),
-                                                 text = paste0("Group: ", Group, "\nCell: ", Cell, "\nTime: ", round(Time, 2), "s\nValue: ", round(dFF0, 3))),
+                                                 text = paste0("Recording: ", Recording, "\nCell: ", Cell, "\nTime: ", round(Time, 2), "s\nValue: ", round(dFF0, 3))),
                                inherit.aes=FALSE, alpha=alpha_traces, linewidth=0.4, color="gray50")
           } else {
             p <- p + geom_line(data=trace_df, aes(x=Time, y=dFF0, group=interaction(Group, Cell), color=Group,
-                                                 text = paste0("Group: ", Group, "\nCell: ", Cell, "\nTime: ", round(Time, 2), "s\nValue: ", round(dFF0, 3))),
+                                                 text = paste0("Recording: ", Recording, "\nCell: ", Cell, "\nTime: ", round(Time, 2), "s\nValue: ", round(dFF0, 3))),
                                inherit.aes=FALSE, alpha=alpha_traces, linewidth=0.4)
           }
         }
@@ -296,21 +300,21 @@ mod_time_course_server <- function(id, rv) {
             # aesthetic, so without this each point becomes its own group
             # and geom_line draws no segments at all
             p <- p + geom_line(data=summary_line, aes(x=Time, y=mean_dFF0, color=Group, group=Group,
-                                                    text = paste0("Group: ", Group, "\nTime: ", round(Time, 2), "s\nMean: ", round(mean_dFF0, 3), "\nSEM: ", sem_tooltip)),
+                                                    text = paste0("Recording: ", Recording, "\nTime: ", round(Time, 2), "s\nMean: ", round(mean_dFF0, 3), "\nSEM: ", sem_tooltip)),
                                linewidth=lw)
           } else {
             p <- p + geom_point(data=summary_line, aes(x=Time, y=mean_dFF0, color=Group,
-                                                     text = paste0("Group: ", Group, "\nTime: ", round(Time, 2), "s\nMean: ", round(mean_dFF0, 3), "\nSEM: ", sem_tooltip)),
+                                                     text = paste0("Recording: ", Recording, "\nTime: ", round(Time, 2), "s\nMean: ", round(mean_dFF0, 3), "\nSEM: ", sem_tooltip)),
                                 size=2.5)
           }
         } else {
           if (has_segments) {
             p <- p + geom_line(data=summary_line, aes(x=Time, y=mean_dFF0, group=Group,
-                                                    text = paste0("Group: ", Group, "\nTime: ", round(Time, 2), "s\nMean: ", round(mean_dFF0, 3), "\nSEM: ", sem_tooltip)),
+                                                    text = paste0("Recording: ", Recording, "\nTime: ", round(Time, 2), "s\nMean: ", round(mean_dFF0, 3), "\nSEM: ", sem_tooltip)),
                                color="black", linewidth=lw)
           } else {
             p <- p + geom_point(data=summary_line, aes(x=Time, y=mean_dFF0,
-                                                     text = paste0("Group: ", Group, "\nTime: ", round(Time, 2), "s\nMean: ", round(mean_dFF0, 3), "\nSEM: ", sem_tooltip)),
+                                                     text = paste0("Recording: ", Recording, "\nTime: ", round(Time, 2), "s\nMean: ", round(mean_dFF0, 3), "\nSEM: ", sem_tooltip)),
                                 color="black", size=2.5)
           }
         }
@@ -323,7 +327,7 @@ mod_time_course_server <- function(id, rv) {
 
       if (length(groups) > 1 || isTRUE(has_line_color)) {
         needs_color_scale <- TRUE
-        cols <- rv$colors
+        cols <- view$palette
 
         # The single Line color picker only overrides for one group; with a
         # multi-file upload the per-group palette keeps groups tellable apart
@@ -344,7 +348,8 @@ mod_time_course_server <- function(id, rv) {
           # names inside the plot width
           p <- p + scale_color_manual(
             values = cols,
-            labels = function(x) wrap_label(pretty_label(x), width = 28),
+            breaks = intersect(view$levels, groups),
+            labels = function(x) wrap_label(view$label(x), width = 28),
             guide = guide_legend(nrow = ceiling(length(groups) / 3), byrow = TRUE)
           )
           if (multi_group) {
@@ -609,7 +614,10 @@ mod_time_course_server <- function(id, rv) {
         tidyr::pivot_wider(names_from = Group, values_from = Display)
       wide <- wide[match(metric_names, wide$Metric), , drop = FALSE]
 
-      tb <- knitr::kable(wide, format = "html") |>
+      view <- presentation()
+      keys <- intersect(view$levels, setdiff(names(wide), "Metric"))
+      wide <- wide[, c("Metric", keys), drop = FALSE]
+      tb <- knitr::kable(wide, format = "html", col.names = c("Metric", view$label(keys))) |>
         kableExtra::kable_styling(full_width = TRUE,
                                   bootstrap_options = c("condensed", "striped", "hover"))
       note <- if (any(censor_counts$censored_n > 0)) {

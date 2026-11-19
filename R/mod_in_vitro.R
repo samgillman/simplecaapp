@@ -57,6 +57,7 @@ mod_in_vitro_ui <- function(id) {
 
 mod_in_vitro_server <- function(id, rv) {
   moduleServer(id, function(input, output, session) {
+    presentation <- reactive(recording_view(rv))
     fields <- reactive(names(rv$dts))
     output$ready <- reactive(length(fields()) > 0)
     outputOptions(output, "ready", suspendWhenHidden = FALSE)
@@ -115,7 +116,8 @@ mod_in_vitro_server <- function(id, rv) {
       counts <- if (ok) results()$counts
       labels <- if (ok) unique(ifelse(counts$Population == "KCl-positive cells",
         paste(counts$Stimulus, "among KCl responders"), counts$Stimulus)) else "Responders"
-      rows <- lapply(fields(), function(name) {
+      view <- presentation()
+      rows <- lapply(intersect(view$levels, fields()), function(name) {
         values <- if (ok) lapply(which(counts$Field == name), function(i) {
           x <- counts[i, ]
           label <- if (x$Evaluable) sprintf("%d/%d (%.1f%%)", x$Responded, x$Evaluable, x$Percent_responding) else
@@ -127,7 +129,7 @@ mod_in_vitro_server <- function(id, rv) {
         tags$tr(class = if (identical(name, field())) "info",
           `data-field` = name, `data-target` = session$ns("field"),
           onclick = "Shiny.setInputValue(this.dataset.target,this.dataset.field,{priority:'event'})",
-          tags$td(tags$button(type = "button", class = "btn btn-link", name)), values)
+          tags$td(tags$button(type = "button", class = "btn btn-link", view$label(name))), values)
       })
       div(class = "table-responsive", tags$table(class = "table table-hover",
         tags$thead(tags$tr(tags$th("Field of view"), lapply(labels, tags$th))), tags$tbody(rows)))
@@ -163,7 +165,7 @@ mod_in_vitro_server <- function(id, rv) {
     })
     output$overview <- renderPlot({
       data <- overview_data()
-      trace_plot(data$time, data$signal, paste(field(), "· mean cell trace"))
+      trace_plot(data$time, data$signal, paste(presentation()$label(field()), "· mean cell trace"))
     })
     review_rows <- reactive({
       rows <- results()$calls

@@ -213,3 +213,4 @@ source("tests/browser-baseline-sync.R")
 source("tests/browser-time-validation.R")
 
 source("tests/browser-in-vitro.R")
+source("tests/browser-recording-registry.R")

@@ -5,6 +5,7 @@ All notable changes to SimpleCa will be documented in this file.
 ## Unreleased
 
 ### Added
+- Recording details on Load Data let users name, order, and color recordings and annotate their condition and experimental unit. The processing manifest saves the mapping to the source files and analysis keys.
 - In Vitro Analysis tab with per-field responder percentages, optional paired KCl control, individual cell review and reproducible CSV exports.
 
 ### Changed

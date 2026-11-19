@@ -1016,6 +1016,16 @@ get_unified_theme_css <- function() {
        clamp(), so the height lives on a wrapper class and the output fills
        it. Every layer between wrapper and <img> must propagate the height
        or the output measures 0 and Shiny falls back to its default. */
+    .recording-upload-row {{ padding-bottom: 5px; }}
+    .recording-editor {{ padding: 0 10px 5px; }}
+    .recording-editor summary {{ cursor: pointer; font-size: 13px; }}
+    .recording-editor-fields {{
+      display: grid; gap: 8px; margin-top: 8px;
+      grid-template-columns: repeat(auto-fit, minmax(min(100%, 145px), 1fr));
+    }}
+    .recording-editor-fields label {{ min-width: 0; font-size: 12px; }}
+    .recording-editor-fields input {{ width: 100%; margin-top: 3px; }}
+
     .plot-viewport {{
       height: clamp(380px, calc(100vh - 200px), 620px);
     }}

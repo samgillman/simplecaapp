@@ -175,12 +175,68 @@ column_mapping_key <- function(upload_id) {
   paste0(clean, "_", checksum)
 }
 
+# Native inputs send an edit on change. Keeping the upload ID in a data
+# attribute also allows punctuation in source filenames and display labels.
+recording_editor <- function(meta, count, target) {
+  control <- function(field, title, type = "text", ...) {
+    tags$label(title, tags$input(type = type, value = meta[[field]],
+      class = "form-control", `data-field` = field, ...))
+  }
+  tags$details(class = "recording-editor",
+    tags$summary("Recording details"),
+    tags$div(class = "recording-editor-fields", `data-upload` = meta$upload_id,
+      `data-target` = target,
+      onchange = paste(
+        "var e = event.target; if (!e.dataset.field || !e.reportValidity()) return;",
+        "if (e.dataset.field === 'label' && !e.value.trim()) e.value = e.placeholder;",
+        "Shiny.setInputValue(this.dataset.target,",
+        "{id:this.dataset.upload,field:e.dataset.field,value:e.value},{priority:'event'});"
+      ),
+      control("label", "Display name", placeholder = meta$key),
+      control("condition", "Condition", placeholder = "Optional"),
+      control("unit_id", "Experimental unit ID", placeholder = "Optional"),
+      control("color", "Plot color", "color"),
+      control("order", "Display position", "number", min = 1, max = count, step = 1, required = "required")
+    )
+  )
+}
+
 mod_load_data_server <- function(id, rv) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
     
     # Track uploaded files for immediate visual feedback
     uploaded_files <- reactiveVal(NULL)
+    staged_meta <- reactiveVal(NULL)
+    order_revision <- reactiveVal(0L)
+    stage_files <- function(files) {
+      files <- ensure_upload_ids(files)
+      staged_meta(recording_registry(files, staged_meta()))
+      uploaded_files(files)
+    }
+
+    observeEvent(input$recording_edit, {
+      edit <- input$recording_edit
+      before <- staged_meta()
+      meta <- edit_recording(before, edit$id, edit$field, edit$value)
+      if (identical(before, meta)) return()
+      staged_meta(meta)
+      if (edit$field == "order") order_revision(order_revision() + 1L)
+      committed <- rv$group_meta
+      if (NROW(committed)) {
+        positions <- match(committed$upload_id, meta$upload_id)
+        if (!anyNA(positions)) {
+          updated <- meta[positions, , drop = FALSE]
+          updated$n_cells <- committed$n_cells
+          view <- recording_view(list(group_meta = updated))
+          rv$group_meta <- updated
+          rv$groups <- view$levels
+          rv$colors <- view$palette
+          rv$processing_manifest <- with_recording_manifest(rv$processing_manifest, updated)
+        }
+      }
+    })
+
     upload_schemas <- reactiveVal(list())
     process_state <- reactiveVal("idle")
     process_error <- reactiveVal(NULL)
@@ -291,21 +347,22 @@ mod_load_data_server <- function(id, rv) {
       status <- process_state()
       if (length(rv$dts)) {
         labels <- rv$files$name
-        state <- sprintf("Processed · %d cells", nrow(rv$metrics))
+        state <- "Processed"
         frames <- rv$baseline_frames
       } else if (NROW(files)) {
         labels <- files$name
         state <- switch(status, stale = "Settings changed", error = "Processing failed", "Ready to process")
         frames <- baseline_frames_state()
       } else return("No recording loaded")
-      name <- if (length(labels) == 1L) labels else sprintf("%s +%d more", labels[1], length(labels) - 1L)
+      name <- if (length(labels) == 1L) labels else sprintf("%d recordings", length(labels))
+      if (length(rv$dts)) name <- sprintf("%s · %d cells", name, nrow(rv$metrics))
       sprintf("%s · %s · Baseline frames %d–%d", state, name, frames[1], frames[2])
     })
 
     # Switching modes discards any pending selection so the feedback panel
     # and Process step always describe files chosen in the current mode
     observeEvent(input$upload_mode, {
-      uploaded_files(NULL)
+      stage_files(NULL)
       upload_schemas(list())
       process_state("idle")
       process_error(NULL)
@@ -330,7 +387,7 @@ mod_load_data_server <- function(id, rv) {
         }
       }
       first_upload <- is.null(uploaded_files()) || nrow(uploaded_files()) == 0
-      uploaded_files(files)
+      stage_files(files)
       process_state("ready")
       process_error(NULL)
       refresh_upload_schemas(files, reset_baseline = first_upload)
@@ -343,14 +400,14 @@ mod_load_data_server <- function(id, rv) {
       if (!is.null(files) && !is.na(i) && i >= 1 && i <= nrow(files)) {
         files <- files[-i, , drop = FALSE]
         remaining <- if (nrow(files) > 0) files else NULL
-        uploaded_files(remaining)
+        stage_files(remaining)
         refresh_upload_schemas(remaining)
         process_state(if (nrow(files) > 0) "ready" else "idle")
         process_error(NULL)
       }
     })
     observeEvent(input$clear_files, {
-      uploaded_files(NULL)
+      stage_files(NULL)
       refresh_upload_schemas(NULL)
       process_state("idle")
       process_error(NULL)
@@ -610,8 +667,10 @@ mod_load_data_server <- function(id, rv) {
       }, logical(1))
 
       # Create file list items
-      file_items <- lapply(seq_len(nrow(files)), function(i) {
-        tags$div(
+      order_revision()
+      meta <- isolate(staged_meta())
+      file_items <- lapply(order(meta$order), function(i) {
+        tags$div(class = "recording-upload-row", tags$div(
           style = "display: flex; align-items: center; padding: 6px 10px; background: white; border-radius: 4px; margin-bottom: 4px; border: 1px solid var(--color-gray-100);",
           icon("file-csv", style = "color: var(--color-success); margin-right: 10px; font-size: 14px;"),
           tags$span(
@@ -633,7 +692,7 @@ mod_load_data_server <- function(id, rv) {
               HTML("&times;")
             )
           }
-        )
+        ), recording_editor(meta[i, , drop = FALSE], nrow(files), ns("recording_edit")))
       })
 
       # Clean success container
@@ -664,7 +723,7 @@ mod_load_data_server <- function(id, rv) {
 
         # File list
         tags$div(
-          style = "max-height: 180px; overflow-y: auto;",
+          style = "max-height: min(60vh, 32rem); overflow-y: auto;",
           file_items
         ),
 
@@ -715,6 +774,7 @@ mod_load_data_server <- function(id, rv) {
           build_processed_state(
             files,
             settings,
+            group_meta = staged_meta(),
             progress = function(amount, detail) {
               incProgress(amount, detail = detail)
             }
