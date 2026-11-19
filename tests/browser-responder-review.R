@@ -81,7 +81,8 @@ wait_until(in_app(paste(
 )), "incompatible retained baseline resets with an explicit notice")
 recovered <- read_export("in_vitro-download_counts", "in_vitro_counts")
 stopifnot(recovered$Percent_responding == 94, recovered$Start_s == 19,
-  recovered$End_s == 299, recovered$Baseline_s == 19, recovered$Field_reason == "")
+  recovered$End_s == 299, recovered$Baseline_s == 19,
+  all(is.na(recovered$Field_reason) | recovered$Field_reason == ""))
 # Valid edits, including an allowed clipped endpoint, survive reprocessing.
 invisible(evaluate(in_app(paste(
   "Object.entries({start:25,end:300,baseline:20}).forEach(function(kv){",
