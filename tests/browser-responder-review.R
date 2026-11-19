@@ -55,7 +55,7 @@ invisible(evaluate(in_app(paste(
   "var e=d.getElementById('in_vitro-baseline');e.value=20;",
   "e.dispatchEvent(new w.Event('input',{bubbles:true}));w.$(e).trigger('change');return true;"
 ))))
-for (panel in c("in_vitro-distribution", "in_vitro-population_plot")) {
+for (panel in c("in_vitro-distribution_view", "in_vitro-population_plot")) {
   invisible(evaluate(in_app(sprintf("d.getElementById('%s').scrollIntoView({block:'center'});return true;", panel))))
   wait_until(in_app(sprintf("return d.getElementById('%s').textContent.includes('No evaluable cells');", panel)),
     paste(panel, "shows empty-population guidance"))

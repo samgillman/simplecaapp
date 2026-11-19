@@ -226,6 +226,8 @@ test_that("zero evaluable cells validate all population plots and can recover", 
     session$setInputs(stimulus = "A", start = 19, end = 299, baseline = 20,
       floor = .1, noise = 3, frames = 2, auto_gap = TRUE, control = FALSE)
     expect_equal(results()$counts$Evaluable, 0)
+    expect_match(output$distribution_view$html, "No evaluable cells")
+    expect_false(grepl(session$ns("distribution"), output$distribution_view$html, fixed = TRUE))
     expect_match(output$headline$html, "needs -1 to 299 s", fixed = TRUE)
     for (name in c("distribution", "population_plot", "population_heatmap")) {
       expect_error(output[[name]], "No evaluable cells", class = "shiny.silent.error")
@@ -234,6 +236,7 @@ test_that("zero evaluable cells validate all population plots and can recover", 
     expect_equal(input$baseline, 20)
     session$setInputs(baseline = 19)
     expect_equal(results()$counts$Responded, 1)
+    expect_match(output$distribution_view$html, session$ns("distribution"), fixed = TRUE)
     expect_type(output$population_plot$src, "character")
     session$setInputs(floor = 1)
     expect_equal(results()$counts$Percent_responding, 0)

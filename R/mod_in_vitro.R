@@ -21,7 +21,7 @@ mod_in_vitro_ui <- function(id) {
       fluidRow(theme_box("Response distribution",
         radioButtons(ns("distribution_scale"), NULL, c("Peak / threshold" = "margin", "Peak local rise" = "rise"),
           selected = "margin", inline = TRUE),
-        textOutput(ns("distribution_note")), plotly::plotlyOutput(ns("distribution"), height = "245px"))),
+        textOutput(ns("distribution_note")), uiOutput(ns("distribution_view")))),
       fluidRow(theme_box("Population traces", textOutput(ns("population_label")),
         plotOutput(ns("population_plot"), height = "300px"),
         tags$details(tags$summary("Heatmap by response and onset"), plotOutput(ns("population_heatmap"), height = "360px"))))
@@ -367,6 +367,12 @@ mod_in_vitro_server <- function(id, rv) {
       x <- evaluable()
       sprintf("%d of %d evaluable cells within ±20%% of threshold · %d floor-limited · %d noise-limited",
         sum(near_cutoff(x)), nrow(x), sum(x$Threshold_source == "Floor"), sum(x$Threshold_source == "Baseline noise"))
+    })
+    # Remove the widget when there are no calls. In Shinylive, a Plotly
+    # validation error can otherwise leave its previous traces on screen.
+    output$distribution_view <- renderUI({
+      if (nrow(evaluable()) == 0L) return(p(role = "status", "No evaluable cells in this population."))
+      plotly::plotlyOutput(session$ns("distribution"), height = "245px")
     })
     distribution_source <- session$ns("distribution")
     distribution_drawn <- reactiveVal(FALSE)

@@ -77,7 +77,7 @@ wait_until <- function(js, label, timeout = 45) {
       output <- tryCatch(server$read_output_lines(), error = function(e) character())
       errors <- tryCatch(server$read_error_lines(), error = function(e) character())
       dom_state <- tryCatch(evaluate(in_app(
-        "return JSON.stringify(['in_vitro-distribution','in_vitro-population_plot','in_vitro-start','in_vitro-end','in_vitro-baseline','in_vitro-status','in_vitro-review_label','in_vitro-defaults_notice','in_vitro-headline','load_data-results_bar','load_data-process_status'].reduce(function(x,id){var e=d.getElementById(id);x[id]=e?String('value' in e?e.value:e.textContent).slice(0,260):'<missing>';return x;},{}));"
+        "return JSON.stringify(['in_vitro-distribution_view','in_vitro-population_plot','in_vitro-start','in_vitro-end','in_vitro-baseline','in_vitro-status','in_vitro-review_label','in_vitro-defaults_notice','in_vitro-headline','load_data-results_bar','load_data-process_status'].reduce(function(x,id){var e=d.getElementById(id);x[id]=e?String('value' in e?e.value:e.textContent).slice(0,260):'<missing>';return x;},{}));"
       )), error = function(e) "<browser unavailable>")
       server_lines <- tail(c(output, errors), 80)
       stop(
