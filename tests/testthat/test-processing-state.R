@@ -635,3 +635,34 @@ test_that("invalid timestamps cannot silently double the recording's time scale"
   }
   expect_match(generated$time_messages, "2 Hz as selected", fixed = TRUE)
 })
+
+test_that("a short field cannot shrink the shared F0 window while staging a batch", {
+  library(shiny)
+  source(file.path(repo_root, "R", "mod_load_data.R"), local = TRUE)
+  paths <- vapply(c(3, 40, 55), function(n) {
+    path <- tempfile(fileext = ".csv")
+    data.table::fwrite(data.frame(Time = seq_len(n), Cell = 100 + seq_len(n)), path)
+    path
+  }, character(1))
+  on.exit(unlink(paths), add = TRUE)
+  files <- data.frame(name = c("short.csv", "A.csv", "B.csv"),
+                      size = file.size(paths), datapath = paths)
+  rv <- reactiveValues()
+  testServer(mod_load_data_server, args = list(rv = rv), {
+    session$setInputs(upload_mode = "multi", pp_sampling_rate = 1)
+    session$setInputs(data_files = files[1, , drop = FALSE])
+    expect_equal(baseline_frames_state(), c(1L, 20L))
+    session$setInputs(data_files = files[2:3, ])
+    state <- build_processed_state(uploaded_files(), current_processing_settings())
+    expect_equal(state$baseline_frames, c(1L, 20L))
+    expect_equal(state$skipped_files, "short.csv")
+    expect_equal(unname(vapply(state$baselines, function(x) x[["Cell"]], numeric(1))), rep(110.5, 2))
+    expect_match(output$upload_feedback$html, "baseline end frame 20.*short.csv")
+
+    session$setInputs(remove_file = 1L)
+    session$setInputs(pp_baseline_frames = c(4L, 27L))
+    session$setInputs(data_files = files[1, , drop = FALSE])
+    session$setInputs(remove_file = 3L)
+    expect_equal(current_processing_settings()$baseline_frames, c(4L, 27L))
+  })
+})

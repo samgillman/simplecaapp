@@ -7,14 +7,14 @@ mod_in_vitro_ui <- function(id) {
         plotOutput(ns("overview"), height = "270px"),
         fluidRow(
           column(4, textInput(ns("stimulus"), "Stimulus name", "Capsaicin")),
-          column(4, numericInput(ns("start"), "Scoring window start (s)", NA_real_)),
-          column(4, numericInput(ns("end"), "Scoring window end (s)", NA_real_))
+          column(4, numericInput(ns("start"), "Scoring window start (s)", NULL)),
+          column(4, numericInput(ns("end"), "Scoring window end (s)", NULL))
         ),
         fluidRow(
           column(4, checkboxInput(ns("control"), "Include KCl control", FALSE)),
           conditionalPanel("input.control", ns = ns,
-            column(4, numericInput(ns("control_start"), "KCl scoring start (s)", NA_real_)),
-            column(4, numericInput(ns("control_end"), "KCl scoring end (s)", NA_real_)))
+            column(4, numericInput(ns("control_start"), "KCl scoring start (s)", NULL)),
+            column(4, numericInput(ns("control_end"), "KCl scoring end (s)", NULL)))
         ),
         uiOutput(ns("protocol_feedback"), `aria-live` = "polite"),
         accordion(ns("rule"), textOutput(ns("rule_summary"), inline = TRUE), icon = "sliders", content = tagList(
@@ -44,11 +44,11 @@ mod_in_vitro_ui <- function(id) {
       )),
       conditionalPanel("output.protocol_ok === true", ns = ns,
         fluidRow(theme_box("Cell review",
-          fluidRow(column(6,
-            selectInput(ns("status"), "Filter by status", c("All", "Responded", "Did not respond", "Excluded", "Unscorable")),
-            DT::DTOutput(ns("calls"))),
-            column(6, checkboxInput(ns("full"), "Show full recording", FALSE),
-              plotOutput(ns("trace"), height = "310px")))
+          selectInput(ns("status"), "Filter by status",
+                      c("All", "Responded", "Did not respond", "Excluded", "Unscorable")),
+          DT::DTOutput(ns("calls")),
+          checkboxInput(ns("full"), "Show full recording", FALSE),
+          plotOutput(ns("trace"), height = "350px")
         ))
       )
     )
@@ -149,10 +149,14 @@ mod_in_vitro_server <- function(id, rv) {
       plot <- ggplot(data.frame(Time = time, Signal = signal), aes(Time, Signal)) +
         labs(x = "Time (s)", y = "ΔF/F₀", title = title) + theme_minimal(base_size = 12)
       windows <- preview_windows()
+      if (NROW(windows) && length(input$baseline) && is.finite(input$baseline) && input$baseline > 0) {
+        baselines <- transform(windows, Role = "Local baseline", Start = Start - input$baseline, End = Start)
+        windows <- rbind(baselines, windows)
+      }
       if (NROW(windows)) plot <- plot +
         geom_rect(data = windows, aes(xmin = Start, xmax = End, fill = Role), ymin = -Inf, ymax = Inf,
                   inherit.aes = FALSE, alpha = 0.22) +
-        scale_fill_manual("Scoring window", values = c(Stimulus = "#42A995", KCl = "#D7A047"))
+        scale_fill_manual("Window", values = c("Local baseline" = "#92A0B5", Stimulus = "#42A995", KCl = "#D7A047"))
       plot + geom_line(colour = "#244365", linewidth = 0.65, na.rm = TRUE)
     }
     overview_data <- reactive({

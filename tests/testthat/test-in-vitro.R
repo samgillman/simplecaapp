@@ -61,6 +61,12 @@ test_that("real processing retains invalid F0 names and the module refreshes wit
     expect_equal(results()$counts$Percent_responding, c(50, 100))
     expect_equal(results()$counts$Excluded, c(1, 1))
     expect_equal(export_rows("calls")$Source_file, rep("field.csv", 6))
+    library(ggplot2)
+    session$setInputs(control = TRUE, control_start = 12, control_end = 15)
+    windows <- trace_plot(time, raw$Cell1, "Preview")$layers[[1]]$data
+    expect_equal(windows$Start[windows$Role == "Local baseline"], c(3, 10))
+    expect_equal(windows$End[windows$Role == "Local baseline"], c(5, 12))
+    session$setInputs(control = FALSE)
     session$setInputs(field = "field_1", cell = "Cell2")
     expect_equal(field(), "field_1")
     clear_processed_state(rv)

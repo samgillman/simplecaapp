@@ -247,7 +247,12 @@ mod_load_data_server <- function(id, rv) {
       row_counts <- vapply(schemas, function(x) x$row_count %||% NA_integer_, integer(1))
       row_counts <- row_counts[is.finite(row_counts) & row_counts >= 1]
       if (length(row_counts) > 0) {
-        max_frame <- min(row_counts)
+        # Batch staging may start with a short or unusable file. Keep the
+        # requested endpoint available even when only that file is staged.
+        max_frame <- max(row_counts)
+        if (identical(input$upload_mode, "multi")) {
+          max_frame <- max(max_frame, baseline_frames_state()[2], if (reset_baseline) 20L else 1L)
+        }
         frames <- if (isTRUE(reset_baseline)) {
           c(1L, min(20L, max_frame))
         } else {
@@ -554,6 +559,13 @@ mod_load_data_server <- function(id, rv) {
       multi <- identical(input$upload_mode, "multi")
       display_names <- upload_display_names(files$name)
 
+      schemas <- upload_schemas()
+      end_frame <- baseline_frames_state()[2]
+      too_short <- vapply(files$upload_id, function(id) {
+        n <- schemas[[column_mapping_key(id)]]$row_count
+        length(n) == 1L && is.finite(n) && n <= end_frame
+      }, logical(1))
+
       # Create file list items
       file_items <- lapply(seq_len(nrow(files)), function(i) {
         tags$div(
@@ -595,6 +607,9 @@ mod_load_data_server <- function(id, rv) {
           )
         ),
 
+        if (any(too_short)) div(class = "alert alert-warning", role = "status",
+          sprintf("These files have no frames after baseline end frame %d and will be skipped: %s.",
+                  end_frame, paste(display_names[too_short], collapse = ", "))),
         if (sum(suppressWarnings(as.numeric(files$size)), na.rm = TRUE) >= 25 * 1024^2) {
           div(
             class = "alert alert-warning",

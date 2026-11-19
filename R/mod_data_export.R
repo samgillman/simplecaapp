@@ -16,6 +16,10 @@ mod_data_export_ui <- function(id) {
         width = 12,
         collapsible = FALSE,
 
+          div(class = "well well-sm",
+            h4("Percent Responding exports"),
+            uiOutput(ns("responder_downloads"))
+          ),
           tabsetPanel(
             id = ns("data_export_tabs"),
             type = "pills",
@@ -272,9 +276,17 @@ mod_data_export_server <- function(id, rv, metrics_plot_reactive, heatmap_plot_r
     if (!is.null(responder_exports)) {
       responder_exports$register_exports(input, session)
       output$responder_downloads <- renderUI({
-        req(responder_exports$ready())
-        tagList(browser_download_button(ns("download_counts"), "Download in vitro field counts"),
-                browser_download_button(ns("download_calls"), "Download in vitro cell calls"))
+        ready <- responder_exports$ready()
+        button <- function(id, label) {
+          tag <- browser_download_button(ns(id), label)
+          if (ready) tag else htmltools::tagAppendAttributes(tag, disabled = "disabled")
+        }
+        tagList(
+          if (!ready) p(if (length(rv$dts)) "Enter valid scoring windows under In Vitro → Percent Responding."
+                        else "Process a recording in Load Data, then enter scoring windows in Percent Responding."),
+          button("download_counts", "Download field counts"),
+          button("download_calls", "Download cell calls")
+        )
       })
     }
     register_browser_download(input, session, "download_cell_metrics",
@@ -405,7 +417,6 @@ mod_data_export_server <- function(id, rv, metrics_plot_reactive, heatmap_plot_r
             div(style = "display: flex; flex-direction: column; gap: 10px;",
               browser_download_button(ns("dl_metrics_csv"), "Download All Metrics (CSV)", class = "btn-primary btn-block"),
               browser_download_button(ns("dl_summary_csv"), "Download Time-Course Summary (CSV)", class = "btn-default btn-block"),
-              uiOutput(ns("responder_downloads")),
               browser_download_button(ns("dl_manifest_csv"), "Download Processing Manifest (CSV)", class = "btn-default btn-block"),
               tags$hr(style = "margin: 10px 0;"),
               div(style = "background: var(--color-gray-50); padding: 10px; border-radius: 4px;",

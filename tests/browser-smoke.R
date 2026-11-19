@@ -151,6 +151,11 @@ for (target in names(plot_targets)) {
 
 invisible(evaluate(in_app("w.$('a[href=\"#shiny-tab-data_export\"]').click(); return true;")))
 wait_until(in_app("return !!d.getElementById('data_export-download_cell_metrics');"), "data export tab")
+wait_until(in_app(paste(
+  "var ids=['data_export-download_counts','data_export-download_calls'];",
+  "return ids.every(function(id){var b=d.getElementById(id);return b && b.disabled && b.offsetWidth>0;})",
+  "&& d.getElementById('data_export-responder_downloads').innerText.includes('scoring windows');"
+)), "responder exports visible with instructions on first visit")
 invisible(evaluate(in_app("d.getElementById('data_export-download_cell_metrics').click(); return true;")))
 wait_until(in_app("return w.__simplecaDownloads.some(function(x){return /cell_metrics.*[.]csv$/.test(x);});"), "metrics CSV download")
 

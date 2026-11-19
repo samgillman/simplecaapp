@@ -21,7 +21,7 @@ responder_protocol <- function(stimulus, start, end, baseline, floor, noise, fra
     windows <- rbind(windows, data.frame(Role = "Control", Stimulus = "KCl",
                                           Start_s = control_start, End_s = control_end))
   }
-  transform(windows, Baseline_s = baseline, Floor_dFF0 = floor, SD_multiplier = noise,
+  transform(windows, Baseline_s = baseline, Floor_local_fraction = floor, SD_multiplier = noise,
             Consecutive_samples = frames, Max_gap_s = if (is.null(gap)) NA_real_ else gap)
 }
 
@@ -69,7 +69,7 @@ responder_window_calls <- function(dt, cells, field, window) {
       next
     }
     noise <- stats::sd(y[pre]) / local_f0
-    threshold <- max(window$Floor_dFF0, window$SD_multiplier * noise)
+    threshold <- max(window$Floor_local_fraction, window$SD_multiplier * noise)
     rise <- (y[during] - base) / local_f0
     runs <- rle(rise >= threshold)
     positive <- any(runs$values & runs$lengths >= window$Consecutive_samples)
