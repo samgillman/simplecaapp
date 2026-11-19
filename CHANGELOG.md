@@ -4,27 +4,33 @@ All notable changes to SimpleCa will be documented in this file.
 
 ## Deployed updates since 1.16.0
 
-The November 19, 2026 production build displays `v1.16.0` in the sidebar and records that version in processing manifests. The changes below followed the September 5 version entry. The [deployed source](https://github.com/samgillman/simplecaapp/tree/a35f65b12244dd47d46b6f2004c9e6e9ff1196bb) identifies the exact build.
+Dates below are successful production deployment dates in US Central time. The November 19 build still reports `v1.16.0` in the sidebar and processing manifest. Its [source snapshot](https://github.com/samgillman/simplecaapp/tree/a35f65b12244dd47d46b6f2004c9e6e9ff1196bb) identifies the exact code.
 
-### Added
+### 2026-11-19 — Recording details
 
-- **Percent Responding** reports responders out of evaluable cells for each field of view, with optional KCl-positive subgroup analysis. Users can preview scoring windows, compare fields, inspect individual cell calls, and download counts and calls.
-- **Recording details** on Load Data lets users edit each recording’s name, display order, color, condition, and experimental unit ID before or after processing. The processing manifest maps those annotations to the source file and stable analysis key. Condition and experimental unit are annotations. Summaries still use the existing cell and recording definitions.
+- Load Data lets users edit a recording’s name, display order, color, condition, and experimental unit ID before or after processing. The manifest maps those annotations to the source file and stable analysis key. Condition and experimental unit are annotations. Summaries retain their existing cell and recording definitions. [Deployment](https://github.com/samgillman/simplecaapp/actions/runs/44554146852)
 
-### Changed
+### 2026-11-18 — Percent Responding and workflow updates
 
-- Load Data previews the selected baseline on a trace. Plot controls sit beside the plots on desktop, and empty analysis and export pages provide a button to open Load Data.
-- **Percent Responding** now measures the rise and baseline noise relative to local prestimulus fluorescence. The first deployment of [PR #7](https://github.com/samgillman/simplecaapp/pull/7) used the Load Data F₀ scale. The current field-count and cell-call CSVs identify the amplitude floor as `Floor_local_fraction`.
-- [PR #8](https://github.com/samgillman/simplecaapp/pull/8) updated the pinned `later` dependency to 1.4.8. CI uses Ubuntu 24.04 for the pinned R build. Automatic deployment publishes the artifact from successful CI pushes to upstream `main`. Maintainers can also deploy manually from that branch.
+- At 9:46 p.m. CST, **Percent Responding** became available. It reports responders out of evaluable cells for each field of view, with an optional KCl-positive subgroup, individual cell review, and CSV exports. CI moved to Ubuntu 24.04 for the pinned R build. [Initial deployment](https://github.com/samgillman/simplecaapp/actions/runs/44453684611)
+- At 10:04 p.m. CST, responder scoring switched from the Load Data F₀ scale to fractional rise and noise relative to each cell’s local prestimulus fluorescence. The update also set the automatic gap limit to 1.5 times each field’s median positive frame interval, explained unscorable windows, and added a recording preview and a results table with one row per field. [Scoring update](https://github.com/samgillman/simplecaapp/actions/runs/44455701969)
+- Short recordings are flagged before processing and no longer shrink the batch F₀ window. Cell review shades the local baseline. Data & Export provides both responder CSVs, which identify the amplitude floor as `Floor_local_fraction`. [Baseline and export update](https://github.com/samgillman/simplecaapp/actions/runs/44458282731)
+- PR #8 updated the pinned `later` dependency to 1.4.8. [Dependency update](https://github.com/samgillman/simplecaapp/actions/runs/44463623617)
+- Load Data now previews the selected baseline on a trace. Plot controls sit beside plots on desktop, and empty analysis and export pages link back to Load Data. [Layout update](https://github.com/samgillman/simplecaapp/actions/runs/44468373730)
 
-### Fixed
+### 2026-10-07 — Time validation and Log10 axes
 
-- A short recording in a batch no longer shrinks the shared F₀ window. Load Data flags files too short for the selected baseline and applies baseline edits made immediately before processing.
-- An invalid detected Time column blocks automatic processing. Users can explicitly generate a time axis from the acquisition rate. The Time Course Log10 axis again shows automatic and custom numeric tick labels.
-- Percent Responding sets the automatic gap limit to 1.5 times each field’s median positive frame interval and explains why a window is unscorable. Cell review shades the local baseline. Data & Export provides both responder downloads.
-- Import rejects duplicate column headers, baseline windows covering the full recording, and files without usable post-baseline observations.
-- FWHM stays unknown when an observation gap separates the peak from a half-height crossing. Heatmaps use midpoint bins on the recorded time axis to preserve irregular sampling.
-- The Shinylive build restores the S7 metadata required by WebAssembly ggplot2. Production Pages deployments explicitly target the production branch.
+- An invalid detected Time column blocks automatic processing. Users can explicitly generate a time axis from the acquisition rate. The Time Course Log10 axis again shows automatic and custom numeric tick labels. [Deployment](https://github.com/samgillman/simplecaapp/actions/runs/37670649217)
+
+### 2026-10-06 — Baseline controls and production builds
+
+- Production Pages deployments explicitly target the production branch. Shinylive restores compatible locked dependencies on warm builds. [Deployment fix](https://github.com/samgillman/simplecaapp/actions/runs/37420347970)
+- Baseline controls stay synchronized, including when a user edits a frame boundary and immediately processes the recording. [Baseline fix](https://github.com/samgillman/simplecaapp/actions/runs/37518735877)
+
+### 2026-10-05 — Trace integrity and irregular sampling
+
+- Import rejects duplicate column headers, baseline windows covering the full recording, and files without usable post-baseline observations. FWHM stays unknown when an observation gap separates the peak from a half-height crossing. Heatmaps use midpoint bins on the recorded time axis to preserve irregular sampling.
+- The Shinylive build restores the S7 metadata required by WebAssembly ggplot2. Automatic deployment requires a successful upstream CI push to `main`. Maintainers can also deploy manually from that branch. [Deployment](https://github.com/samgillman/simplecaapp/actions/runs/37395981390)
 
 ## [1.16.0] - 2026-09-05
 
