@@ -55,10 +55,11 @@ invisible(evaluate(in_app(paste(
   "var e=d.getElementById('in_vitro-baseline');e.value=20;",
   "e.dispatchEvent(new w.Event('input',{bubbles:true}));w.$(e).trigger('change');return true;"
 ))))
-wait_until(in_app(paste(
-  "return d.getElementById('in_vitro-population_plot').innerText.includes('No evaluable cells') &&",
-  "d.getElementById('in_vitro-distribution').innerText.includes('No evaluable cells');"
-)), "empty populations give coverage guidance")
+for (panel in c("in_vitro-distribution", "in_vitro-population_plot")) {
+  invisible(evaluate(in_app(sprintf("d.getElementById('%s').scrollIntoView({block:'center'});return true;", panel))))
+  wait_until(in_app(sprintf("return d.getElementById('%s').textContent.includes('No evaluable cells');", panel)),
+    paste(panel, "shows empty-population guidance"))
+}
 switch_tab("load")
 path <- tempfile(fileext = ".csv")
 signal <- 100 * (1 + outer(0:299 >= 25, c(rep(.2, 94), rep(0, 6))))
