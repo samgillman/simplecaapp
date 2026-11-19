@@ -23,10 +23,8 @@ metrics_plotly_xaxis <- function(groups, style) {
 
 mod_metrics_ui <- function(id) {
   ns <- NS(id)
-  tabItem(tabName = "metrics",
+  analysis_tab(description = "Process a recording to compare cell-level response metrics.", tabName = "metrics",
 
-          # Primary choices (which metric, which plot form) in a slim header
-          # strip; full-width plot below; styling in the controls sheet last
           fluidRow(
             theme_box(
               title = "Cell Metrics",
@@ -35,14 +33,8 @@ mod_metrics_ui <- function(id) {
               width = 12,
               collapsible = FALSE,
               div(
-                class = "flex-tight",
+                class = "flex-tight metric-toolbar",
                 style = "display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap;",
-                div(style = "flex: 1; min-width: 260px; padding-bottom: 6px;",
-                  p("Compare a metric across experimental groups. Each point is one cell.",
-                    class = "text-muted", style = "margin: 0;"),
-                  p("Cell-level descriptive summaries: cells from the same preparation or animal are not independent biological replicates.",
-                    class = "text-warning", style = "margin: 4px 0 0; font-size: 12px;")
-                ),
                 div(style = "width: 280px;",
                   selectInput(ns("metric_name"), "Metric",
                               choices = c("Peak \u0394F/F\u2080" = "Peak_dFF0", "Time to Peak (s)" = "Time_to_Peak",
@@ -58,23 +50,11 @@ mod_metrics_ui <- function(id) {
                   selectInput(ns("metric_plot_style"), "Plot style",
                               choices = c("Box + swarm" = "boxswarm", "Bars" = "bars", "Violin" = "violin"),
                               selected = "boxswarm", width = "100%")
-                )
-              )
-            )
-          ),
-
-          fluidRow(
-            theme_box(title = "Metrics Plot", status = "primary", solidHeader = TRUE, width = 12,
-                plot_type_toggle(ns),
-                # Collapsed by default; expanding puts the controls directly
-                # above the plot so changes are visible while adjusting
-                accordion(
-                  id = ns("plot_controls_acc"),
-                  title = "Plot Controls",
-                  icon = "sliders-h",
-                  expanded = FALSE,
-                  content = metrics_plot_controls(ns)
                 ),
+                plot_type_toggle(ns)
+              ),
+              p(class = "text-muted", "Each point is one cell. Cells from the same preparation or animal are not independent biological replicates."),
+                plot_workspace(ns, metrics_plot_controls(ns),
                 div(id = ns("static_panel"), class = "plot-viewport-compact",
                     withSpinner(plotOutput(ns("metrics_plot"), height = "100%"), type = 4)
                 ),
@@ -83,13 +63,13 @@ mod_metrics_ui <- function(id) {
                       withSpinner(plotlyOutput(ns("metrics_plotly"), height = "100%"), type = 4)
                   )
                 )
+                )
             )
           )
   )
 }
 
-# Plot Controls sheet: rendered inside the collapsed accordion at the top of
-# the plot box, so adjustments happen with the plot in view
+# Plot settings shared by the desktop rail and narrow-screen layout.
 metrics_plot_controls <- function(ns) {
   div(
                 class = "control-cols",

@@ -55,10 +55,7 @@ mod_load_data_ui <- function(id) {
   tabItem(
     tabName = "load",
 
-    # One full-width workflow box: the three steps read left to right and
-    # share one height, so there is no column ratio to balance and no
-    # status box to inflate. Results appear as a slim bar underneath.
-    fluidRow(
+    div(class = "load-layout",
       theme_box(
         title = "Load & Process",
         icon = icon("cloud-upload-alt"),
@@ -101,55 +98,51 @@ mod_load_data_ui <- function(id) {
             baseline_controls_script(),
             div(id = ns("baseline_controls"), class = "simpleca-baseline-controls",
               sliderInput(ns("pp_baseline_frames"), "Baseline Window (frames)", min = 1, max = 100, value = c(1, 20), step = 1, width = "100%"),
-              fluidRow(
-                column(6, numericInput(ns("pp_baseline_start"), "Start frame", value = 1, min = 1, max = 100, step = 1, width = "100%")),
-                column(6, numericInput(ns("pp_baseline_end"), "End frame", value = 20, min = 1, max = 100, step = 1, width = "100%"))
-              )
+              numericInput(ns("pp_baseline_start"), "Start frame", value = 1, min = 1, max = 100, step = 1, width = "100%"),
+              numericInput(ns("pp_baseline_end"), "End frame", value = 20, min = 1, max = 100, step = 1, width = "100%")
             ),
-            div(class = "small-help",
-              "This window also defines baseline noise and the frames excluded from response searches."
-            )
-          ),
-
-          # Step 3: Process
-          div(
-            class = "load-step",
-            div(class = "load-step-title", span(class = "load-step-num", "3"), "Review & Process"),
+            conditionalPanel("output.needs_rate === true", ns = ns,
+              numericInput(ns("pp_sampling_rate"), "Sampling rate (Hz)", value = 1, min = 0.0001, step = 0.1),
+              p("Used only when Time is missing or generated from frames.", class = "small-help")),
+            conditionalPanel("output.has_preview === true", ns = ns,
+              plotOutput(ns("baseline_preview"), height = "115px")),
             accordion(
               id = ns("advanced_opts"),
               title = "Advanced Options",
               icon = "sliders-h",
               expanded = FALSE,
-              content = div(
-                numericInput(ns("pp_sampling_rate"), "Sampling rate (Hz)", value = 1, min = 0.0001, step = 0.1, width = "100%"),
-                p("Used only when Time is missing: converts Frame to seconds or generates Time.", class = "text-muted small"),
-                uiOutput(ns("column_mapping_ui"))
-              )
-            ),
-            uiOutput(ns("processing_formula")),
-            primary_button(ns("load_btn"), "Process Data", icon = icon("play"), width = "100%"),
+              content = uiOutput(ns("column_mapping_ui"))
+            )
+          ),
+          div(class = "load-step",
+            div(class = "load-step-title", span(class = "load-step-num", "3"), "Process recording"),
+            shinyjs::disabled(primary_button(ns("load_btn"), "Process Data", icon = icon("play"))),
             uiOutput(ns("process_status"))
           )
         )
+      ),
+      div(class = "load-guide",
+        theme_box("Quick Start", icon = icon("rocket"),
+          tags$ol(
+            tags$li("Upload a wide-format recording, with one column per cell."),
+            tags$li("Choose the input units and baseline frames. Confirm the sampling rate if the file has no elapsed time."),
+            tags$li("Process Data, then choose an analysis from the sidebar.")
+          ),
+          format_example_block(),
+          p(class = "small-help", icon("lock"), " On the public site, recordings are processed in your browser.")
+        )
       )
     ),
-
-    # Slim results bar after processing
-    fluidRow(uiOutput(ns("results_bar"))),
-
-    # First-run guidance
-    fluidRow(uiOutput(ns("quick_start")))
+    fluidRow(uiOutput(ns("results_bar")))
   )
 }
 
-# Compact input-format table shared by Quick Start (pre-process) and the
-# Expected Format reference box (post-process) — defined once so the two
-# never drift apart
+# Input-format example for the Load Data guide.
 format_example_block <- function() {
   div(
     style = "display: flex; gap: 24px; align-items: flex-start; flex-wrap: wrap;",
     div(
-      style = "flex: 1 1 280px; min-width: 240px;",
+      style = "flex: 1 1 280px; min-width: 0;",
       tags$table(
         class = "table table-bordered table-sm",
         style = "width: 100%; font-family: var(--font-mono); font-size: 12px; margin-bottom: 0; background: var(--color-white);",
@@ -165,10 +158,10 @@ format_example_block <- function() {
     ),
     div(
       class = "small-help",
-      style = "flex: 1 1 240px; min-width: 220px; margin: 0; line-height: 1.6; font-size: 12px;",
+      style = "flex: 1 1 240px; min-width: 0; margin: 0; line-height: 1.6; font-size: 12px;",
       p(style = "margin: 0 0 6px 0;", tags$b("One recording per file (one field for Percent Responding)"), " (CSV or Excel, wide format). Switch the uploader to Multiple files to compare groups side by side."),
       p(style = "margin: 0 0 6px 0;", "Recommended: a Time column in seconds, plus one column per cell trace. If Time is absent, it is generated from the sampling rate; a Frame column or unnamed sequential ImageJ index is converted automatically."),
-      p(style = "margin: 0 0 6px 0;", "Advanced Options confirms the Time source for each file and lets you exclude unwanted numeric columns before processing."),
+      p(style = "margin: 0 0 6px 0;", "Use Advanced Options to check the time source or exclude columns."),
       p(style = "margin: 0;", "ImageJ exports with Mean1, Mean2, ... columns display as Cell 1, Cell 2, ...")
     )
   )
@@ -290,13 +283,23 @@ mod_load_data_server <- function(id, rv) {
       )
     })
 
-    output$processing_formula <- renderUI({
-      text <- if (identical(input$input_data_mode, "dff0")) {
-        "Preserve uploaded ΔF/F₀ per cell, then calculate all metrics."
-      } else {
-        "Normalize raw fluorescence as ΔF/F₀ = (F − F₀)/F₀ per cell, then calculate all metrics."
-      }
-      p(class = "small-help", style = "margin-bottom: 10px;", text)
+    observe({
+      shinyjs::toggleState("load_btn", condition = NROW(uploaded_files()) > 0)
+    })
+    output$session_status <- renderText({
+      files <- uploaded_files()
+      status <- process_state()
+      if (length(rv$dts)) {
+        labels <- rv$files$name
+        state <- sprintf("Processed · %d cells", nrow(rv$metrics))
+        frames <- rv$baseline_frames
+      } else if (NROW(files)) {
+        labels <- files$name
+        state <- switch(status, stale = "Settings changed", error = "Processing failed", "Ready to process")
+        frames <- baseline_frames_state()
+      } else return("No recording loaded")
+      name <- if (length(labels) == 1L) labels else sprintf("%s +%d more", labels[1], length(labels) - 1L)
+      sprintf("%s · %s · Baseline frames %d–%d", state, name, frames[1], frames[2])
     })
 
     # Switching modes discards any pending selection so the feedback panel
@@ -489,6 +492,46 @@ mod_load_data_server <- function(id, rv) {
         )
       })
     }
+
+    output$needs_rate <- reactive({
+      files <- uploaded_files()
+      schemas <- upload_schemas()
+      if (!NROW(files)) return(FALSE)
+      mappings <- collect_column_mappings(files)
+      any(vapply(seq_along(mappings), function(i) {
+        mode <- mappings[[i]]$time_mode
+        source <- schemas[[column_mapping_key(files$upload_id[i])]]$time_info$source
+        mode %in% c("frame", "generated") || (mode == "auto" && length(source) && source != "time")
+      }, logical(1)))
+    })
+    outputOptions(output, "needs_rate", suspendWhenHidden = FALSE)
+
+    # Cache the first usable mapped trace independently of baseline edits.
+    preview <- reactive({
+      files <- uploaded_files()
+      mappings <- if (NROW(files)) collect_column_mappings(files)
+      for (i in seq_along(mappings)) {
+        dt <- tryCatch(apply_column_mapping(safe_read(files$datapath[i]), mappings[[i]],
+          input$pp_sampling_rate %||% 1), error = function(e) NULL)
+        if (NCOL(dt) >= 2L) {
+          y <- suppressWarnings(as.numeric(dt[[2L]]))
+          y[!is.finite(y)] <- NA_real_
+          if (any(!is.na(y))) return(list(y = y, label = paste(files$name[i], names(dt)[2L], sep = " · ")))
+        }
+      }
+      NULL
+    })
+    output$has_preview <- reactive(!is.null(preview()))
+    outputOptions(output, "has_preview", suspendWhenHidden = FALSE)
+    output$baseline_preview <- renderPlot({
+      x <- preview()
+      req(x)
+      frames <- baseline_frames_state()
+      par(mar = c(2.4, 3.4, 1.7, 0.8), mgp = c(1.3, .35, 0), tcl = -.2)
+      plot(seq_along(x$y), x$y, type = "n", xlab = "Frame", ylab = "", main = x$label, cex.main = .85)
+      rect(frames[1] - .5, par("usr")[3], frames[2] + .5, par("usr")[4], col = "#DCEAF1", border = NA)
+      lines(x$y, col = "#284B60")
+    }, alt = "Uploaded cell trace with the selected baseline frames shaded.")
 
     current_processing_settings <- function(files = uploaded_files()) {
       list(
@@ -813,39 +856,6 @@ mod_load_data_server <- function(id, rv) {
     })
     observeEvent(input$goto_results, {
       shinyjs::runjs("$('a[href=\"#shiny-tab-time\"]').click();")
-    })
-
-    # First-visit guidance; disappears once data is processed. Carries the
-    # format example itself so the empty state states the format exactly once
-    output$quick_start <- renderUI({
-      if (!is.null(rv$metrics) && nrow(rv$metrics) > 0) return(NULL)
-      theme_box(
-        title = "Quick Start",
-        icon = icon("rocket"),
-        width = 12,
-        div(
-          style = "display: flex; gap: 32px; flex-wrap: wrap; align-items: flex-start;",
-          div(
-            style = "flex: 1 1 300px; min-width: 260px;",
-            tags$ol(
-              style = "margin: 0 0 12px 18px; padding: 0; font-size: 13px; line-height: 2;",
-              tags$li(HTML("<b>Upload</b> a recording &mdash; or switch to <b>Multiple files</b> to load one recording per field or experimental group and compare them.")),
-              tags$li(HTML("<b>Choose the baseline frames.</b> Set exact Start/End frames by typing or use the slider; Advanced Options confirms Time and excluded columns.")),
-              tags$li(HTML("<b>Click Process Data</b>, then explore Time Course, Heatmap, Metrics, and Percent Responding."))
-            ),
-            p(
-              style = "margin: 0; font-size: 12px; color: var(--color-gray-600);",
-              icon("circle-question"), " Metric definitions and details are in the Help tab.",
-              tags$br(),
-              icon("lock"), " Your data never leaves this device: all processing runs in your browser."
-            )
-          ),
-          div(
-            style = "flex: 1 1 420px; min-width: 300px;",
-            format_example_block()
-          )
-        )
-      )
     })
 
     return(rv)

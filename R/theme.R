@@ -228,39 +228,15 @@ get_unified_theme_css <- function() {
       right: 10px;
     }}
 
-    /* Override shinydashboard box colors for consistency */
-    .box.box-solid.box-primary > .box-header {{
-      background: var(--color-primary-blue) !important;
-      color: var(--color-white) !important;
+    .box.box-solid > .box-header, .box > .box-header {{
+      background: var(--color-white) !important;
+      color: var(--color-gray-900) !important;
+      border-bottom: 1px solid var(--color-gray-100);
     }}
-
-    .box.box-primary > .box-header {{
-      background: var(--color-primary-blue) !important;
-      color: var(--color-white) !important;
+    .box .box-header .box-title, .box .box-header .btn-box-tool {{
+      color: var(--color-gray-900) !important;
+      font-weight: 700;
     }}
-
-    /* Ensure box titles are white text */
-    .box-header > .box-title {{
-      color: var(--color-white) !important;
-    }}
-
-    .box.box-solid.box-primary > .box-header > .box-title,
-    .box.box-primary > .box-header > .box-title {{
-      color: var(--color-white) !important;
-    }}
-
-    /* Info status boxes should also use our primary blue for consistency */
-    .box.box-solid.box-info > .box-header,
-    .box.box-info > .box-header {{
-      background: var(--color-primary-blue) !important;
-      color: var(--color-white) !important;
-    }}
-
-    .box.box-solid.box-info > .box-header > .box-title,
-    .box.box-info > .box-header > .box-title {{
-      color: var(--color-white) !important;
-    }}
-
     /* ==================== Buttons ==================== */
 
     .btn {{
@@ -432,16 +408,21 @@ get_unified_theme_css <- function() {
     }}
 
     /* ==================== Load & Process Steps ==================== */
-    /* Keep the workflow either three columns or one unambiguous vertical
-       sequence. Flex wrapping previously produced a misleading 1–2 / 3
-       two-row arrangement at intermediate viewport widths. */
-    .load-steps {{
+    .load-layout {{
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 28px;
+      grid-template-columns: minmax(0, 3fr) minmax(260px, 2fr);
+      gap: 16px;
       align-items: start;
     }}
-
+    .load-layout .col-sm-12 {{ float: none; padding: 0; }}
+    .load-guide, .plot-canvas {{ min-width: 0; }}
+    .load-steps {{ display: grid; gap: 12px; }}
+    .simpleca-baseline-controls {{
+      display: grid;
+      grid-template-columns: minmax(120px, 1fr) repeat(2, minmax(60px, 84px));
+      align-items: start;
+      gap: 12px;
+    }}
     .control-cols {{
       display: flex;
       gap: 28px;
@@ -459,27 +440,13 @@ get_unified_theme_css <- function() {
     }}
 
     .load-step + .load-step {{
-      border-left: 1px solid var(--color-gray-100);
-      padding-left: 28px;
+      border-top: 1px solid var(--color-gray-100);
+      padding-top: 10px;
     }}
 
     .control-col + .control-col {{
       border-left: 1px solid var(--color-gray-100);
       padding-left: 28px;
-    }}
-
-    @media (max-width: 1199px) {{
-      .load-steps {{
-        grid-template-columns: 1fr;
-        gap: 16px;
-      }}
-
-      .load-step + .load-step {{
-        border-left: none;
-        padding-left: 0;
-        border-top: 1px solid var(--color-gray-100);
-        padding-top: 16px;
-      }}
     }}
 
     @media (max-width: 991px) {{
@@ -514,8 +481,8 @@ get_unified_theme_css <- function() {
       width: 22px;
       height: 22px;
       border-radius: 50%;
-      background: var(--color-primary-blue);
-      color: var(--color-white);
+      background: var(--color-gray-100);
+      color: var(--color-gray-900);
       font-size: 12px;
       font-weight: {weight_semibold};
       flex-shrink: 0;
@@ -597,9 +564,9 @@ get_unified_theme_css <- function() {
 
     /* Style the file input button (Shiny wraps it in a span with btn-file class) */
     .btn-file {{
-      background-color: var(--color-primary-blue) !important;
-      border-color: var(--color-primary-blue) !important;
-      color: var(--color-white) !important;
+      background-color: var(--color-gray-100) !important;
+      border-color: var(--color-gray-100) !important;
+      color: var(--color-gray-900) !important;
       border-radius: var(--radius-sm) 0 0 var(--radius-sm);
       padding: 6px 16px !important;
       font-size: var(--type-body);
@@ -616,8 +583,8 @@ get_unified_theme_css <- function() {
     }}
 
     .btn-file:hover {{
-      background-color: var(--color-primary-dark) !important;
-      border-color: var(--color-primary-dark) !important;
+      background-color: var(--color-primary-light) !important;
+      border-color: var(--color-primary-light) !important;
     }}
 
     /* Override Shiny's default file input positioning that moves it off-screen */
@@ -1668,8 +1635,9 @@ get_unified_theme_css <- function() {
     }}
 
     .segmented-toggle .radio-inline:has(input:checked) {{
-      background: var(--color-primary-blue);
-      color: var(--color-white);
+      background: var(--color-primary-light);
+      color: var(--color-primary-dark);
+      font-weight: 700;
     }}
 
     /* ==================== Compact Controls ==================== */
@@ -1732,6 +1700,63 @@ get_unified_theme_css <- function() {
       line-height: 1.7;
       color: var(--color-gray-600);
       letter-spacing: 0.4px;
+    }}
+
+    .main-header {{ position: fixed; top: 0; left: 0; right: 0; }}
+    .main-sidebar {{ position: fixed; top: 0; bottom: 0; }}
+    .content-wrapper {{ padding-top: 50px; }}
+    .session-context {{
+      color: white;
+      line-height: 1.3;
+      padding: 0 14px;
+      height: 50px;
+      display: flex !important;
+      align-items: center;
+      font-size: 13px;
+    }}
+    .main-header .navbar-custom-menu {{ max-width: calc(100% - 55px); }}
+    .session-context span {{ display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }}
+    .session-context span {{ overflow-wrap: anywhere; }}
+    .workflow-empty {{
+      padding: 24px;
+      border: 1px solid var(--color-gray-100);
+      border-radius: var(--radius-md);
+      background: white;
+    }}
+    .workflow-empty h3 {{ margin: 0 0 8px; font-size: 18px; font-weight: 700; }}
+    .workflow-empty .btn, .help-start {{ margin: 6px 0 12px; }}
+    .plot-workspace {{
+      display: grid;
+      grid-template-columns: minmax(220px, 25%) minmax(0, 1fr);
+      align-items: start;
+      gap: 14px;
+    }}
+    .plot-settings {{ min-width: 0; }}
+    .plot-settings .accordion-body.expanded {{
+      max-height: clamp(320px, 66vh, 650px);
+      overflow: auto;
+    }}
+    .plot-settings .control-cols {{ display: grid; gap: 12px; }}
+    .plot-settings .control-col {{ min-width: 0; }}
+    .plot-settings .control-col + .control-col {{
+      padding: 10px 0 0;
+      border-left: 0;
+      border-top: 1px solid var(--color-gray-100);
+    }}
+    .plot-canvas .plot-viewport-compact {{ height: clamp(360px, 62vh, 620px); }}
+    .metric-toolbar {{ margin-bottom: 10px; }}
+    .metric-toolbar > div {{ max-width: 100%; }}
+    @media (min-width: 768px) and (max-width: 959px), (max-width: 680px) {{
+      .load-layout, .plot-workspace {{ grid-template-columns: minmax(0, 1fr); }}
+      .plot-canvas {{ grid-row: 1; }}
+    }}
+    @media (max-width: 767px) {{
+      .content-wrapper {{ padding-top: 100px; }}
+      .session-context {{ font-size: 12px; }}
+    }}
+    @media (max-width: 440px) {{
+      .simpleca-baseline-controls {{ grid-template-columns: 1fr 1fr; gap: 5px 10px; }}
+      .simpleca-baseline-controls > :first-child {{ grid-column: 1 / -1; }}
     }}
 
     /* Slim, brand-colored upload meter: the default strip reserves a full

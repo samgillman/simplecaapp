@@ -61,19 +61,23 @@ for (file in r_files) {
 ui <- dashboardPage(
   skin = "blue",
   header = dashboardHeader(
-    title = "SimpleCa\u00b2\u207a"
+    title = "SimpleCa\u00b2\u207a",
+    tags$li(class = "dropdown session-context", role = "status",
+            textOutput("load_data-session_status", inline = TRUE))
   ),
   sidebar = dashboardSidebar(
     width = 230,
     sidebarMenu(
       id = "sidebar_tabs",
+      tags$li(class = "header", "DATA"),
       menuItem("Load Data", tabName = "load", icon = icon("database")),
+      tags$li(class = "header", "ANALYZE"),
       menuItem("Time Course", tabName = "time", icon = icon("chart-line")),
       menuItem("Heatmap", tabName = "heatmap", icon = icon("th")),
       menuItem("Metrics", tabName = "metrics", icon = icon("chart-bar")),
-      menuItem("Data & Export", tabName = "data_export", icon = icon("download")),
-      tags$li(class = "header", "IN VITRO"),
       menuItem("Percent Responding", tabName = "in_vitro", icon = icon("microscope")),
+      tags$li(class = "header", "EXPORT"),
+      menuItem("Data & Export", tabName = "data_export", icon = icon("download")),
       tags$li(class = "header", "REFERENCE"),
       menuItem("Metric Explanations", tabName = "metrics_explained", icon = icon("lightbulb")),
       menuItem("Help", tabName = "help", icon = icon("circle-question")),
@@ -102,12 +106,6 @@ ui <- dashboardPage(
 
       # Keep existing custom CSS for specific overrides
       tags$style(HTML("
-        /* Hide all top-right Shiny interface elements */
-        .navbar-nav.navbar-right { display: none !important; }
-        .navbar-custom-menu { display: none !important; }
-        .navbar-right { display: none !important; }
-        .nav.navbar-nav.navbar-right { display: none !important; }
-
         /* Style the disconnect overlay instead of hiding it */
         #shiny-disconnected-overlay,
         .shiny-disconnected-overlay {
@@ -230,6 +228,9 @@ server <- function(input, output, session) {
     sampling_rate = NULL,
     processing_manifest = NULL
   )
+
+  output$has_recordings <- reactive(length(rv$dts) > 0)
+  outputOptions(output, "has_recordings", suspendWhenHidden = FALSE)
 
   # ================== Call All Modules (ONCE EACH) ===================
 

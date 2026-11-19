@@ -7,6 +7,9 @@ All notable changes to SimpleCa will be documented in this file.
 ### Added
 - In Vitro Analysis tab with per-field responder percentages, optional paired KCl control, individual cell review and reproducible CSV exports.
 
+### Changed
+- Rearranged Load Data, navigation and plot settings. A shaded preview shows the selected baseline frames on an uploaded trace. Analysis and export pages link to Load Data until a recording is processed.
+
 ### Fixed
 - Multi-file uploads preserve the selected F₀ window and flag short recordings before processing. Percent Responding exports now name the local fluorescence fraction explicitly (`Floor_local_fraction`), and are available directly in Data & Export. Cell review uses the full width and shades each local baseline.
 - Percent Responding measures fractional rise and noise relative to the local prestimulus fluorescence. Previous responder exports used the Load Data F₀ scale. Automatic gap limits follow each field’s median sampling interval.

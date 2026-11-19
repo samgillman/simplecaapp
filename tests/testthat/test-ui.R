@@ -35,20 +35,11 @@ test_that("collapsed sidebar does not reserve an empty mini-sidebar rail", {
   expect_false(grepl("margin-left: 50px !important;", css, fixed = TRUE))
 })
 
-test_that("load steps use three columns or one vertical sequence", {
+test_that("loading and plot layouts adapt to narrow screens", {
   css <- gsub("\\s+", " ", as.character(get_unified_theme_css()))
-
-  expect_match(
-    css,
-    ".load-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));",
-    fixed = TRUE
-  )
-  expect_match(css, "@media (max-width: 1199px)", fixed = TRUE)
-  expect_match(
-    css,
-    ".load-steps { grid-template-columns: 1fr; gap: 16px; }",
-    fixed = TRUE
-  )
+  expect_match(css, ".load-layout { display: grid;", fixed = TRUE)
+  expect_match(css, ".plot-workspace { display: grid;", fixed = TRUE)
+  expect_match(css, ".load-layout, .plot-workspace { grid-template-columns: minmax(0, 1fr); }", fixed = TRUE)
 })
 
 test_that("advanced processing settings precede the Process Data action", {

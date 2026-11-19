@@ -212,3 +212,26 @@ primary_button <- function(inputId, label, icon = NULL, width = NULL, ...) {
     ...
   )
 }
+
+open_load_button <- function(label = "Open Load Data") {
+  tags$button(type = "button", class = "btn btn-primary",
+    onclick = "document.querySelector('.sidebar-menu a[href=\"#shiny-tab-load\"]').click()",
+    label)
+}
+
+analysis_tab <- function(tabName, ..., description, empty_detail = NULL) {
+  tabItem(tabName = tabName,
+    conditionalPanel("!output.has_recordings",
+      div(class = "workflow-empty", h3("No processed recordings"), p(description),
+          open_load_button(), empty_detail)),
+    conditionalPanel("output.has_recordings === true", ...)
+  )
+}
+
+plot_workspace <- function(ns, controls, ...) {
+  div(class = "plot-workspace",
+    div(class = "plot-settings",
+      accordion(ns("plot_controls_acc"), "Plot Controls", controls, expanded = TRUE, icon = "sliders-h")),
+    div(class = "plot-canvas", ...)
+  )
+}

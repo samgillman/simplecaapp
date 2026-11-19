@@ -13,26 +13,7 @@ mod_help_ui <- function(id) {
                   p("A modern workflow for calcium imaging data analysis", style = "font-size: 18px; color: var(--color-gray-600);")
               ),
               
-              theme_box(
-                title = "Quick Start Guide",
-                icon = icon("rocket"),
-                status = "primary",
-                width = 12,
-                collapsible = FALSE,
-                
-                div(class = "help-section",
-                    tags$ol(style = "padding-left: 20px; font-size: 16px; line-height: 1.6;",
-                            tags$li(tags$b("Load Data:"), " Upload wide-format CSV/Excel files. Time may appear anywhere; use Advanced Options to confirm its source or exclude columns."),
-                            tags$li(tags$b("Process:"), " Choose Raw fluorescence or Already ΔF/F₀, select a stable baseline frame window, and click 'Process Data'."),
-                            tags$li(tags$b("Visualize:"), " Check the Time Course and Heatmap tabs to inspect signal quality."),
-                            tags$li(tags$b("Analyze:"), " Use the Metrics tab to quantify peaks, AUC, rise times, etc."),
-                            tags$li(tags$b("Percent Responding"), " Use one file per field. Enter stimulus times and review responder counts, exclusions and optional KCl controls."),
-                            tags$li(tags$b("Explain:"), " Use Metric Explanations (under Reference) to visualize how metrics are calculated on your data."),
-                            tags$li(tags$b("Export:"), " Download high-res figures and data tables from the Data & Export tab.")
-                    )
-                )
-            ),
-              
+              div(class = "help-start", open_load_button("Open Quick Start in Load Data")),
               theme_box(
                 title = "Input Data Format",
                 icon = icon("file-csv"),

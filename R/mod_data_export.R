@@ -3,7 +3,7 @@
 
 mod_data_export_ui <- function(id) {
   ns <- NS(id)
-  tabItem(
+  analysis_tab(description = "Process a recording to download tables, figures and processing settings.",
     tabName = "data_export",
     fluidRow(
       # No column() wrapper: the box already renders as col-sm-12; nesting it
@@ -282,7 +282,7 @@ mod_data_export_server <- function(id, rv, metrics_plot_reactive, heatmap_plot_r
           if (ready) tag else htmltools::tagAppendAttributes(tag, disabled = "disabled")
         }
         tagList(
-          if (!ready) p(if (length(rv$dts)) "Enter valid scoring windows under In Vitro → Percent Responding."
+          if (!ready) p(if (length(rv$dts)) "Enter valid scoring windows under Analyze → Percent Responding."
                         else "Process a recording in Load Data, then enter scoring windows in Percent Responding."),
           button("download_counts", "Download field counts"),
           button("download_calls", "Download cell calls")

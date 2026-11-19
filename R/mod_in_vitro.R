@@ -1,6 +1,6 @@
 mod_in_vitro_ui <- function(id) {
   ns <- NS(id)
-  tabItem(tabName = "in_vitro",
+  analysis_tab(description = "Process one recording per field to score cells and compare responder percentages.", empty_detail = uiOutput(ns("failed_imports")), tabName = "in_vitro",
     fluidRow(theme_box("Recording and windows", icon = icon("microscope"),
       uiOutput(ns("data_info")),
       conditionalPanel("output.ready === true", ns = ns,
@@ -61,18 +61,15 @@ mod_in_vitro_server <- function(id, rv) {
     output$ready <- reactive(length(fields()) > 0)
     outputOptions(output, "ready", suspendWhenHidden = FALSE)
     output$data_info <- renderUI({
-      if (!length(fields()) && !length(rv$import_audit)) return(tagList(
-        p("Start with one CSV or Excel file per field and one fluorescence trace per cell."),
-        actionButton(session$ns("go_load"), "Open Load Data", icon = icon("database"), class = "btn-primary")
-      ))
       audit <- rv$import_audit
       tagList(p(sprintf("%d of %d files processed. Each processed file represents one field of view.",
                         length(fields()), length(audit))),
               tags$ul(lapply(audit, function(item) tags$li(tags$strong(item$file), " — ", item$note))))
 
     })
-    observeEvent(input$go_load, {
-      shinydashboard::updateTabItems(session$rootScope(), "sidebar_tabs", "load")
+    output$failed_imports <- renderUI({
+      req(!length(fields()), length(rv$import_audit))
+      tags$ul(lapply(rv$import_audit, function(item) tags$li(tags$strong(item$file), " — ", item$note)))
     })
     selected_field <- reactiveVal(NULL)
     observeEvent(input$field, {

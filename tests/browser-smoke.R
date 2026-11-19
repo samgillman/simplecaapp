@@ -98,6 +98,28 @@ startup_timeout <- if (identical(browser_mode, "shinylive")) 300 else 45
 wait_until(in_app("return d.readyState === 'complete' && !!w.Shiny;"), "application load", startup_timeout)
 wait_until(in_app("return !!d.getElementById('load_data-data_files');"), "file input")
 
+set_viewport <- function(width, height) {
+  invisible(await_cdp(browser$Emulation$setDeviceMetricsOverride(
+    width = as.integer(width), height = as.integer(height), deviceScaleFactor = 1,
+    mobile = FALSE, wait_ = FALSE)))
+  wait_until(in_app(sprintf("return Math.abs(w.innerWidth-%d)<30;", width)), "viewport resize")
+}
+set_viewport(1440, 900)
+wait_until(in_app(paste(
+  "var btn=d.getElementById('load_data-load_btn'), guide=d.querySelector('.load-guide .box');",
+  "return btn.disabled && guide && guide.getBoundingClientRect().left > btn.getBoundingClientRect().right",
+  "&& btn.getBoundingClientRect().bottom <= w.innerHeight;"
+)), "first-screen desktop loader and Quick Start")
+for (tab in c("time", "heatmap", "metrics", "in_vitro", "data_export", "metrics_explained")) {
+  invisible(evaluate(in_app(sprintf("d.querySelector('a[href=\"#shiny-tab-%s\"]').click();return true;", tab))))
+  wait_until(in_app(sprintf(paste(
+    "var pane=d.getElementById('shiny-tab-%s'); var empty=pane.querySelector('.workflow-empty');",
+    "return empty.offsetHeight>0 && !Array.from(pane.querySelectorAll('.box')).some(x=>x.offsetHeight>0);"
+  ), tab)), paste(tab, "empty state"))
+  invisible(evaluate(in_app(sprintf("d.querySelector('#shiny-tab-%s .workflow-empty button').click();return true;", tab))))
+  wait_until(in_app("return d.getElementById('shiny-tab-load').classList.contains('active');"), "return to Load Data")
+}
+
 # Record custom-message downloads without writing to the CI runner's Downloads
 # folder. The Blob still has to be created successfully before click() occurs.
 invisible(evaluate(in_app(
@@ -113,6 +135,10 @@ invisible(await_cdp(browser$DOM$setFileInputFiles(
   files = list(normalizePath(fixture)), nodeId = node$nodeId, wait_ = FALSE
 )))
 wait_until(in_app("return d.getElementById('load_data-upload_feedback').innerText.indexOf('1 file ready') >= 0;"), "upload staging")
+wait_until(in_app(paste(
+  "return !!d.querySelector('#load_data-baseline_preview img') &&",
+  "!d.getElementById('load_data-load_btn').disabled && !d.getElementById('load_data-pp_sampling_rate').offsetWidth;"
+)), "baseline preview for a recording with elapsed time")
 invisible(evaluate(in_app("d.getElementById('load_data-load_btn').click(); return true;")))
 wait_until(
   in_app("return d.getElementById('load_data-results_bar').innerText.indexOf('processing complete') >= 0 && d.getElementById('load_data-results_bar').innerText.indexOf('60 timepoints') >= 0;"),
@@ -148,6 +174,21 @@ for (target in names(plot_targets)) {
     paste(target, "plot")
   )
 }
+
+wait_until(in_app(paste(
+  "var pane=d.getElementById('shiny-tab-metrics'), rail=pane.querySelector('.plot-settings'),",
+  "canvas=pane.querySelector('.plot-canvas'), header=d.querySelector('.main-header'), sidebar=d.querySelector('.main-sidebar');",
+  "return rail.getBoundingClientRect().right<=canvas.getBoundingClientRect().left &&",
+  "w.getComputedStyle(header).position==='fixed' && w.getComputedStyle(sidebar).position==='fixed' &&",
+  "d.getElementById('load_data-session_status').innerText.includes('Baseline frames 1–12');"
+)), "desktop plot controls and persistent processed status")
+set_viewport(390, 844)
+wait_until(in_app(paste(
+  "var pane=d.getElementById('shiny-tab-metrics'), rail=pane.querySelector('.plot-settings'), canvas=pane.querySelector('.plot-canvas');",
+  "return canvas.getBoundingClientRect().bottom <= rail.getBoundingClientRect().top + 1 &&",
+  "canvas.getBoundingClientRect().right<=w.innerWidth+1;"
+)), "mobile plot fits with controls stacked below")
+set_viewport(1440, 900)
 
 invisible(evaluate(in_app("w.$('a[href=\"#shiny-tab-data_export\"]').click(); return true;")))
 wait_until(in_app("return !!d.getElementById('data_export-download_cell_metrics');"), "data export tab")

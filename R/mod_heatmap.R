@@ -2,31 +2,21 @@
 
 mod_heatmap_ui <- function(id) {
   ns <- NS(id)
-  tabItem(tabName = "heatmap",
+  analysis_tab(description = "Process a recording to compare fluorescence across cells and time.", tabName = "heatmap",
 
-          # Full-width plot with the styling controls in a column-grouped
-          # sheet below — same structure as every other plot tab
           fluidRow(
             theme_box(title = "Heatmap", status = "primary", solidHeader = TRUE, width = 12, collapsible = FALSE,
-                # Collapsed by default; expanding puts the controls directly
-                # above the heatmap so changes are visible while adjusting
-                accordion(
-                  id = ns("plot_controls_acc"),
-                  title = "Plot Controls",
-                  icon = "sliders-h",
-                  expanded = FALSE,
-                  content = hm_plot_controls(ns)
-                ),
+                plot_workspace(ns, hm_plot_controls(ns),
                 div(class = "plot-viewport",
                     withSpinner(plotOutput(ns("heatmap_plot"), height = "100%"), type = 4)
+                )
                 )
             )
           )
   )
 }
 
-# Plot Controls sheet: rendered inside the collapsed accordion at the top of
-# the plot box, so adjustments happen with the heatmap in view
+# Plot settings shared by the desktop rail and narrow-screen layout.
 hm_plot_controls <- function(ns) {
   div(
                 class = "control-cols",

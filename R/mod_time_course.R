@@ -2,23 +2,12 @@
 
 mod_time_course_ui <- function(id) {
   ns <- NS(id)
-  tabItem(tabName = "time",
+  analysis_tab(description = "Process a recording to view its time course and summary statistics.", tabName = "time",
 
-          # Full-width stacked sections: plot first, summary second, styling
-          # controls last. No side column, so no ragged bottoms and the plot
-          # gets the whole content width.
           fluidRow(
             theme_box(title = "Time Course", status = "primary", solidHeader = TRUE, width = 12, collapsible = FALSE,
                 plot_type_toggle(ns),
-                # Collapsed by default; expanding puts the controls directly
-                # above the plot so changes are visible while adjusting
-                accordion(
-                  id = ns("plot_controls_acc"),
-                  title = "Plot Controls",
-                  icon = "sliders-h",
-                  expanded = FALSE,
-                  content = tc_plot_controls(ns)
-                ),
+                plot_workspace(ns, tc_plot_controls(ns),
                 div(id = ns("static_panel"), class = "plot-viewport-tc",
                     withSpinner(plotOutput(ns("timecourse_plot"), height = "100%"), type = 4)
                 ),
@@ -26,6 +15,7 @@ mod_time_course_ui <- function(id) {
                   div(id = ns("interactive_panel"), class = "plot-viewport-tc",
                       withSpinner(plotlyOutput(ns("timecourse_plotly"), height = "100%"), type = 4)
                   )
+                )
                 )
             )
           ),
@@ -38,8 +28,7 @@ mod_time_course_ui <- function(id) {
   )
 }
 
-# Plot Controls sheet: rendered inside the collapsed accordion at the top of
-# the plot box, so adjustments happen with the plot in view
+# Plot settings shared by the desktop rail and narrow-screen layout.
 tc_plot_controls <- function(ns) {
   div(
                 class = "control-cols",

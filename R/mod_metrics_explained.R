@@ -63,7 +63,7 @@ metric_explanation_auc_details <- function(trace) {
 
 mod_metrics_explained_ui <- function(id) {
   ns <- NS(id)
-  tabItem(tabName = "metrics_explained",
+  analysis_tab(description = "Process a recording to see how each metric is calculated on an individual trace.", tabName = "metrics_explained",
           fluidRow(
             # No column() wrapper: the box already renders as col-sm-12, and
             # nesting it double-applies the gutter, insetting this row 8px

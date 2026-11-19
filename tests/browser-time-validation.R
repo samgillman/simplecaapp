@@ -15,7 +15,8 @@ wait_until(in_app(sprintf(
 # Uploading another file retains the current valid window; choose 1-10 explicitly.
 Sys.sleep(1)
 edit_bound("start", 1, process = FALSE)
-stopifnot(evaluate(in_app("return +d.getElementById('load_data-pp_sampling_rate').value;")) == 1)
+wait_until(in_app("var rate=d.getElementById('load_data-pp_sampling_rate');return rate.offsetWidth>0 && +rate.value===1;"),
+           "sampling rate visible for invalid or missing elapsed time")
 edit_bound("end", 10)
 wait_until(in_app(paste(
   "var status=d.getElementById('load_data-process_status').innerText;",
