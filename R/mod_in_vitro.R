@@ -330,6 +330,8 @@ mod_in_vitro_server <- function(id, rv) {
       sprintf("%d of %d evaluable cells within ±20%% of threshold · %d floor-limited · %d noise-limited",
         sum(near_cutoff(x)), nrow(x), sum(x$Threshold_source == "Floor"), sum(x$Threshold_source == "Baseline noise"))
     })
+    distribution_source <- session$ns("distribution")
+    distribution_drawn <- reactiveVal(FALSE)
     output$distribution <- plotly::renderPlotly({
       x <- evaluable()
       validate(need(nrow(x), "No evaluable cells in this population."))
@@ -345,22 +347,29 @@ mod_in_vitro_server <- function(id, rv) {
         line = list(color = "#354864", dash = "dash")))
       if (margin) shapes <- c(list(list(type = "rect", x0 = .8, x1 = 1.2, y0 = 0, y1 = 1,
         yref = "paper", fillcolor = "#e4edf4", line = list(width = 0), layer = "below")), shapes)
-      p <- plotly::plot_ly(data = x, x = ~value, y = ~y, key = ~Key, customdata = ~Key,
+      p <- plotly::plot_ly(data = x, x = ~value, y = ~y, key = ~Key, source = distribution_source,
         type = "scatter", mode = "markers", text = ~tooltip, hoverinfo = "text",
         marker = list(color = unname(responder_colors[x$Status]), size = 9,
           symbol = ifelse(x$Threshold_source == "Floor", "circle", "diamond-open")))
       xr <- range(c(x$value, cutoff, if (margin) c(.8, 1.2)))
       pad <- max(diff(xr) * .04, abs(cutoff) * .05)
-      p <- plotly::layout(p, shapes = shapes, showlegend = FALSE,
+      p <- plotly::layout(p, shapes = shapes, hovermode = "closest", showlegend = FALSE,
         xaxis = list(title = if (margin) "Peak rise / cell threshold (×)" else "Peak local fractional rise · diamonds indicate noise-limited cells",
           range = xr + c(-pad, pad)),
         yaxis = list(title = "", tickvals = c(0, 1), ticktext = c("Did not respond", "Responded"), range = c(-.45, 1.45)),
         margin = list(l = 105, r = 15, t = 15, b = 55))
-      htmlwidgets::onRender(p, "function(el,x,id){el.on('plotly_click',function(e){var pt=e.points[0];if(pt)Shiny.setInputValue(id,pt.customdata,{priority:'event'});});}", data = session$ns("point"))
+      distribution_drawn(TRUE)
+      plotly::event_register(p, "plotly_click")
     })
-    observeEvent(input$point, {
+    point_event <- reactive({
+      req(distribution_drawn())
+      plotly::event_data("plotly_click", source = distribution_source, priority = "event")
+    })
+    observeEvent(point_event(), {
+      key <- point_event()$key
+      req(length(key) == 1L)
       x <- evaluable()
-      row <- x[x$Key == input$point, , drop = FALSE]
+      row <- x[x$Key == key, , drop = FALSE]
       if (nrow(row) == 1L) {
         if (!matches_filter(row)) updateSelectInput(session, "status", selected = "All")
         selected_field(row$Field)

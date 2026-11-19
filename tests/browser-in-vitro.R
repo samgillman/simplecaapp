@@ -22,10 +22,16 @@ wait_until(in_app(paste(
 )), "distribution, group traces and first reviewed cell")
 invisible(evaluate(in_app("d.getElementById('in_vitro-next_cell').click();return true;")))
 wait_until(in_app("return d.getElementById('in_vitro-review_label').innerText.includes('CellB');"), "next cell")
-invisible(evaluate(in_app(paste(
-  "var p=d.getElementById('in_vitro-distribution');var tr=p.data.find(t=>t.customdata && t.customdata.length===2);",
-  "p.emit('plotly_click',{points:[{customdata:tr.customdata[0]}]});return true;"
-))))
+# Use Chrome pointer input on the SVG marker, including the hover step that
+# Plotly uses to identify the nearest data point.
+click_distribution_point <- function() {
+  xy <- pointer_position("#in_vitro-distribution .scatterlayer .point")
+  invisible(await_cdp(browser$Input$dispatchMouseEvent(type = "mouseMoved",
+    x = xy$x, y = xy$y, wait_ = FALSE)))
+  mouse("mousePressed", xy)
+  mouse("mouseReleased", xy)
+}
+click_distribution_point()
 wait_until(in_app("return d.getElementById('in_vitro-review_label').innerText.includes('CellA');"), "distribution point selects cell")
 invisible(evaluate(in_app(paste(
   "d.getElementById('in_vitro-control').click();",

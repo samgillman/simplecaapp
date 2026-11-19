@@ -77,7 +77,7 @@ wait_until <- function(js, label, timeout = 45) {
       output <- tryCatch(server$read_output_lines(), error = function(e) character())
       errors <- tryCatch(server$read_error_lines(), error = function(e) character())
       dom_state <- tryCatch(evaluate(in_app(
-        "return JSON.stringify(['load_data-upload_feedback','load_data-process_feedback','load_data-results_bar'].reduce(function(x,id){var e=d.getElementById(id);x[id]=e?e.innerText:'<missing>';return x;},{}));"
+        "return JSON.stringify(['load_data-upload_feedback','load_data-process_feedback','load_data-results_bar','in_vitro-headline','in_vitro-review_label','in_vitro-distribution_note'].reduce(function(x,id){var e=d.getElementById(id);x[id]=e?e.innerText:'<missing>';return x;},{}));"
       )), error = function(e) "<browser unavailable>")
       server_lines <- tail(c(output, errors), 80)
       stop(

@@ -2,6 +2,7 @@
 switch_tab("load")
 path <- tempfile(fileext = ".csv")
 rises <- c(rep(.15, 185), rep(.11, 6), rep(.09, 19))
+rises[1] <- .40  # An isolated marker for the pointer test.
 signals <- 100 * (1 + outer(0:39 %in% 23:28, rises))
 colnames(signals) <- sprintf("Cell%03d", seq_along(rises))
 data.table::fwrite(data.frame(Time = 0:39, signals, BG = 0), path)
@@ -35,10 +36,7 @@ set_viewport(420, 840)
 wait_until(in_app("var p=d.getElementById('in_vitro-population_plot');return p.offsetWidth>0 && p.offsetWidth<=w.innerWidth;"),
   "population traces fit compact viewport")
 start <- Sys.time()
-invisible(evaluate(in_app(paste(
-  "var p=d.getElementById('in_vitro-distribution');var tr=p.data.find(t=>t.customdata && t.customdata.length===210);",
-  "p.emit('plotly_click',{points:[{customdata:tr.customdata.find(k=>k.includes(':Cell001:'))}]});return true;"
-))))
+click_distribution_point()
 wait_until(in_app(paste(
   "return d.getElementById('in_vitro-status').value==='All' &&",
   "d.getElementById('in_vitro-review_label').innerText.includes('Cell001');"
