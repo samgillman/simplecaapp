@@ -32,6 +32,14 @@ responder_window_calls <- function(dt, cells, field, window) {
   left <- start - window$Baseline_s
   # Include timestamps that differ from a boundary only by machine rounding.
   tol <- 8 * .Machine$double.eps * max(1, abs(c(left, start, end)))
+  recording_end <- tail(time, 1L)
+  overrun <- end - recording_end
+  clipped <- overrun > tol && overrun <= window$Max_gap_s + tol
+  window$Window_clipped <- clipped
+  window$Window_warning <- if (clipped) {
+    sprintf("Window end clipped from %g to %g s", end, recording_end)
+  } else ""
+  if (clipped) end <- recording_end
   pre <- which(time >= left - tol & time < start - tol)
   during <- which(time >= start - tol & time <= end + tol)
   idx <- c(pre, during)
@@ -46,9 +54,14 @@ responder_window_calls <- function(dt, cells, field, window) {
   } else {
     ""
   }
+  window$Effective_end_s <- if (overrun > window$Max_gap_s + tol) NA_real_ else min(end, recording_end)
+  window$Field_reason <- reason
   out <- data.frame(Field = field, Cell = cells, window, Status = "Unscorable",
                     Reason = reason, Baseline_mean = NA_real_,
                     Baseline_SD = NA_real_, Threshold_increase = NA_real_, Peak_increase = NA_real_,
+                    Floor_threshold = window$Floor_local_fraction, Noise_threshold = NA_real_,
+                    Threshold_source = NA_character_, Margin = NA_real_, Onset_s = NA_real_,
+                    Peak_s = NA_real_, Run_start_s = NA_real_, Run_end_s = NA_real_,
                     row.names = NULL, check.names = FALSE)
   for (i in seq_along(cells)) {
     y <- dt[[cells[i]]]
@@ -69,16 +82,29 @@ responder_window_calls <- function(dt, cells, field, window) {
       next
     }
     noise <- stats::sd(y[pre]) / local_f0
-    threshold <- max(window$Floor_local_fraction, window$SD_multiplier * noise)
+    noise_threshold <- window$SD_multiplier * noise
+    threshold <- max(window$Floor_local_fraction, noise_threshold)
     rise <- (y[during] - base) / local_f0
     runs <- rle(rise >= threshold)
-    positive <- any(runs$values & runs$lengths >= window$Consecutive_samples)
+    first <- which(runs$values & runs$lengths >= window$Consecutive_samples)[1]
+    positive <- !is.na(first)
+    if (positive) {
+      last <- sum(runs$lengths[seq_len(first)])
+      out$Run_start_s[i] <- time[during[last - runs$lengths[first] + 1L]]
+      out$Run_end_s[i] <- time[during[last]]
+      out$Onset_s[i] <- out$Run_start_s[i]
+    }
+    peak <- which.max(rise)
+    out$Peak_s[i] <- time[during[peak]]
+    out$Margin[i] <- rise[peak] / threshold
+    out$Noise_threshold[i] <- noise_threshold
+    out$Threshold_source[i] <- if (noise_threshold > window$Floor_local_fraction) "Baseline noise" else "Floor"
     out$Status[i] <- if (positive) "Responded" else "Did not respond"
     out$Reason[i] <- if (positive) "Sustained threshold crossing" else "No sustained threshold crossing"
     out$Baseline_mean[i] <- base
     out$Baseline_SD[i] <- noise
     out$Threshold_increase[i] <- threshold
-    out$Peak_increase[i] <- max(rise)
+    out$Peak_increase[i] <- rise[peak]
   }
   out
 }
@@ -108,6 +134,55 @@ responder_field_results <- function(dt, cells, field, protocol) {
                           "KCl-positive cells", protocol$Stimulus[1])
   }
   counts <- do.call(rbind, counts)
-  settings <- protocol[match(counts$Stimulus, protocol$Stimulus), setdiff(names(protocol), c("Role", "Stimulus")), drop = FALSE]
+  # The KCl-positive denominator uses primary calls but also depends on control coverage.
+  source_row <- c(seq_along(calls), if (length(calls) == 2L) 1L)
+  diagnostics <- c("Effective_end_s", "Window_clipped", "Window_warning", "Field_reason")
+  windows <- do.call(rbind, lapply(calls, function(x) x[1L, diagnostics, drop = FALSE]))
+  counts <- cbind(counts, windows[source_row, , drop = FALSE])
+  if (length(calls) == 2L && !counts$Registered[3]) {
+    counts$Field_reason[3] <- if (counts$Evaluable[2] > 0L) "No KCl responders" else {
+      reason <- counts$Field_reason[2]
+      paste("KCl control:", if (nzchar(reason)) reason else "No evaluable cells")
+    }
+  }
+  control <- if (length(calls) == 2L) windows[2, , drop = FALSE] else NULL
+  for (column in c("Effective_end_s", "Window_warning", "Field_reason")) {
+    name <- paste0("KCl_", tolower(column))
+    counts[[name]] <- if (!is.null(control)) control[[column]] else if (column == "Effective_end_s") NA_real_ else ""
+  }
+  settings <- protocol[source_row, setdiff(names(protocol), "Stimulus"), drop = FALSE]
   list(calls = do.call(rbind, calls), counts = cbind(counts, settings))
+}
+
+responder_defaults <- function(dts, frames) {
+  if (!length(dts) || length(frames) != 2L) return(NULL)
+  spans <- vapply(dts, function(dt) {
+    time <- dt[["Time"]]
+    c(start = time[frames[2]], baseline = diff(time[frames]), end = tail(time, 1L))
+  }, numeric(3))
+  values <- c(start = max(spans["start", ]), end = min(spans["end", ]),
+              baseline = min(spans["baseline", ]))
+  values[!is.finite(values)] <- NA_real_
+  values
+}
+
+responder_summary <- function(counts) {
+  valid <- counts$Percent_responding[is.finite(counts$Percent_responding)]
+  totals <- colSums(counts[, c("Responded", "Nonresponders", "Excluded", "Unscorable", "Evaluable"), drop = FALSE])
+  list(totals = totals, pooled = if (totals["Evaluable"]) 100 * totals["Responded"] / totals["Evaluable"] else NA_real_,
+       mean = if (length(valid)) mean(valid) else NA_real_, sd = stats::sd(valid), n = length(valid))
+}
+
+responder_trace_summary <- function(time, local, status) {
+  groups <- split(seq_along(status), status)
+  do.call(rbind, lapply(names(groups), function(s) {
+    values <- local[, groups[[s]], drop = FALSE]
+    values[!is.finite(values)] <- NA_real_
+    n <- rowSums(!is.na(values))
+    means <- rowMeans(values, na.rm = TRUE)
+    means[n == 0] <- NA_real_
+    sem <- sqrt(rowSums((values - means)^2, na.rm = TRUE) / (n * (n - 1)))
+    sem[n < 2] <- NA_real_
+    data.frame(Time = time, Status = s, N = n, Mean = means, SEM = sem)
+  }))
 }

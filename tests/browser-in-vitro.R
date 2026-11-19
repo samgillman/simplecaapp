@@ -3,22 +3,40 @@ invisible(evaluate(in_app(paste(
   "w.$('a[href=\"#shiny-tab-in_vitro\"]').click();",
   "return true;"
 ))))
-wait_until(in_app("return !!d.querySelector('#in_vitro-overview img') && d.getElementById('in_vitro-cards').innerText.includes('Enter scoring windows');"),
-           "recording visible before a protocol is entered")
+wait_until(in_app(paste(
+  "return !!d.querySelector('#in_vitro-overview img') && d.getElementById('in_vitro-settings').open &&",
+  "d.getElementById('in_vitro-protocol_feedback').innerText.includes('Enter a stimulus name') &&",
+  "d.getElementById('in_vitro-start').value==='4.5' && d.getElementById('in_vitro-end').value==='19.5';"
+)), "unscored recording with suggested 2 Hz window and blank stimulus")
 invisible(evaluate(in_app(paste(
-  "w.$('#in_vitro-start').val(10).trigger('change');",
-  "w.$('#in_vitro-end').val(13).trigger('change');",
-  "w.$('#in_vitro-baseline').val(3).trigger('change');return true;"
+  "w.$('#in_vitro-stimulus').val('Capsaicin').trigger('change');",
+  "Object.entries({start:10,end:13,baseline:3}).forEach(function(entry){",
+  "var e=d.getElementById('in_vitro-'+entry[0]);e.value=entry[1];",
+  "e.dispatchEvent(new w.Event('input',{bubbles:true}));w.$(e).trigger('change');});return true;"
 ))))
-wait_until(in_app("return d.getElementById('in_vitro-cards').innerText.includes('2/2 (100.0%)');"),
+wait_until(in_app("return d.getElementById('in_vitro-headline').innerText.includes('2 of 2 evaluable cells');"),
            "in vitro responder counts")
+wait_until(in_app(paste(
+  "return !!d.querySelector('#in_vitro-population_plot img') &&",
+  "!!d.querySelector('#in_vitro-distribution .point') && d.getElementById('in_vitro-review_label').innerText.includes('CellA');"
+)), "distribution, group traces and first reviewed cell")
+invisible(evaluate(in_app("d.getElementById('in_vitro-next_cell').click();return true;")))
+wait_until(in_app("return d.getElementById('in_vitro-review_label').innerText.includes('CellB');"), "next cell")
+invisible(evaluate(in_app(paste(
+  "var p=d.getElementById('in_vitro-distribution');var tr=p.data.find(t=>t.customdata && t.customdata.length===2);",
+  "p.emit('plotly_click',{points:[{customdata:tr.customdata[0]}]});return true;"
+))))
+wait_until(in_app("return d.getElementById('in_vitro-review_label').innerText.includes('CellA');"), "distribution point selects cell")
 invisible(evaluate(in_app(paste(
   "d.getElementById('in_vitro-control').click();",
   "w.$('#in_vitro-control_start').val(16.5).trigger('change');",
-  "w.$('#in_vitro-control_end').val(19.5).trigger('change');return true;"
+  "w.$('#in_vitro-control_end').val(20).trigger('change');return true;"
 ))))
-wait_until(in_app("return d.getElementById('in_vitro-cards').innerText.includes('Unavailable');"),
-           "empty KCl-positive denominator")
+wait_until(in_app("return d.getElementById('in_vitro-headline').innerText.includes('2 of 2');"), "KCl protocol ready")
+invisible(evaluate(in_app("d.querySelector('input[name=\"in_vitro-population\"][value=restricted]').click();return true;")))
+wait_until(in_app("return d.getElementById('in_vitro-cards').innerText.includes('No KCl responders') && d.getElementById('in_vitro-headline').innerText.includes('clipped');"),
+           "empty KCl-positive denominator and clipped control warning")
+invisible(evaluate(in_app("d.querySelector('input[name=\"in_vitro-population\"][value=primary]').click();return true;")))
 wait_until(in_app(paste(
   "var table=d.getElementById('in_vitro-calls'), trace=d.getElementById('in_vitro-trace');",
   "return table && trace && trace.querySelector('img') &&",
@@ -27,7 +45,10 @@ wait_until(in_app(paste(
 counts <- read_export("in_vitro-download_counts", "in_vitro_counts")
 calls <- read_export("in_vitro-download_calls", "in_vitro_cell_calls")
 stopifnot(identical(as.numeric(counts$Percent_responding), c(100, 0, NA_real_)),
-          nrow(calls) == 4L, sum(calls$Status == "Responded") == 2L)
+          nrow(calls) == 4L, sum(calls$Status == "Responded") == 2L,
+          all(calls$Threshold_source == "Floor"), all(counts$KCl_effective_end_s == 19.5),
+          all(calls$Peak_s[calls$Role == "Stimulus"] == 11.5),
+          all(is.na(calls$Onset_s[calls$Role == "Control"])))
 cat(browser_mode, "in vitro counts, KCl denominator and cell calls passed\n")
 
 # These controls are accessible directly on Data & Export, whatever pill is selected.

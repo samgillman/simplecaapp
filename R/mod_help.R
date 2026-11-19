@@ -51,6 +51,13 @@ mod_help_ui <- function(id) {
               ),
 
               theme_box(
+                title = "Percent Responding", icon = icon("percent"), width = 12,
+                collapsible = TRUE, collapsed = TRUE,
+                p("Enter the stimulus name and confirm the scoring times against your acquisition log. The suggested start is the last loading-baseline frame. The local baseline ends immediately before the first scoring sample."),
+                p("The larger of the floor and the SD-based threshold sets the required rise. Margin is peak rise divided by that threshold. A spike can have margin above one and still fail the consecutive-sample rule. Select a distribution point to review its cell."),
+                p("Pooled percent is responders divided by all evaluable cells. Field mean and SD give each evaluable field equal weight. Use the population selector to review KCl or the primary stimulus among KCl responders.")
+              ),
+              theme_box(
                 title = "Interpreting Sample Size",
                 icon = icon("users"),
                 status = "primary",

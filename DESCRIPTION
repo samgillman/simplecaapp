@@ -19,6 +19,7 @@ Imports:
     ggbeeswarm,
     ggplot2,
     htmltools,
+    htmlwidgets,
     jsonlite,
     kableExtra,
     knitr,

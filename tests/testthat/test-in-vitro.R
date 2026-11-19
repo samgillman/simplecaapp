@@ -39,7 +39,10 @@ test_that("local elevation, baseline variation and gaps affect only the relevant
   expect_true(is.na(rg$counts$Percent_responding[1]))
   short <- dt[time < 8, ]
   rs <- responder_field_results(short, "Drift", "A", vitro_test_protocol())
-  expect_equal(rs$counts$Unscorable, c(1, 1, 0))
+  expect_equal(rs$counts$Unscorable, c(0, 1, 0))
+  expect_equal(rs$counts$Effective_end_s[1], 7.5)
+  expect_match(rs$counts$Field_reason[3], "KCl control: Recording")
+  expect_match(r$counts$Field_reason[3], "No KCl responders")
   expect_error(responder_protocol("KCl", 1, 2, 3, .1, 3, 1, 1, TRUE, 10, 12), "KCl")
   expect_error(responder_protocol("A", 10, 12, 5, .1, 3, 1, 1, TRUE, 14, 17), "Separate")
   expect_error(responder_protocol("A", NA_real_, 12, 5, .1, 3, 2, 1), "start")
@@ -63,6 +66,10 @@ test_that("real processing retains invalid F0 names and the module refreshes wit
     expect_equal(export_rows("calls")$Source_file, rep("field.csv", 6))
     library(ggplot2)
     session$setInputs(control = TRUE, control_start = 12, control_end = 15)
+    # Each field has one cell in at least one response class (undefined SEM).
+    expect_type(output$population_plot$src, "character")
+    expect_type(output$trace$src, "character")
+    expect_match(output$headline$html, "3 of 4 evaluable cells")
     windows <- trace_plot(time, raw$Cell1, "Preview")$layers[[1]]$data
     expect_equal(windows$Start[windows$Role == "Local baseline"], c(3, 10))
     expect_equal(windows$End[windows$Role == "Local baseline"], c(5, 12))
@@ -122,4 +129,71 @@ test_that("a late 12 percent rise survives bleaching in both input modes", {
   }
   invalid <- responder_field_results(data.frame(Time = t, A = -1), "A", "Field", p)
   expect_true(all(invalid$calls$Status == "Unscorable"))
+})
+
+test_that("time evidence distinguishes sustained rises, tied peaks, noise and single spikes", {
+  t <- seq(0, 8, .5)
+  dt <- data.frame(Time = t, Run = 0, Spike = 0, Noisy = 0)
+  dt$Run[t >= 5] <- c(0, .12, .14, .13, 0, .25, .25)
+  dt$Spike[t == 7.5] <- .25
+  dt$Noisy[t >= 3 & t < 5] <- c(-.1, .1, -.1, .1)
+  p <- responder_protocol("A", 5, 8, 2, .1, 3, 2, NULL)
+  x <- responder_field_results(dt, names(dt)[-1], "A", p)$calls
+  expect_equal(x$Status, c("Responded", "Did not respond", "Did not respond"))
+  expect_equal(x$Threshold_source, c("Floor", "Floor", "Baseline noise"))
+  expect_equal(x$Floor_threshold, rep(.1, 3))
+  expect_equal(x$Noise_threshold, c(0, 0, 3 * sd(c(-.1,.1,-.1,.1))))
+  expect_equal(x$Margin[1:2], c(2.5, 2.5))
+  expect_equal(x$Onset_s, c(5.5, NA, NA))
+  expect_equal(x$Run_start_s, x$Onset_s)
+  expect_equal(x$Run_end_s, c(6.5, NA, NA))
+  expect_equal(x$Peak_s, c(7.5, 7.5, 5))
+  p$Floor_local_fraction <- x$Noise_threshold[3]
+  tie <- responder_field_results(dt, "Noisy", "A", p)$calls
+  expect_equal(tie$Threshold_source, "Floor")
+})
+
+test_that("only a right endpoint within the resolved gap can be clipped", {
+  assess <- function(end, step = 1, gap = NULL) {
+    t <- seq(0, 299, step)
+    p <- responder_protocol("Stimulus", 20, end, 10, .1, 3, 2, gap)
+    responder_field_results(data.frame(Time = t, A = .2 * (t >= 20)), c("A", "invalid"), "F", p)
+  }
+  expect_false(assess(299)$counts$Window_clipped)
+  for (end in c(300, 300.5)) {
+    r <- assess(end)
+    expect_equal(r$counts$Responded, 1)
+    expect_equal(r$counts$Effective_end_s, 299)
+    expect_equal(r$calls$End_s, rep(end, 2))
+    expect_match(r$counts$Window_warning, "clipped")
+    expect_equal(r$counts$Field_reason, "")
+  }
+  for (res in list(assess(302), assess(300, .5), assess(300, 1, .9))) {
+    expect_false(res$counts$Window_clipped)
+    expect_true(is.na(res$counts$Effective_end_s))
+    expect_equal(c(res$counts$Unscorable, res$counts$Excluded), c(1,1))
+    expect_match(res$counts$Field_reason, "span")
+  }
+  expect_true(assess(299.5, .5)$counts$Window_clipped)
+  expect_true(assess(300, 1, 1)$counts$Window_clipped)
+})
+
+test_that("suggestions use observed clocks and field summaries preserve denominators", {
+  first <- data.frame(Time = seq(0, 22, .5))
+  second <- data.frame(Time = 5:39)
+  expect_equal(responder_defaults(list(first), c(1,20)), c(start=9.5, end=22, baseline=9.5))
+  expect_equal(responder_defaults(list(first, second), c(1,20)), c(start=24, end=22, baseline=9.5))
+  expect_equal(responder_defaults(list(second), c(3,9)), c(start=13, end=39, baseline=6))
+  x <- data.frame(Responded=c(1,9,0), Nonresponders=c(1,1,0), Evaluable=c(2,10,0),
+    Excluded=0, Unscorable=c(0,0,1), Percent_responding=c(50,90,NA))
+  s <- responder_summary(x)
+  expect_equal(unname(s$pooled), 100 * 10/12)
+  expect_equal(c(s$mean, s$sd, s$n), c(70, sd(c(50,90)), 2))
+  expect_true(is.na(responder_summary(x[3, ])$pooled))
+  m <- cbind(c(1, 2, NA), c(3, NA, NA), c(2, 2, 2))
+  st <- responder_trace_summary(1:3, m, c("Responded","Responded","Did not respond"))
+  st <- st[st$Status == "Responded", ]
+  expect_equal(st$Mean, c(2,2,NA))
+  expect_equal(st$SEM, c(1,NA,NA))
+  expect_equal(st$N, c(2,1,0))
 })

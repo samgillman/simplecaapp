@@ -1933,3 +1933,9 @@ metric_title <- function(metric) {
     metric
   )
 }
+
+# Heatmap tiles end at the observed endpoints on irregular recording clocks.
+time_bin_edges <- function(time) {
+  mid <- head(time, -1L) + diff(time) / 2
+  list(left = c(time[1], mid), right = c(mid, tail(time, 1L)))
+}

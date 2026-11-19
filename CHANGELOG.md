@@ -6,6 +6,11 @@ All notable changes to SimpleCa will be documented in this file.
 
 Dates below are successful production deployment dates in US Central time. The November 19 recording-details build reports `v1.16.0` in the sidebar and processing manifest. Its [source snapshot](https://github.com/samgillman/simplecaapp/tree/a35f65b12244dd47d46b6f2004c9e6e9ff1196bb) identifies the exact code.
 
+### 2026-11-19 — Percent Responding review
+
+- The in vitro scorer reports the threshold source, onset, peak and first sustained run. A scoring end up to one allowed gap beyond the recording uses the last sample and records a warning in the app and CSVs.
+- Percent Responding suggests windows from processed timestamps and shows pooled and field-level percentages, a selectable threshold distribution, population traces and a per-cell review with the local baseline and threshold. Both download locations use the same scored results.
+
 ### 2026-11-19 — Background ROI subtraction
 
 - Load Data can subtract a cell-free background from raw fluorescence before F₀ normalization. Choose one or more ROI columns per recording and review the background trace in the baseline preview. Selected background ROIs are excluded from cell counts. The processed-data ZIP contains each corrected recording’s background trace, and the processing manifest records which columns supplied it. This option is off by default.

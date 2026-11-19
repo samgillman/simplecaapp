@@ -156,9 +156,9 @@ mod_heatmap_server <- function(id, rv) {
         hm$Cell_Label <- rep(cell_names[ord], each = length(time_vec))
         # Nearest-sample bins use actual timestamps, with interior boundaries
         # halfway between observations and no extrapolation beyond the record.
-        midpoints <- head(time_vec, -1) + diff(time_vec) / 2
-        hm$Time_Min <- rep(c(time_vec[1], midpoints), times = ncol(mat))
-        hm$Time_Max <- rep(c(midpoints, tail(time_vec, 1)), times = ncol(mat))
+        bounds <- time_bin_edges(time_vec)
+        hm$Time_Min <- rep(bounds$left, times = ncol(mat))
+        hm$Time_Max <- rep(bounds$right, times = ncol(mat))
         hm
       }
 
