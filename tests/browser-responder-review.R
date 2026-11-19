@@ -50,7 +50,7 @@ unlink(path)
 invisible(evaluate(in_app(paste(
   "d.getElementById('in_vitro-reset_windows').click();return true;"
 ))))
-wait_until(in_app("return d.getElementById('in_vitro-start').value==='9';"), "original recording defaults")
+wait_until(in_app("return d.getElementById('in_vitro-start').value==='19' && d.getElementById('in_vitro-baseline').value==='19';"), "original recording defaults")
 invisible(evaluate(in_app(paste(
   "var e=d.getElementById('in_vitro-baseline');e.value=20;",
   "e.dispatchEvent(new w.Event('input',{bubbles:true}));w.$(e).trigger('change');return true;"
