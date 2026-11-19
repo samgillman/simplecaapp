@@ -1,8 +1,15 @@
 # Two independent uploads deliberately share their basename and cell headers.
-invisible(evaluate(in_app(paste(
-  "d.querySelector('a[href=\"#shiny-tab-load\"]').click();",
+switch_tab <- function(name) {
+  # The download probe intercepts native anchor.click(). Trigger the
+  # dashboard's navigation handler and wait for its actual pane to open.
+  invisible(evaluate(in_app(sprintf("w.$('a[href=\"#shiny-tab-%s\"]').click();return true;", name))))
+  wait_until(in_app(sprintf("return d.getElementById('shiny-tab-%s').classList.contains('active');", name)),
+    paste(name, "tab selected"))
+}
+switch_tab("load")
+invisible(evaluate(in_app(
   "d.querySelector('input[name=\"load_data-upload_mode\"][value=\"multi\"]').click();return true;"
-))))
+)))
 wait_until(in_app("return !!d.querySelector('#load_data-data_files[multiple]');"), "multi-file input")
 upload_recordings <- function(paths) {
   el <- evaluate_remote(in_app("return d.getElementById('load_data-data_files');"))
@@ -21,9 +28,6 @@ upload_recordings(registry_fixtures[1:2])
 wait_until(in_app("return d.querySelectorAll('.recording-editor').length===2;"), "duplicate recordings staged")
 invisible(evaluate(in_app("d.getElementById('load_data-load_btn').click();return true;")))
 wait_until(in_app("return d.getElementById('load_data-results_bar').innerText.includes('2 files');"), "both recordings processed")
-switch_tab <- function(name) {
-  invisible(evaluate(in_app(sprintf("d.querySelector('a[href=\"#shiny-tab-%s\"]').click();return true;", name))))
-}
 registry_exports <- function() {
   switch_tab("data_export")
   invisible(evaluate(in_app("w.$('a[data-value=\"Figure Export\"]').tab('show');return true;")))
