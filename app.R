@@ -71,6 +71,7 @@ ui <- dashboardPage(
       menuItem("Time Course", tabName = "time", icon = icon("chart-line")),
       menuItem("Heatmap", tabName = "heatmap", icon = icon("th")),
       menuItem("Metrics", tabName = "metrics", icon = icon("chart-bar")),
+      menuItem("In Vitro Analysis", tabName = "in_vitro", icon = icon("microscope")),
       menuItem("Data & Export", tabName = "data_export", icon = icon("download")),
       tags$li(class = "header", "REFERENCE"),
       menuItem("Metric Explanations", tabName = "metrics_explained", icon = icon("lightbulb")),
@@ -199,6 +200,7 @@ ui <- dashboardPage(
       mod_time_course_ui("time_course"),
       mod_heatmap_ui("heatmap"),
       mod_metrics_ui("metrics"),
+      mod_in_vitro_ui("in_vitro"),
       mod_metrics_explained_ui("metrics_explained"),
       mod_data_export_ui("data_export"),
       mod_help_ui("help")
@@ -239,6 +241,7 @@ server <- function(input, output, session) {
       time_course_outputs <- mod_time_course_server("time_course", rv)
       heatmap_outputs <- mod_heatmap_server("heatmap", rv)
       metrics_outputs <- mod_metrics_server("metrics", rv)
+      mod_in_vitro_server("in_vitro", rv)
       mod_metrics_explained_server("metrics_explained", rv)
 
       # Combined Data & Export module
