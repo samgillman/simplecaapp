@@ -44,7 +44,10 @@ test_that("recording clicks select the right repeated cell and preserve scientif
   files <- data.frame(name = c("same.csv", "same.csv"), datapath = c("a", "b"))
   state <- build_processed_state(files, list(baseline_frames = c(1, 4)), read_fun = function(path) data.table::as.data.table(a$dt))
   rv <- do.call(reactiveValues, state[processed_state_fields])
-  testServer(mod_in_vitro_server, args = list(rv = rv), {
+  sent <- new.env(parent = emptyenv())
+  mock <- MockShinySession$new()
+  mock$sendInputMessage <- function(inputId, message) sent[[inputId]] <- message
+  testServer(mod_in_vitro_server, args = list(rv = rv), session = mock, {
     session$setInputs(stimulus = "A", start = 5, end = 8, baseline = 3, floor = .1,
       noise = 3, frames = 2, auto_gap = TRUE, control = FALSE,
       trace_status = c("Responded", "Did not respond"), trace_mode = "individual")
@@ -60,6 +63,11 @@ test_that("recording clicks select the right repeated cell and preserve scientif
     expect_length(trace_fields(), 2)
     expect_false(select_trace_key(key, "same"))
     expect_false(select_trace_key("stale:key:Stimulus"))
+    session$setInputs(trace_recording = "__all__")
+    selected_field("same"); session$flushReact()
+    session$setInputs(focus_recording = "same_1")
+    expect_equal(sent$trace_recording$value, "same_1")
+    expect_equal(field(), "same_1")
     session$setInputs(trace_status = "Responded", trace_recording = "same_1", trace_mode = "both")
     expect_equal(trace_fields(), "same_1")
     expect_equal(export_rows("calls"), before)

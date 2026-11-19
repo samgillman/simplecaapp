@@ -453,12 +453,17 @@ mod_in_vitro_server <- function(id, rv) {
       chosen <- input$trace_recording %||% "__all__"
       if (chosen %in% keys) chosen else keys
     })
+    recording_choices <- reactive(stats::setNames(ordered_fields(), presentation()$label(ordered_fields())))
     observe({
-      choices <- stats::setNames(ordered_fields(), presentation()$label(ordered_fields()))
+      choices <- recording_choices()
       current <- isolate(input$trace_recording)
       updateSelectInput(session, "trace_recording", choices = c("All recordings" = "__all__", choices),
         selected = if (length(current) && current %in% choices) current else "__all__")
-      updateSelectInput(session, "review_recording", choices = choices, selected = field())
+    })
+    # Selecting a reviewed field must not resend the previous plot selection
+    # before the browser has acknowledged a Focus update.
+    observe({
+      updateSelectInput(session, "review_recording", choices = recording_choices(), selected = field())
     })
     observeEvent(input$review_recording, {
       if (input$review_recording %in% fields()) selected_field(input$review_recording)
