@@ -26,9 +26,7 @@ wait_until(in_app("return d.getElementById('in_vitro-review_label').innerText.in
 # Plotly uses to identify the nearest data point.
 click_distribution_point <- function() {
   invisible(evaluate(in_app(paste(
-    "w.__pointBox=null;w.__stablePoint=0;w.__pointHovered=false;",
-    "var p=d.getElementById('in_vitro-distribution');",
-    "p.once('plotly_hover',function(e){w.__pointHovered=e.points[0].pointNumber===0;});return true;"
+    "w.__pointBox=null;w.__stablePoint=0;w.__pointHovered=false;return true;"
   ))))
   wait_until(in_app(paste(
     "var p=d.getElementById('in_vitro-distribution'),e=p.querySelector('.scatterlayer .point');",
@@ -40,6 +38,10 @@ click_distribution_point <- function() {
     "return w.__stablePoint>=3 && p._fullLayout.width<=p.clientWidth+1;"
   )), "chart marker stable after scrolling and resizing")
   xy <- pointer_position("#in_vitro-distribution .scatterlayer .point")
+  invisible(evaluate(in_app(paste(
+    "var p=d.getElementById('in_vitro-distribution');",
+    "p.once('plotly_hover',function(e){w.__pointHovered=e.points[0].pointNumber===0;});return true;"
+  ))))
   invisible(await_cdp(browser$Input$dispatchMouseEvent(type = "mouseMoved",
     x = xy$x, y = xy$y, wait_ = FALSE)))
   wait_until(in_app("return w.__pointHovered;"), "target marker hovered before clicking")
