@@ -8,7 +8,8 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    # The pinned R 4.5.1 dependency stack builds on the Noble toolchain.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
