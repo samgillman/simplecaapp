@@ -37,6 +37,13 @@ on.exit({
   unlink(fixture)
 }, add = TRUE)
 
+# Launch Chrome with a private test profile so its debugging port is available
+# even on runners where Chrome restricts remote debugging of the default profile.
+profile <- tempfile("simpleca-browser-")
+dir.create(profile)
+on.exit(unlink(profile, recursive = TRUE), add = TRUE, after = TRUE)
+chromote::set_chrome_args(c(chromote::get_chrome_args(), paste0("--user-data-dir=", profile)))
+options(chromote.timeout = 45)
 browser <- chromote::ChromoteSession$new()
 on.exit(browser$close(), add = TRUE)
 
