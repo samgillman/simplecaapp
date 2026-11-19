@@ -2,27 +2,29 @@
 
 All notable changes to SimpleCa will be documented in this file.
 
-## Unreleased
+## Deployed updates since 1.16.0
+
+The November 19, 2026 production build displays `v1.16.0` in the sidebar and records that version in processing manifests. The changes below followed the September 5 version entry. The [deployed source](https://github.com/samgillman/simplecaapp/tree/a35f65b12244dd47d46b6f2004c9e6e9ff1196bb) identifies the exact build.
 
 ### Added
-- Recording details on Load Data let users name, order, and color recordings and annotate their condition and experimental unit. The processing manifest saves the mapping to the source files and analysis keys.
-- In Vitro Analysis tab with per-field responder percentages, optional paired KCl control, individual cell review and reproducible CSV exports.
+
+- **Percent Responding** reports responders out of evaluable cells for each field of view, with optional KCl-positive subgroup analysis. Users can preview scoring windows, compare fields, inspect individual cell calls, and download counts and calls.
+- **Recording details** on Load Data lets users edit each recording’s name, display order, color, condition, and experimental unit ID before or after processing. The processing manifest maps those annotations to the source file and stable analysis key. Condition and experimental unit are annotations. Summaries still use the existing cell and recording definitions.
 
 ### Changed
-- Rearranged Load Data, navigation and plot settings. A shaded preview shows the selected baseline frames on an uploaded trace. Analysis and export pages link to Load Data until a recording is processed.
+
+- Load Data previews the selected baseline on a trace. Plot controls sit beside the plots on desktop, and empty analysis and export pages provide a button to open Load Data.
+- **Percent Responding** now measures the rise and baseline noise relative to local prestimulus fluorescence. The first deployment of [PR #7](https://github.com/samgillman/simplecaapp/pull/7) used the Load Data F₀ scale. The current field-count and cell-call CSVs identify the amplitude floor as `Floor_local_fraction`.
+- [PR #8](https://github.com/samgillman/simplecaapp/pull/8) updated the pinned `later` dependency to 1.4.8. CI uses Ubuntu 24.04 for the pinned R build. Automatic deployment publishes the artifact from successful CI pushes to upstream `main`. Maintainers can also deploy manually from that branch.
 
 ### Fixed
-- Multi-file uploads preserve the selected F₀ window and flag short recordings before processing. Percent Responding exports now name the local fluorescence fraction explicitly (`Floor_local_fraction`), and are available directly in Data & Export. Cell review uses the full width and shades each local baseline.
-- Percent Responding measures fractional rise and noise relative to the local prestimulus fluorescence. Previous responder exports used the Load Data F₀ scale. Automatic gap limits follow each field’s median sampling interval.
-- Reject duplicate column headers before mapping can silently discard a distinct cell trace.
-- Keep FWHM unknown when an observation gap separates the peak from a half-height crossing; later pulses cannot supply an exact width or ordinary right-censored lower bound.
-- Reject baseline windows covering the full recording and files without usable post-baseline observations.
-- Draw heatmaps using midpoint bins on the actual time axis, preserving irregular timestamps without raster shifts or artificial gaps.
-- Process same-flush baseline edits after control synchronization so successful results remain valid.
-- Restore S7 metadata required by Shinylive's WebAssembly ggplot2 dependency graph.
 
-### Changed
-- Restrict automatic deployment to successful upstream CI push runs on main; retain manual deployment from upstream main.
+- A short recording in a batch no longer shrinks the shared F₀ window. Load Data flags files too short for the selected baseline and applies baseline edits made immediately before processing.
+- An invalid detected Time column blocks automatic processing. Users can explicitly generate a time axis from the acquisition rate. The Time Course Log10 axis again shows automatic and custom numeric tick labels.
+- Percent Responding sets the automatic gap limit to 1.5 times each field’s median positive frame interval and explains why a window is unscorable. Cell review shades the local baseline. Data & Export provides both responder downloads.
+- Import rejects duplicate column headers, baseline windows covering the full recording, and files without usable post-baseline observations.
+- FWHM stays unknown when an observation gap separates the peak from a half-height crossing. Heatmaps use midpoint bins on the recorded time axis to preserve irregular sampling.
+- The Shinylive build restores the S7 metadata required by WebAssembly ggplot2. Production Pages deployments explicitly target the production branch.
 
 ## [1.16.0] - 2026-09-05
 
@@ -310,4 +312,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Automated spike detection and counting
 - Statistical comparisons between groups
 - Custom metric definitions
-- Batch export of all visualizations
