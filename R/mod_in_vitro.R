@@ -3,7 +3,7 @@ responder_colors <- c("Responded" = "#177465", "Did not respond" = "#925223")
 mod_in_vitro_ui <- function(id) {
   ns <- NS(id)
   scoring_number <- function(id, label) {
-    tags$div(oninput = "event.target.dataset.userEdited='1';",
+    tags$div(oninput = sprintf("event.target.dataset.userEdited='1'; var n=document.getElementById('%s'); if(n) n.hidden=true;", ns("defaults_notice")),
       numericInput(ns(id), label, NA_real_))
   }
   settings_id <- ns("settings")
