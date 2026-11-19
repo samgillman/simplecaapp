@@ -509,7 +509,10 @@ mod_in_vitro_server <- function(id, rv) {
       removed <- setdiff(names(panel_observers), fields())
       for (key in removed) {
         panel_observers[[key]]$destroy()
-        output[[panel_id(key)]] <- renderUI(NULL)
+        # The old htmlwidget may still be bound while its parent UI is hidden.
+        # A renderUI(NULL) payload crashes that binding and interrupts the
+        # remaining Shiny updates. Retire it with the same binding's validation.
+        output[[panel_id(key)]] <- plotly::renderPlotly({ req(FALSE) })
         panel_observers[[key]] <<- NULL
       }
       for (key in setdiff(fields(), names(panel_observers))) local({

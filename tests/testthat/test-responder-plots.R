@@ -72,6 +72,15 @@ test_that("recording clicks select the right repeated cell and preserve scientif
     expect_match(output$population_plot$html, "No evaluable cells")
     session$setInputs(baseline = 3, trace_status = "Responded")
     expect_match(output$population_plot$html, "plotly")
+    # Replacing a batch must not send a renderUI(NULL) payload to a plotly
+    # binding that remains mounted in a hidden tab until its parent refreshes.
+    replacement <- build_processed_state(data.frame(name = "new.csv", datapath = "c"),
+      list(baseline_frames = c(1, 4)), read_fun = function(path) data.table::as.data.table(a$dt))
+    commit_processed_state(rv, replacement)
+    session$flushReact()
+    expect_error(output[[panel_id("same_1")]], class = "shiny.silent.error")
+    expect_match(output$population_plot$html, "new.csv", fixed = TRUE)
+    expect_match(output$cards$html, ">new</button>", fixed = TRUE)
   })
 })
 
