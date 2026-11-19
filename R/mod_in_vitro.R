@@ -13,6 +13,7 @@ mod_in_vitro_ui <- function(id) {
       conditionalPanel("input.control", ns = ns,
         radioButtons(ns("population"), "Population", c("Stimulus" = "primary", "KCl" = "control",
           "Stimulus among KCl responders" = "restricted"), inline = TRUE)),
+      tags$div(id = ns("defaults_notice"), class = "alert alert-info", role = "status", hidden = NA),
       uiOutput(ns("protocol_feedback")),
       tags$button(type = "button", class = "btn btn-default btn-sm", "Edit scoring settings",
         onclick = sprintf("var e=document.getElementById('%s'); e.open=true; e.scrollIntoView(); e.querySelector('summary').focus();", settings_id)))),
@@ -73,15 +74,50 @@ mod_in_vitro_ui <- function(id) {
     });", ns("review")))),
     tags$script(HTML(sprintf("
       Shiny.addCustomMessageHandler('%s', function(m) {
-        Object.keys(m.values).forEach(function(k) {
+        var keys=Object.keys(m.values), values={}, edited=false;
+        keys.forEach(function(k) {
           var e=document.getElementById(m.prefix+k);
-          if (!e || (!m.reset && e.dataset.userEdited)) return;
-          if (m.reset) delete e.dataset.userEdited;
-          var v=m.values[k]; e.value=(v===null || typeof v!=='number')?'':v;
+          var keep=e && !m.reset && e.dataset.userEdited;
+          edited=edited || !!keep;
+          values[k]=keep ? (e.value.trim()==='' ? null : Number(e.value)) : m.values[k];
+        });
+        var finite=function(v){return typeof v==='number' && Number.isFinite(v);};
+        var complete=function(v){return keys.every(function(k){return finite(v[k]);});};
+        var bounds=m.bounds;
+        var fits=function(v) {
+          if (!bounds || !complete(v)) return false;
+          var tol=8*Number.EPSILON*Math.max(1,Math.abs(v.start-v.baseline),
+            Math.abs(v.start),Math.abs(v.end),Math.abs(bounds.start),Math.abs(bounds.end));
+          return v.baseline>0 && v.start<v.end && v.start<bounds.end &&
+            v.start-v.baseline>=bounds.start-tol && v.end<=bounds.end_with_gap+tol;
+        };
+        var notice=document.getElementById(m.prefix+'defaults_notice');
+        notice.textContent='';
+        notice.hidden=true;
+        // Deliberately cleared inputs stay blank. A numerical window carried
+        // into a new recording is reset as a whole when its coverage fails.
+        var reset=!!m.reset;
+        if (edited && complete(values) && !fits(values)) {
+          if (fits(m.values)) {
+            reset=true;
+            notice.textContent='Previous scoring times do not fit the loaded recordings. Reset to '+
+              m.values.start+'–'+m.values.end+' s with a '+m.values.baseline+
+              ' s local baseline. Check these times against your stimulus protocol.';
+          } else {
+            notice.textContent='Previous scoring times do not fit, and the recordings have no usable common default window. Review the scoring settings and field coverage messages.';
+          }
+          notice.hidden=false;
+        }
+        keys.forEach(function(k) {
+          var e=document.getElementById(m.prefix+k);
+          if (!e) return;
+          if (reset) delete e.dataset.userEdited;
+          var v=reset ? m.values[k] : values[k];
+          e.value=finite(v) ? v : '';
           window.jQuery(e).trigger('change');
         });
         var settings=document.getElementById(m.prefix+'settings');
-        if (!settings.dataset.initialized) {settings.open=true; settings.dataset.initialized='1';}
+        if (!settings.dataset.initialized || !notice.hidden) {settings.open=true; settings.dataset.initialized='1';}
       });", ns("defaults"))))
   )
 }
@@ -115,7 +151,9 @@ mod_in_vitro_server <- function(id, rv) {
     push_defaults <- function(reset = FALSE) {
       values <- responder_defaults(rv$dts, rv$baseline_frames)
       if (length(values)) session$sendCustomMessage(session$ns("defaults"),
-        list(values = as.list(values), reset = reset, prefix = session$ns("")))
+        list(values = as.list(values),
+          bounds = as.list(responder_bounds(rv$dts, if (isFALSE(input$auto_gap)) input$gap else NULL)),
+          reset = reset, prefix = session$ns("")))
     }
     observeEvent(list(rv$dts, rv$baseline_frames), push_defaults())
     observeEvent(input$reset_windows, push_defaults(TRUE))
@@ -334,7 +372,7 @@ mod_in_vitro_server <- function(id, rv) {
     distribution_drawn <- reactiveVal(FALSE)
     output$distribution <- plotly::renderPlotly({
       x <- evaluable()
-      validate(need(nrow(x), "No evaluable cells in this population."))
+      validate(need(nrow(x) > 0L, "No evaluable cells in this population."))
       margin <- !identical(input$distribution_scale, "rise")
       x$value <- if (margin) x$Margin else x$Peak_increase
       x <- x[order(x$Key), , drop = FALSE]
@@ -381,7 +419,7 @@ mod_in_vitro_server <- function(id, rv) {
       rows <- evaluable()
       rows <- rows[rows$Field == field(), , drop = FALSE]
       dt <- rv$dts[[field()]]
-      validate(need(nrow(rows), "No evaluable cells for this field and population."))
+      validate(need(nrow(rows) > 0L, "No evaluable cells for this field and population."))
       rows <- rows[order(match(rows$Status, names(responder_colors)), rows$Onset_s, rows$Cell, na.last = TRUE), ]
       local <- sweep(as.matrix(as.data.frame(dt)[rows$Cell]), 2, rows$Baseline_mean, "-")
       list(rows = rows, time = dt$Time, local = sweep(local, 2, 1 + rows$Baseline_mean, "/"))

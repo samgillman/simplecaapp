@@ -6,6 +6,11 @@ All notable changes to SimpleCa will be documented in this file.
 
 Dates below are successful production deployment dates in US Central time. The November 19 recording-details build reports `v1.16.0` in the sidebar and processing manifest. Its [source snapshot](https://github.com/samgillman/simplecaapp/tree/a35f65b12244dd47d46b6f2004c9e6e9ff1196bb) identifies the exact code.
 
+### 2026-11-19 — Responder window recovery
+
+- Loading or reprocessing recordings now checks retained scoring times against shared recording coverage. Unusable retained times reset to available recording defaults with a visible notice. Coverage failures include the requested and observed time ranges.
+- Empty responder distributions and population traces show a validation message when no cells are evaluable.
+
 ### 2026-11-19 — Percent Responding review
 
 - The in vitro scorer reports the threshold source, onset, peak and first sustained run. A scoring end up to one allowed gap beyond the recording uses the last sample and records a warning in the app and CSVs.

@@ -197,3 +197,46 @@ test_that("suggestions use observed clocks and field summaries preserve denomina
   expect_equal(st$SEM, c(1,NA,NA))
   expect_equal(st$N, c(2,1,0))
 })
+
+test_that("shared recording bounds include the existing endpoint clipping allowance", {
+  expect_null(responder_bounds(list()))
+  a <- data.frame(Time = 0:299)
+  b <- data.frame(Time = seq(10, 289, .5))
+  expect_equal(responder_bounds(list(a)), c(start = 0, end = 299, end_with_gap = 300.5))
+  expect_equal(responder_bounds(list(a, b)), c(start = 10, end = 289, end_with_gap = 289.75))
+  expect_equal(responder_bounds(list(a, b), gap = 2), c(start = 10, end = 289, end_with_gap = 291))
+  expect_equal(responder_defaults(list(a), c(1, 20)), c(start = 19, end = 299, baseline = 19))
+  disjoint <- responder_bounds(list(data.frame(Time = 0:9), data.frame(Time = 10:29)))
+  expect_gt(disjoint["start"], disjoint["end"])
+  p <- responder_protocol("A", 19, 299, 20, .1, 3, 2, NULL)
+  x <- responder_field_results(transform(a, Cell = 0), "Cell", "A", p)
+  expect_match(x$counts$Field_reason, "does not span")
+  expect_match(x$calls$Reason, "needs -1 to 299 s; recording covers 0 to 299 s", fixed = TRUE)
+})
+
+test_that("zero evaluable cells validate all population plots and can recover", {
+  library(shiny)
+  library(ggplot2)
+  source(file.path(repo_root, "R", "mod_in_vitro.R"), local = TRUE)
+  dt <- data.table::data.table(Time = 0:299, Cell = 100 + 20 * (0:299 >= 25))
+  state <- build_processed_state(data.frame(name = "field.csv", datapath = "x"),
+    list(baseline_frames = c(1, 20)), read_fun = function(path) data.table::copy(dt))
+  rv <- do.call(reactiveValues, state[processed_state_fields])
+  testServer(mod_in_vitro_server, args = list(rv = rv), {
+    session$setInputs(stimulus = "A", start = 19, end = 299, baseline = 20,
+      floor = .1, noise = 3, frames = 2, auto_gap = TRUE, control = FALSE)
+    expect_equal(results()$counts$Evaluable, 0)
+    expect_match(output$headline$html, "needs -1 to 299 s", fixed = TRUE)
+    for (name in c("distribution", "population_plot", "population_heatmap")) {
+      expect_error(output[[name]], "No evaluable cells", class = "shiny.silent.error")
+    }
+    # Manual settings changes stay visible to the scorer until corrected.
+    expect_equal(input$baseline, 20)
+    session$setInputs(baseline = 19)
+    expect_equal(results()$counts$Responded, 1)
+    expect_type(output$population_plot$src, "character")
+    session$setInputs(floor = 1)
+    expect_equal(results()$counts$Percent_responding, 0)
+    expect_type(output$population_plot$src, "character")
+  })
+})

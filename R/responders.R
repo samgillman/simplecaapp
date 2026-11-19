@@ -44,7 +44,8 @@ responder_window_calls <- function(dt, cells, field, window) {
   during <- which(time >= start - tol & time <= end + tol)
   idx <- c(pre, during)
   reason <- if (time[1] > left + tol || tail(time, 1) < end - tol) {
-    "Recording does not span the full baseline and response window"
+    sprintf("Recording does not span the full baseline and response window (needs %g to %g s; recording covers %g to %g s)",
+            left, end, time[1], recording_end)
   } else if (length(pre) < 3L) {
     "Fewer than three prestimulus baseline samples"
   } else if (length(during) < window$Consecutive_samples) {
@@ -152,6 +153,20 @@ responder_field_results <- function(dt, cells, field, protocol) {
   }
   settings <- protocol[source_row, setdiff(names(protocol), "Stimulus"), drop = FALSE]
   list(calls = do.call(rbind, calls), counts = cbind(counts, settings))
+}
+
+# The common observed interval and the latest end allowed by per-field clipping.
+# A reversed interval represents recordings with no common coverage.
+responder_bounds <- function(dts, gap = NULL) {
+  if (!length(dts)) return(NULL)
+  spans <- vapply(dts, function(dt) {
+    time <- dt[["Time"]]
+    intervals <- diff(time)
+    limit <- if (is.null(gap)) 1.5 * stats::median(intervals[intervals > 0]) else gap
+    c(start = time[1], end = tail(time, 1L), end_with_gap = tail(time, 1L) + limit)
+  }, numeric(3))
+  c(start = max(spans["start", ]), end = min(spans["end", ]),
+    end_with_gap = min(spans["end_with_gap", ]))
 }
 
 responder_defaults <- function(dts, frames) {
