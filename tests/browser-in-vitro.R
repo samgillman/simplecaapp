@@ -17,7 +17,7 @@ invisible(evaluate(in_app(paste(
 wait_until(in_app("return d.getElementById('in_vitro-headline').innerText.includes('2 of 2 evaluable cells');"),
            "in vitro responder counts")
 wait_until(in_app(paste(
-  "return !!d.querySelector('#in_vitro-population_plot img') &&",
+  "return !!d.querySelector('#in_vitro-population_plot .js-plotly-plot') &&",
   "!!d.querySelector('#in_vitro-distribution .point') && d.getElementById('in_vitro-review_label').innerText.includes('CellA');"
 )), "distribution, group traces and first reviewed cell")
 invisible(evaluate(in_app("d.getElementById('in_vitro-next_cell').click();return true;")))

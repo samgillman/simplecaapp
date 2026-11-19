@@ -22,9 +22,17 @@ mod_in_vitro_ui <- function(id) {
         radioButtons(ns("distribution_scale"), NULL, c("Peak / threshold" = "margin", "Peak local rise" = "rise"),
           selected = "margin", inline = TRUE),
         textOutput(ns("distribution_note")), uiOutput(ns("distribution_view")))),
-      fluidRow(theme_box("Population traces", textOutput(ns("population_label")),
-        plotOutput(ns("population_plot"), height = "300px"),
-        tags$details(tags$summary("Heatmap by response and onset"), plotOutput(ns("population_heatmap"), height = "360px"))))
+      fluidRow(theme_box("Population traces",
+        fluidRow(column(6, selectInput(ns("trace_recording"), "Show recordings", c("All recordings" = "__all__"))),
+          column(6, checkboxInput(ns("trace_full"), "Full recording", FALSE))),
+        radioButtons(ns("trace_mode"), "Trace view", c("Individual traces" = "individual", "Mean ± SEM" = "mean", "Both" = "both"), inline = TRUE),
+        checkboxGroupInput(ns("trace_status"), "Show response classes",
+          choices = c("Responded", "Did not respond"), selected = c("Responded", "Did not respond"), inline = TRUE),
+        textOutput(ns("population_label")), uiOutput(ns("population_plot")),
+        p(class = "text-muted", "Each panel is one uploaded recording. Teal solid lines are responders; orange dashed lines are nonresponders. Means and SEM are calculated within each recording and response class. Gray shading marks the local baseline; pale blue marks scoring. Hover for recording and cell details; click a trace to select it below."),
+        p(class = "text-muted", "Traces use each cell’s local prestimulus fluorescence. Cell review uses loading ΔF/F₀. Visibility controls do not change counts or exports."),
+        tags$details(tags$summary("Selected recording heatmap by response and onset"), textOutput(ns("heatmap_label")),
+          plotOutput(ns("population_heatmap"), height = "360px"))))
     ),
     fluidRow(theme_box("Results by field", uiOutput(ns("cards")),
       tags$details(tags$summary("Cell count definitions"),
@@ -59,6 +67,7 @@ mod_in_vitro_ui <- function(id) {
             onclick = sprintf("document.getElementById('%s').open=false; document.getElementById('%s').scrollIntoView();", settings_id, ns("headline"))))))),
     conditionalPanel("output.protocol_ok === true", ns = ns,
       fluidRow(theme_box("Cell review",
+        selectInput(ns("review_recording"), "Recording to review", character()),
         selectInput(ns("status"), "Filter cells", c("All", "Near threshold", "Responded", "Did not respond", "Excluded", "Unscorable")),
         DT::DTOutput(ns("calls")),
         actionButton(ns("previous"), "Previous cell"), actionButton(ns("next_cell"), "Next cell"),
@@ -69,6 +78,7 @@ mod_in_vitro_ui <- function(id) {
         textOutput(ns("methods")), tags$button(type = "button", class = "btn btn-default", "Copy methods",
           onclick = sprintf("var e=document.getElementById('%s'); if(navigator.clipboard) navigator.clipboard.writeText(e.textContent);", ns("methods"))))))
     ),
+    tags$style(HTML(".responder-panels {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:14px;margin:16px 0}.responder-panel {border:1px solid #dce3e8;border-radius:6px;min-width:0;overflow:hidden}.responder-panel-heading {padding:12px;border-bottom:1px solid #edf0f4}.responder-panel-heading strong {font-size:16px}.responder-panel-heading .btn {float:right}.responder-file {overflow-wrap:anywhere;color:#65717d;font-size:12px}.responder-panel-note {padding:8px 12px;margin:0}.responder-panel .shiny-html-output {min-width:0}")),
     tags$script(HTML(sprintf("Shiny.addCustomMessageHandler('%s', function(id) {
       var e=document.getElementById(id); if(e) e.scrollIntoView({block:'start'});
     });", ns("review")))),
@@ -409,54 +419,130 @@ mod_in_vitro_server <- function(id, rv) {
       req(distribution_drawn())
       plotly::event_data("plotly_click", source = distribution_source, priority = "event")
     })
-    observeEvent(point_event(), {
-      key <- point_event()$key
-      req(length(key) == 1L)
+    select_trace_key <- function(key, allowed_fields = fields()) {
+      if (length(key) != 1L || is.na(key)) return(invisible(FALSE))
       x <- evaluable()
-      row <- x[x$Key == key, , drop = FALSE]
-      if (nrow(row) == 1L) {
-        if (!matches_filter(row)) updateSelectInput(session, "status", selected = "All")
-        selected_field(row$Field)
-        picked(row$Key)
+      row <- x[x$Key == key & x$Field %in% allowed_fields, , drop = FALSE]
+      if (nrow(row) != 1L) return(invisible(FALSE))
+      if (!matches_filter(row)) updateSelectInput(session, "status", selected = "All")
+      selected_field(row$Field)
+      picked(row$Key)
+      invisible(TRUE)
+    }
+    observeEvent(point_event(), {
+      if (select_trace_key(point_event()$key))
         session$sendCustomMessage(session$ns("review"), session$ns("calls"))
-      }
+    })
+    trace_bundles <- reactive({
+      rows <- evaluable()
+      stats::setNames(lapply(fields(), function(key)
+        responder_trace_bundle(rv$dts[[key]], rows[rows$Field == key, , drop = FALSE])), fields())
     })
     field_traces <- reactive({
-      rows <- evaluable()
-      rows <- rows[rows$Field == field(), , drop = FALSE]
-      dt <- rv$dts[[field()]]
-      validate(need(nrow(rows) > 0L, "No evaluable cells for this field and population."))
-      rows <- rows[order(match(rows$Status, names(responder_colors)), rows$Onset_s, rows$Cell, na.last = TRUE), ]
-      local <- sweep(as.matrix(as.data.frame(dt)[rows$Cell]), 2, rows$Baseline_mean, "-")
-      list(rows = rows, time = dt$Time, local = sweep(local, 2, 1 + rows$Baseline_mean, "/"))
+      g <- trace_bundles()[[field()]]
+      validate(need(nrow(g$rows) > 0L, "No evaluable cells for this field and population."))
+      g
     })
     active_windows <- function(row) {
       end <- if (is.finite(row$Effective_end_s)) row$Effective_end_s else row$End_s
       data.frame(Role = if (row$Role == "Control") "KCl" else "Stimulus", Start = row$Start_s, End = end)
     }
+    ordered_fields <- reactive(as.character(intersect(presentation()$levels, fields())))
+    trace_fields <- reactive({
+      keys <- ordered_fields()
+      chosen <- input$trace_recording %||% "__all__"
+      if (chosen %in% keys) chosen else keys
+    })
+    recording_choices <- reactive(stats::setNames(ordered_fields(), presentation()$label(ordered_fields())))
+    observe({
+      choices <- recording_choices()
+      current <- isolate(input$trace_recording)
+      updateSelectInput(session, "trace_recording", choices = c("All recordings" = "__all__", choices),
+        selected = if (length(current) && current %in% choices) current else "__all__")
+    })
+    # Selecting a reviewed field must not resend the previous plot selection
+    # before the browser has acknowledged a Focus update.
+    observe({
+      updateSelectInput(session, "review_recording", choices = recording_choices(), selected = field())
+    })
+    observeEvent(input$review_recording, {
+      if (input$review_recording %in% fields()) selected_field(input$review_recording)
+    })
+    observeEvent(input$focus_recording, {
+      if (input$focus_recording %in% fields()) {
+        updateSelectInput(session, "trace_recording", selected = input$focus_recording)
+        selected_field(input$focus_recording)
+      }
+    })
+    trace_statuses <- reactive(if (is.null(input$trace_status)) character() else input$trace_status)
+    trace_limits <- reactive({
+      x <- active_counts()
+      responder_trace_limits(trace_bundles()[trace_fields()], x[x$Field %in% trace_fields(), ], isTRUE(input$trace_full))
+    })
+    panel_id <- function(key) paste0("population_trace_", paste(sprintf("%02x", as.integer(charToRaw(enc2utf8(key)))), collapse = ""))
     output$population_label <- renderText({
-      x <- evaluable()
-      x <- x[x$Field == field(), , drop = FALSE]
-      sprintf("%s · %d responders and %d nonresponders · cell mean ± SEM at each recorded time",
-        presentation()$label(field()), sum(x$Status == "Responded"), sum(x$Status == "Did not respond"))
+      x <- evaluable(); x <- x[x$Field %in% trace_fields(), , drop = FALSE]
+      n <- length(trace_fields())
+      sprintf("%d %s · showing %d of %d evaluable cells · shared axes",
+        n, if (n == 1L) "recording" else "recordings", sum(x$Status %in% trace_statuses()), nrow(x))
     })
-    output$population_plot <- renderPlot({
-      g <- field_traces()
-      series <- responder_trace_summary(g$time, g$local, g$rows$Status)
-      win <- active_windows(g$rows[1, ])
-      shades <- rbind(data.frame(Role = "Local baseline", Start = win$Start - g$rows$Baseline_s[1], End = win$Start), win)
-      # Break ribbons at missing SEMs, including single-cell populations.
-      series$Band <- interaction(series$Status, cumsum(!is.finite(series$SEM)))
-      bands <- series[is.finite(series$SEM), , drop = FALSE]
-      ggplot(series, aes(Time, Mean, colour = Status)) +
-        geom_rect(data = shades, aes(xmin = Start, xmax = End, fill = Role), ymin = -Inf, ymax = Inf,
-          inherit.aes = FALSE, alpha = .17) +
-        scale_fill_manual("Window", values = c("Local baseline" = "#92A0B5", Stimulus = "#42A995", KCl = "#D7A047")) +
-        geom_ribbon(data = bands, aes(ymin = Mean - SEM, ymax = Mean + SEM, group = Band),
-          fill = "grey45", colour = NA, alpha = .2, na.rm = TRUE) +
-        geom_line(linewidth = .85, na.rm = TRUE) + scale_colour_manual(values = responder_colors) +
-        labs(x = "Time (s)", y = "Fractional rise from local baseline") + theme_minimal(base_size = 12)
+    output$heatmap_label <- renderText(presentation()$label(field()))
+    output$population_plot <- renderUI({
+      view <- presentation(); counts <- active_counts(); bundles <- trace_bundles()
+      div(class = "responder-panels", lapply(trace_fields(), function(key) {
+        r <- counts[counts$Field == key, , drop = FALSE]; g <- bundles[[key]]
+        file <- rv$group_meta$file[match(key, rv$group_meta$key)]
+        if (!length(file) || is.na(file)) file <- key
+        note <- row_notes(r)
+        shown <- sum(g$rows$Status %in% trace_statuses())
+        div(class = "responder-panel", `data-recording-key` = key,
+          div(class = "responder-panel-heading",
+            tags$button(type = "button", class = "btn btn-default btn-xs", "Focus",
+              onclick = sprintf("Shiny.setInputValue('%s',%s,{priority:'event'})", session$ns("focus_recording"), jsonlite::toJSON(key, auto_unbox = TRUE))),
+            tags$strong(view$label(key)), div(class = "responder-file", file),
+            p(if (r$Evaluable > 0) sprintf("%.1f%% responding · %d of %d evaluable", r$Percent_responding, r$Responded, r$Evaluable) else "No evaluable cells"),
+            div(sprintf("%d responded · %d did not respond · %d excluded · %d unscorable", r$Responded, r$Nonresponders, r$Excluded, r$Unscorable))),
+          if (nzchar(note)) p(class = "responder-panel-note text-warning", role = "status", note),
+          if (!nrow(g$rows)) p(class = "responder-panel-note", role = "status", "No evaluable cells for this recording and population.")
+          else if (!shown) p(class = "responder-panel-note", role = "status", "Choose a response class to display.")
+          else plotly::plotlyOutput(session$ns(panel_id(key)), height = if (length(trace_fields()) == 1L) "380px" else "290px"),
+          p(class = "responder-panel-note text-muted", sprintf("Showing %d of %d evaluable cells", shown, nrow(g$rows))))
+      }))
     })
+    panel_observers <- list()
+    observeEvent(fields(), {
+      removed <- setdiff(names(panel_observers), fields())
+      for (key in removed) {
+        panel_observers[[key]]$destroy()
+        # The old htmlwidget may still be bound while its parent UI is hidden.
+        # A renderUI(NULL) payload crashes that binding and interrupts the
+        # remaining Shiny updates. Retire it with the same binding's validation.
+        output[[panel_id(key)]] <- plotly::renderPlotly({ req(FALSE) })
+        panel_observers[[key]] <<- NULL
+      }
+      for (key in setdiff(fields(), names(panel_observers))) local({
+        recording_key <- key; id <- panel_id(key); source <- session$ns(id)
+        drawn <- reactiveVal(FALSE)
+        output[[id]] <- plotly::renderPlotly({
+          req(recording_key %in% trace_fields())
+          g <- trace_bundles()[[recording_key]]
+          req(nrow(g$rows) > 0L, any(g$rows$Status %in% trace_statuses()))
+          r <- active_counts(); r <- r[r$Field == recording_key, , drop = FALSE]
+          p <- responder_trace_plot(g, r, presentation()$label(recording_key), trace_limits(),
+            input$trace_mode %||% "individual", trace_statuses(), picked(), source)
+          drawn(TRUE)
+          p
+        })
+        panel_observers[[recording_key]] <<- observeEvent({
+          req(drawn())
+          plotly::event_data("plotly_click", source = source, priority = "event")
+        }, {
+          event <- plotly::event_data("plotly_click", source = source, priority = "event")
+          if (!identical(input$trace_mode, "mean") && recording_key %in% trace_fields())
+            select_trace_key(event$key, recording_key)
+        })
+      })
+    }, ignoreNULL = FALSE)
     output$population_heatmap <- renderPlot({
       g <- field_traces()
       bounds <- time_bin_edges(g$time)
