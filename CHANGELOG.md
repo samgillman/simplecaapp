@@ -4,6 +4,9 @@ All notable changes to SimpleCa will be documented in this file.
 
 ## Unreleased
 
+### Added
+- In Vitro Analysis tab with per-field responder percentages, optional paired KCl control, individual cell review and reproducible CSV exports.
+
 ### Fixed
 - Reject duplicate column headers before mapping can silently discard a distinct cell trace.
 - Keep FWHM unknown when an observation gap separates the peak from a half-height crossing; later pulses cannot supply an exact width or ordinary right-censored lower bound.
