@@ -41,7 +41,7 @@ test_that("local elevation, baseline variation and gaps affect only the relevant
   rs <- responder_field_results(short, "Drift", "A", vitro_test_protocol())
   expect_equal(rs$counts$Unscorable, c(1, 1, 0))
   expect_error(responder_protocol("KCl", 1, 2, 3, .1, 3, 1, 1, TRUE, 10, 12), "KCl")
-  expect_error(responder_protocol("A", 10, 12, 5, .1, 3, 1, 1, TRUE, 14, 17), "baseline")
+  expect_error(responder_protocol("A", 10, 12, 5, .1, 3, 1, 1, TRUE, 14, 17), "Separate")
   expect_error(responder_protocol("A", NA_real_, 12, 5, .1, 3, 2, 1), "start")
 })
 
@@ -61,6 +61,16 @@ test_that("real processing retains invalid F0 names and the module refreshes wit
     expect_equal(results()$counts$Percent_responding, c(50, 100))
     expect_equal(results()$counts$Excluded, c(1, 1))
     expect_equal(export_rows("calls")$Source_file, rep("field.csv", 6))
+    session$setInputs(field = "field_1", cell = "Cell2")
+    expect_equal(field(), "field_1")
+    clear_processed_state(rv)
+    session$flushReact()
+    commit_processed_state(rv, state)
+    session$flushReact()
+    expect_equal(field(), "field_1")
+    expect_equal(nrow(overview_data()), length(time))
+    session$setInputs(status = "Excluded")
+    expect_true(all(review_rows()$Status == "Excluded"))
     session$setInputs(floor = 1)
     expect_equal(results()$counts$Percent_responding, c(0, 0))
     session$setInputs(start = 9)
@@ -70,4 +80,40 @@ test_that("real processing retains invalid F0 names and the module refreshes wit
     expect_null(fields())
     expect_error(results(), class = "shiny.silent.error")
   })
+})
+
+test_that("automatic timing accommodates slow acquisitions and explains failures", {
+  assess <- function(time, start, end, baseline = 12, gap = NULL) {
+    p <- responder_protocol("Stimulus", start, end, baseline, .1, 3, 2, gap)
+    dt <- data.frame(Time = time, Cell = ifelse(time >= start, .12, 0))
+    responder_field_results(dt, "Cell", "Field", p)$calls
+  }
+  for (interval in c(2, 3.03, 1.03)) {
+    call <- assess((0:40) * interval, 15, 25)
+    expect_equal(call$Status, "Responded")
+    expect_equal(call$Max_gap_s, 1.5 * interval)
+  }
+  expect_match(assess(0:40, 5, 15)$Reason, "span")
+  expect_match(assess(0:40, 12, 18, 2)$Reason, "three prestimulus")
+  expect_match(assess(0:40, 12, 12.2)$Reason, "Too few response")
+  expect_match(assess((0:40)[-16], 12, 20)$Reason, "gap exceeds")
+})
+
+test_that("a late 12 percent rise survives bleaching in both input modes", {
+  files <- data.frame(name = "field.csv", datapath = "test")
+  t <- 0:50
+  fluorescence <- ifelse(t < 20, 100, 66)
+  fluorescence[t %in% c(10, 11, 40, 41)] <- fluorescence[t %in% c(10, 11, 40, 41)] * 1.12
+  p <- responder_protocol("Capsaicin", 10, 15, 5, .1, 3, 2, NULL, TRUE, 40, 45)
+  for (mode in c("raw_fluorescence", "dff0")) {
+    f <- if (mode == "dff0") fluorescence / 100 - 1 else fluorescence
+    state <- build_processed_state(files, list(input_data_mode = mode, baseline_frames = c(1, 4)),
+      read_fun = function(path) data.table::data.table(Time = t, A = f, Blank = NA_real_))
+    r <- responder_field_results(state$dts[[1]], "A", "Field", p)
+    expect_equal(r$calls$Peak_increase, c(.12, .12))
+    expect_equal(r$calls$Status, rep("Responded", 2))
+    expect_match(state$import_audit[[1]]$note, "Blank")
+  }
+  invalid <- responder_field_results(data.frame(Time = t, A = -1), "A", "Field", p)
+  expect_true(all(invalid$calls$Status == "Unscorable"))
 })

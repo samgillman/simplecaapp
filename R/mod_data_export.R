@@ -123,7 +123,7 @@ mod_data_export_ui <- function(id) {
   )
 }
 
-mod_data_export_server <- function(id, rv, metrics_plot_reactive, heatmap_plot_reactive, time_course_plot_reactive) {
+mod_data_export_server <- function(id, rv, metrics_plot_reactive, heatmap_plot_reactive, time_course_plot_reactive, responder_exports = NULL) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
@@ -269,6 +269,14 @@ mod_data_export_server <- function(id, rv, metrics_plot_reactive, heatmap_plot_r
     })
 
     # Data download handlers
+    if (!is.null(responder_exports)) {
+      responder_exports$register_exports(input, session)
+      output$responder_downloads <- renderUI({
+        req(responder_exports$ready())
+        tagList(browser_download_button(ns("download_counts"), "Download in vitro field counts"),
+                browser_download_button(ns("download_calls"), "Download in vitro cell calls"))
+      })
+    }
     register_browser_download(input, session, "download_cell_metrics",
       filename = function() {
         n_cells <- if (!is.null(rv$metrics)) nrow(rv$metrics) else 0
@@ -397,6 +405,7 @@ mod_data_export_server <- function(id, rv, metrics_plot_reactive, heatmap_plot_r
             div(style = "display: flex; flex-direction: column; gap: 10px;",
               browser_download_button(ns("dl_metrics_csv"), "Download All Metrics (CSV)", class = "btn-primary btn-block"),
               browser_download_button(ns("dl_summary_csv"), "Download Time-Course Summary (CSV)", class = "btn-default btn-block"),
+              uiOutput(ns("responder_downloads")),
               browser_download_button(ns("dl_manifest_csv"), "Download Processing Manifest (CSV)", class = "btn-default btn-block"),
               tags$hr(style = "margin: 10px 0;"),
               div(style = "background: var(--color-gray-50); padding: 10px; border-radius: 4px;",

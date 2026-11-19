@@ -26,6 +26,7 @@ mod_help_ui <- function(id) {
                             tags$li(tags$b("Process:"), " Choose Raw fluorescence or Already ΔF/F₀, select a stable baseline frame window, and click 'Process Data'."),
                             tags$li(tags$b("Visualize:"), " Check the Time Course and Heatmap tabs to inspect signal quality."),
                             tags$li(tags$b("Analyze:"), " Use the Metrics tab to quantify peaks, AUC, rise times, etc."),
+                            tags$li(tags$b("Percent Responding"), " Use one file per field. Enter stimulus times and review responder counts, exclusions and optional KCl controls."),
                             tags$li(tags$b("Explain:"), " Use Metric Explanations (under Reference) to visualize how metrics are calculated on your data."),
                             tags$li(tags$b("Export:"), " Download high-res figures and data tables from the Data & Export tab.")
                     )

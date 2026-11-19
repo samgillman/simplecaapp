@@ -71,8 +71,9 @@ ui <- dashboardPage(
       menuItem("Time Course", tabName = "time", icon = icon("chart-line")),
       menuItem("Heatmap", tabName = "heatmap", icon = icon("th")),
       menuItem("Metrics", tabName = "metrics", icon = icon("chart-bar")),
-      menuItem("In Vitro Analysis", tabName = "in_vitro", icon = icon("microscope")),
       menuItem("Data & Export", tabName = "data_export", icon = icon("download")),
+      tags$li(class = "header", "IN VITRO"),
+      menuItem("Percent Responding", tabName = "in_vitro", icon = icon("microscope")),
       tags$li(class = "header", "REFERENCE"),
       menuItem("Metric Explanations", tabName = "metrics_explained", icon = icon("lightbulb")),
       menuItem("Help", tabName = "help", icon = icon("circle-question")),
@@ -241,7 +242,7 @@ server <- function(input, output, session) {
       time_course_outputs <- mod_time_course_server("time_course", rv)
       heatmap_outputs <- mod_heatmap_server("heatmap", rv)
       metrics_outputs <- mod_metrics_server("metrics", rv)
-      mod_in_vitro_server("in_vitro", rv)
+      responder_exports <- mod_in_vitro_server("in_vitro", rv)
       mod_metrics_explained_server("metrics_explained", rv)
 
       # Combined Data & Export module
@@ -255,7 +256,7 @@ server <- function(input, output, session) {
         NULL
       })
 
-      mod_data_export_server("data_export", rv,
+      mod_data_export_server("data_export", rv, responder_exports = responder_exports,
         metrics_plot_reactive = metrics_plot_reactive,
         heatmap_plot_reactive = heatmap_plot_reactive,
         time_course_plot_reactive = time_course_plot_reactive

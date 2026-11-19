@@ -34,13 +34,13 @@ Automatic calculation of key calcium imaging metrics:
 - **Signal-to-Noise Ratio (SNR)**: Response strength relative to baseline noise
 - **Baseline Standard Deviation**: Quantifies noise level during rest period
 
-### In Vitro Analysis
+### In Vitro · Percent Responding
 
 For coverslips or monolayers, process one CSV or Excel file per field in **Load Data**. Include one mapped trace per identified cell, including cells with flat traces. The same recordings are available in Time Course, Heatmap and Metrics.
 
-Open **In Vitro Analysis**, enter the stimulus name and response window on the recording clock, and optionally enter a separate KCl control window. Each field shows the number responding, the number evaluable and their percentage. With a control, the tab also reports the stimulus response among matched KCl-positive cells. A whole-field interpretation requires tracing every cell in the target population independently of its response.
+Open **Percent Responding** under **In Vitro**, enter the stimulus name and response window on the recording clock, and optionally enter a separate KCl control window. Each field shows the number responding, the number evaluable and their percentage. With a control, the tab also reports the stimulus response among matched KCl-positive cells. A whole-field interpretation requires tracing every cell in the target population independently of its response.
 
-The editable starting rule requires an increase above the cell's local prestimulus mean of at least 0.10 ΔF/F₀ and three baseline SDs for two consecutive samples. The initial baseline is 10 s and the maximum permitted gap is 1 s. Confirm these values against your acquisition rate and controls. Invalid raw F₀ and incompletely observed windows are listed separately. A zero denominator is displayed as unavailable. These counts cover mapped cell columns in successfully processed fields. Inspect individual traces and export per-field counts and per-cell decisions, including the window and threshold settings.
+The editable starting rule requires an increase above the cell's local prestimulus mean of at least 10% of local prestimulus fluorescence and three local baseline SDs (both scaled by local fluorescence) for two consecutive samples. The initial baseline is 10 s and the default maximum gap is 1.5 times each field’s median positive frame interval, with a manual override in seconds. Confirm these values against your acquisition rate and controls. Invalid raw F₀ and incompletely observed windows are listed separately. A zero denominator is displayed as unavailable. These counts cover mapped cell columns in successfully processed fields. Inspect individual traces and export per-field counts and per-cell decisions, including the window and threshold settings.
 
 ### Advanced Features (New)
 - **Precise Baseline Window Entry**: Set the start and end frames by typing values or using the synchronized range slider

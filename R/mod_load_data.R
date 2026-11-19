@@ -166,7 +166,7 @@ format_example_block <- function() {
     div(
       class = "small-help",
       style = "flex: 1 1 240px; min-width: 220px; margin: 0; line-height: 1.6; font-size: 12px;",
-      p(style = "margin: 0 0 6px 0;", tags$b("One file per experimental group"), " (CSV or Excel, wide format). Switch the uploader to Multiple files to compare groups side by side."),
+      p(style = "margin: 0 0 6px 0;", tags$b("One recording per file (one field for Percent Responding)"), " (CSV or Excel, wide format). Switch the uploader to Multiple files to compare groups side by side."),
       p(style = "margin: 0 0 6px 0;", "Recommended: a Time column in seconds, plus one column per cell trace. If Time is absent, it is generated from the sampling rate; a Frame column or unnamed sequential ImageJ index is converted automatically."),
       p(style = "margin: 0 0 6px 0;", "Advanced Options confirms the Time source for each file and lets you exclude unwanted numeric columns before processing."),
       p(style = "margin: 0;", "ImageJ exports with Mean1, Mean2, ... columns display as Cell 1, Cell 2, ...")
@@ -277,7 +277,7 @@ mod_load_data_server <- function(id, rv) {
         div(
           class = "small-help", style = "margin-top: -8px; margin-bottom: 8px;",
           if (multi) {
-            "One file per experimental group; each file becomes its own group. Browse repeatedly to add files — the list keeps growing until you clear it."
+            "One recording per file (one field for Percent Responding); each file becomes its own group. Browse repeatedly to add files — the list keeps growing until you clear it."
           } else {
             "CSV or Excel, wide format: optional Time or Frame column, plus one column per cell trace."
           }
@@ -663,6 +663,7 @@ mod_load_data_server <- function(id, rv) {
           )
         }),
         error = function(e) {
+          if (inherits(e, "simpleca_import_error") && !length(rv$dts)) rv$import_audit <- e$audit
           process_state("error")
           process_error(conditionMessage(e))
           showNotification(
@@ -737,7 +738,7 @@ mod_load_data_server <- function(id, rv) {
         n_cells <- nrow(rv$metrics)
         n_groups <- length(rv$groups)
         showNotification(
-          paste0("Processed ", n_cells, " cells across ", n_groups, " file(s). Explore results in Time Course, Heatmap, or Metrics tabs."),
+          paste0("Processed ", n_cells, " cells across ", n_groups, " file(s). Explore results in Time Course, Heatmap, Metrics, or Percent Responding."),
           type = "message",
           duration = 6
         )
@@ -813,9 +814,9 @@ mod_load_data_server <- function(id, rv) {
             style = "flex: 1 1 300px; min-width: 260px;",
             tags$ol(
               style = "margin: 0 0 12px 18px; padding: 0; font-size: 13px; line-height: 2;",
-              tags$li(HTML("<b>Upload</b> a recording &mdash; or switch to <b>Multiple files</b> to load one file per experimental group and compare them.")),
+              tags$li(HTML("<b>Upload</b> a recording &mdash; or switch to <b>Multiple files</b> to load one recording per field or experimental group and compare them.")),
               tags$li(HTML("<b>Choose the baseline frames.</b> Set exact Start/End frames by typing or use the slider; Advanced Options confirms Time and excluded columns.")),
-              tags$li(HTML("<b>Click Process Data</b>, then explore Time Course, Heatmap, and Metrics."))
+              tags$li(HTML("<b>Click Process Data</b>, then explore Time Course, Heatmap, Metrics, and Percent Responding."))
             ),
             p(
               style = "margin: 0; font-size: 12px; color: var(--color-gray-600);",

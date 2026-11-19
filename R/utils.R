@@ -970,6 +970,7 @@ build_processed_state <- function(files, settings = list(), read_fun = safe_read
   }
 
   records <- list()
+  audit <- vector("list", nrow(files))
   skipped <- list()
   n_files <- nrow(files)
 
@@ -989,12 +990,15 @@ build_processed_state <- function(files, settings = list(), read_fun = safe_read
       } else {
         NULL
       }
+      original_names <- names(dt)
       dt <- apply_column_mapping(
         dt,
         mapping = mapping,
         sampling_rate = settings$sampling_rate
       )
       time_info <- attr(dt, "time_info")
+      omitted <- setdiff(original_names, c(names(dt)[-1], time_info$column, mapping$excluded_columns))
+      manual <- mapping$excluded_columns
       dt <- coerce_numeric_dt(dt)
       if (nrow(dt) < 2 || ncol(dt) < 2) {
         stop("no usable numeric cell traces")
@@ -1046,6 +1050,9 @@ build_processed_state <- function(files, settings = list(), read_fun = safe_read
       }
 
       list(
+        note = paste(c("Processed", if (length(manual)) paste("Excluded by mapping:", paste(manual, collapse = ", ")),
+          if (length(omitted)) paste("Omitted columns (metadata or insufficient numeric values):", paste(omitted, collapse = ", ")),
+          if (any(bad_f0)) paste("Invalid raw F0:", paste(names(f0)[bad_f0], collapse = ", "))), collapse = " · "),
         file_index = i,
         dt = dt,
         raw = raw,
@@ -1057,6 +1064,7 @@ build_processed_state <- function(files, settings = list(), read_fun = safe_read
       list(error = conditionMessage(e))
     })
 
+    audit[[i]] <- list(file = file_name, note = if (is.null(outcome$error)) outcome$note else paste("Skipped:", outcome$error))
     if (!is.null(outcome$error)) {
       skipped[[length(skipped) + 1]] <- data.frame(
         file = file_name,
@@ -1075,7 +1083,7 @@ build_processed_state <- function(files, settings = list(), read_fun = safe_read
     } else {
       "no usable numeric traces"
     }
-    stop("No uploaded files could be processed. ", reasons)
+    stop(errorCondition(paste("No uploaded files could be processed.", reasons), class = "simpleca_import_error", audit = audit))
   }
 
   accepted_indices <- vapply(records, `[[`, integer(1), "file_index")
@@ -1130,6 +1138,7 @@ build_processed_state <- function(files, settings = list(), read_fun = safe_read
   }, records, as.character(accepted_files$name)), use.names = FALSE)
 
   list(
+    import_audit = audit,
     files = accepted_files,
     groups = labels,
     colors = default_group_colors(labels),
@@ -1153,7 +1162,7 @@ build_processed_state <- function(files, settings = list(), read_fun = safe_read
 
 # Fields that must always describe the same successfully processed dataset.
 processed_state_fields <- c(
-  "files", "groups", "colors", "dts", "raw_traces", "baselines",
+  "import_audit", "files", "groups", "colors", "dts", "raw_traces", "baselines",
   "input_data_mode", "baseline_method", "baseline_frames", "sampling_rate",
   "long", "summary", "metrics", "processing_manifest"
 )

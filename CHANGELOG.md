@@ -8,6 +8,7 @@ All notable changes to SimpleCa will be documented in this file.
 - In Vitro Analysis tab with per-field responder percentages, optional paired KCl control, individual cell review and reproducible CSV exports.
 
 ### Fixed
+- Percent Responding measures fractional rise and noise relative to the local prestimulus fluorescence. Previous responder exports used the Load Data F₀ scale. Automatic gap limits follow each field’s median sampling interval.
 - Reject duplicate column headers before mapping can silently discard a distinct cell trace.
 - Keep FWHM unknown when an observation gap separates the peak from a half-height crossing; later pulses cannot supply an exact width or ordinary right-censored lower bound.
 - Reject baseline windows covering the full recording and files without usable post-baseline observations.
