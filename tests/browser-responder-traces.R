@@ -5,7 +5,12 @@ invisible(evaluate(in_app(paste(
   "d.querySelector('input[name=\"load_data-upload_mode\"][value=multi]').click();",
   "var bg=d.getElementById('load_data-has_background');if(bg.checked)bg.click();return true;"
 ))))
-wait_until(in_app("return d.getElementById('load_data-process_status').innerText.includes('Waiting');"), "empty staging list")
+# Switching upload modes replaces the input asynchronously. The empty status
+# can arrive first; uploading to that old single-file input loses the batch.
+wait_until(in_app(paste(
+  "return !!d.querySelector('#load_data-data_files[multiple]') &&",
+  "d.getElementById('load_data-process_status').innerText.includes('Waiting');"
+)), "empty multi-file uploader ready")
 paths <- vapply(1:3, function(k) {
   folder <- tempfile(); dir.create(folder); path <- file.path(folder, if (k < 3) "compare.csv" else "short.csv")
   time <- (0:59) * if (k == 3) .5 else 1
