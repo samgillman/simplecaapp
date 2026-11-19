@@ -554,7 +554,7 @@ save_plot_file <- function(filename, plot, width, height, dpi = 300,
 }
 
 #' Create a machine-readable record of the processing transaction.
-build_processing_manifest <- function(files, groups, settings) {
+build_processing_manifest <- function(files, groups, settings, background = NULL) {
   version <- if (exists("SIMPLECA_VERSION", inherits = TRUE)) {
     get("SIMPLECA_VERSION", inherits = TRUE)
   } else {
@@ -583,6 +583,14 @@ build_processing_manifest <- function(files, groups, settings) {
     source_filenames = source_names,
     source_upload_ids = upload_ids,
     group_labels = paste(groups, collapse = "|"),
+    background_correction = if (any(lengths(background) > 0)) {
+      "background_roi_mean_subtracted_per_frame_before_f0"
+    } else {
+      "none"
+    },
+    background_columns = as.character(jsonlite::toJSON(
+      lapply(as.list(background), as.character), auto_unbox = FALSE
+    )),
     processed_at_utc = format(Sys.time(), tz = "UTC", usetz = TRUE),
     interpretation_note = paste(
       "Descriptive cell-level summaries; cells from the same preparation",
@@ -835,13 +843,86 @@ inspect_column_mapping <- function(dt, sampling_rate = 1) {
   candidates <- numeric_trace_candidates(dt)
   source_column <- info$column %||% NULL
   trace_columns <- setdiff(candidates, source_column %||% character())
+  trace_means <- vapply(trace_columns, function(column) {
+    mean(suppressWarnings(as.numeric(dt[[column]])), na.rm = TRUE)
+  }, numeric(1))
   list(
     columns = names(dt),
     numeric_columns = candidates,
     row_count = nrow(dt),
     time_info = info,
-    trace_columns = trace_columns
+    trace_columns = trace_columns,
+    background_candidates = detect_background_columns(trace_columns),
+    # A hint only: the dimmest trace is often, but not always, the background.
+    dimmest_column = if (length(trace_means) > 1 && any(is.finite(trace_means))) {
+      names(trace_means)[which.min(trace_means)]
+    } else {
+      NULL
+    }
   )
+}
+
+#' Recognize background ROI columns by name
+#'
+#' Matches BG, Bkg, Bkgd, Bkgnd, Background and Blank, with an optional ImageJ
+#' "Mean" prefix, punctuation and trailing index: "BG", "bg_2", "Mean(BG)",
+#' "Background 1". Detection is by name only; intensity is never used to
+#' assign a background automatically.
+#' @param columns Candidate trace column names.
+#' @return The subset of `columns` whose names identify a background ROI.
+detect_background_columns <- function(columns) {
+  columns <- as.character(columns %||% character())
+  normalized <- gsub("[^a-z0-9]+", "", tolower(columns))
+  columns[grepl("^(mean)?(bg|bkg|bkgd|bkgnd|background|blank)[0-9]*$", normalized)]
+}
+
+#' Subtract a per-frame background ROI from every cell trace
+#'
+#' The background at each frame is the mean of the selected background columns
+#' at that frame. Background columns are removed from the returned table so
+#' they are never counted or analyzed as cells.
+#' @param dt Time-first numeric table from apply_column_mapping().
+#' @param background_columns Names of the background ROI columns.
+#' @return List with the corrected table `dt` and a `background` table
+#'   (Time, Background_mean, then each selected column), or `background = NULL`
+#'   when no background columns are supplied.
+subtract_background <- function(dt, background_columns = character()) {
+  background_columns <- unique(as.character(background_columns %||% character()))
+  if (!length(background_columns)) {
+    return(list(dt = dt, background = NULL))
+  }
+  dt <- data.table::as.data.table(dt)
+  missing_columns <- setdiff(background_columns, names(dt)[-1])
+  if (length(missing_columns)) {
+    stop("Background column(s) have no usable numeric values: ",
+         paste(missing_columns, collapse = ", "))
+  }
+  cell_columns <- setdiff(names(dt)[-1], background_columns)
+  if (!length(cell_columns)) {
+    stop("No cell traces remain after assigning the background column(s).")
+  }
+  values <- vapply(background_columns, function(column) {
+    suppressWarnings(as.numeric(dt[[column]]))
+  }, numeric(nrow(dt)))
+  values <- matrix(values, nrow = nrow(dt), dimnames = list(NULL, background_columns))
+  missing_frames <- which(rowSums(!is.finite(values)) > 0L)
+  if (length(missing_frames)) {
+    stop(sprintf(
+      "Background column(s) %s have missing or non-numeric values at %d frame(s), starting at frame %d.",
+      paste(background_columns, collapse = ", "), length(missing_frames), missing_frames[1]
+    ))
+  }
+  background <- rowMeans(values)
+  corrected <- dt[, c(names(dt)[1], cell_columns), with = FALSE]
+  for (column in cell_columns) {
+    corrected[[column]] <- corrected[[column]] - background
+  }
+  attr(corrected, "time_info") <- attr(dt, "time_info")
+  trace <- data.table::data.table(Time = dt[[1]], Background_mean = background)
+  # Preserve a source ROI even if its name matches the derived mean column.
+  export_names <- tail(make.unique(c(names(trace), background_columns)), length(background_columns))
+  for (i in seq_along(export_names)) trace[[export_names[i]]] <- values[, i]
+  list(dt = corrected, background = trace)
 }
 
 #' Apply one file's explicit column mapping before baseline processing
@@ -896,6 +977,26 @@ apply_column_mapping <- function(dt, mapping = NULL, sampling_rate = 1) {
   }
   if (length(trace_columns) == 0) {
     stop("No numeric trace columns remain after applying the column mapping.")
+  }
+
+  # Background columns stay in the mapped table; subtract_background() removes
+  # them after numeric coercion. Reject contradictory choices here.
+  if (isTRUE(mapping$subtract_background)) {
+    background <- unique(as.character(mapping$background_columns %||% character()))
+    if (!length(background)) {
+      stop("Background subtraction is on, but no background column is selected.")
+    }
+    if (length(intersect(background, excluded))) {
+      stop("Background column(s) cannot also be excluded: ",
+           paste(intersect(background, excluded), collapse = ", "))
+    }
+    if (length(setdiff(background, trace_columns))) {
+      stop("Background column(s) must be numeric trace columns, not the Time/Frame source: ",
+           paste(setdiff(background, trace_columns), collapse = ", "))
+    }
+    if (!length(setdiff(trace_columns, background))) {
+      stop("No cell traces remain after assigning the background column(s).")
+    }
   }
 
   source_columns <- unique(c(selected_column %||% character(), trace_columns))
@@ -1001,7 +1102,7 @@ normalize_load_settings <- function(settings = list()) {
 #' @param info `time_info` attribute returned by ensure_time_first().
 #' @param file_name Display name of the uploaded file.
 #' @return A message string, or NULL when an existing Time column was used.
-describe_time_adjustment <- function(info, file_name) {
+describe_time_adjustment <- function(info, file_name, background_columns = character()) {
   if (is.null(info) || identical(info$source, "time")) {
     return(NULL)
   }
@@ -1011,7 +1112,12 @@ describe_time_adjustment <- function(info, file_name) {
     inferred_frame = sprintf("%s: treated the unnamed sequential first column as Frame and converted it to seconds at %s Hz.", file_name, rate),
     generated_selected = sprintf("%s: generated Time from row number at %s Hz as selected.", file_name, rate),
     generated_invalid_frame = sprintf("%s: replaced invalid '%s' frame values using %s Hz.", file_name, info$column, rate),
-    generated_missing = sprintf("%s: generated Time using %s Hz; all uploaded columns were retained as traces.", file_name, rate),
+    generated_missing = if (length(background_columns)) {
+      sprintf("%s: generated Time using %s Hz. Background ROI columns: %s.",
+              file_name, rate, paste(background_columns, collapse = ", "))
+    } else {
+      sprintf("%s: generated Time using %s Hz; all uploaded columns were retained as traces.", file_name, rate)
+    },
     NULL
   )
 }
@@ -1081,6 +1187,20 @@ build_processed_state <- function(files, settings = list(), read_fun = safe_read
         stop("no usable numeric cell traces")
       }
 
+      # Background is removed before F0 so F0 and every downstream metric use
+      # background-subtracted fluorescence. `raw` keeps the same corrected
+      # values, so (F - F0)/F0 shown in Metric Explanations stays exact.
+      background_columns <- if (isTRUE(mapping$subtract_background)) {
+        unique(as.character(mapping$background_columns %||% character()))
+      } else {
+        character()
+      }
+      if (length(background_columns) && !identical(settings$input_data_mode, "raw_fluorescence")) {
+        stop("Background subtraction applies only to raw fluorescence input.")
+      }
+      corrected <- subtract_background(dt, background_columns)
+      dt <- corrected$dt
+
       raw <- data.table::copy(dt)
       report_progress(0.2 / n_files, paste0("Detecting baseline for: ", basename(file_name)))
 
@@ -1127,12 +1247,15 @@ build_processed_state <- function(files, settings = list(), read_fun = safe_read
       }
 
       list(
-        note = paste(c("Processed", if (length(manual)) paste("Excluded by mapping:", paste(manual, collapse = ", ")),
+        note = paste(c("Processed", if (length(background_columns)) paste("Background subtracted:", paste(background_columns, collapse = ", ")),
+          if (length(manual)) paste("Excluded by mapping:", paste(manual, collapse = ", ")),
           if (length(omitted)) paste("Omitted columns (metadata or insufficient numeric values):", paste(omitted, collapse = ", ")),
           if (any(bad_f0)) paste("Invalid raw F0:", paste(names(f0)[bad_f0], collapse = ", "))), collapse = " · "),
         file_index = i,
         dt = dt,
         raw = raw,
+        background = corrected$background,
+        background_columns = background_columns,
         baselines = f0,
         dropped_cells = names(f0)[bad_f0],
         time_info = time_info
@@ -1174,6 +1297,11 @@ build_processed_state <- function(files, settings = list(), read_fun = safe_read
   dts <- stats::setNames(lapply(records, `[[`, "dt"), labels)
   raw_traces <- stats::setNames(lapply(records, `[[`, "raw"), labels)
   baselines <- stats::setNames(lapply(records, `[[`, "baselines"), labels)
+  background_columns <- stats::setNames(lapply(records, `[[`, "background_columns"), labels)
+  background_traces <- Filter(
+    Negate(is.null),
+    stats::setNames(lapply(records, `[[`, "background"), labels)
+  )
 
   report_progress(0.15, "Summarizing time courses...")
   long <- dplyr::bind_rows(Map(to_long, dts, labels))
@@ -1211,7 +1339,7 @@ build_processed_state <- function(files, settings = list(), read_fun = safe_read
     paste(label, record$dropped_cells, sep = "/")
   }, records, labels), use.names = FALSE)
   time_messages <- unlist(Map(function(record, file_name) {
-    describe_time_adjustment(record$time_info, file_name)
+    describe_time_adjustment(record$time_info, file_name, record$background_columns)
   }, records, as.character(accepted_files$name)), use.names = FALSE)
 
   list(
@@ -1222,6 +1350,7 @@ build_processed_state <- function(files, settings = list(), read_fun = safe_read
     colors = view$palette,
     dts = dts,
     raw_traces = raw_traces,
+    background_traces = background_traces,
     baselines = baselines,
     input_data_mode = settings$input_data_mode,
     baseline_method = settings$baseline_method,
@@ -1230,7 +1359,9 @@ build_processed_state <- function(files, settings = list(), read_fun = safe_read
     long = long,
     summary = summary,
     metrics = metrics,
-    processing_manifest = with_recording_manifest(build_processing_manifest(accepted_files, labels, settings), meta),
+    processing_manifest = with_recording_manifest(
+      build_processing_manifest(accepted_files, labels, settings, background_columns), meta
+    ),
     skipped_files = skipped_details$file,
     skipped_details = skipped_details,
     dropped_cells = dropped_cells,
@@ -1240,7 +1371,8 @@ build_processed_state <- function(files, settings = list(), read_fun = safe_read
 
 # Fields that must always describe the same successfully processed dataset.
 processed_state_fields <- c(
-  "import_audit", "files", "group_meta", "groups", "colors", "dts", "raw_traces", "baselines",
+  "import_audit", "files", "group_meta", "groups", "colors", "dts", "raw_traces",
+  "background_traces", "baselines",
   "input_data_mode", "baseline_method", "baseline_frames", "sampling_rate",
   "long", "summary", "metrics", "processing_manifest"
 )
@@ -1260,6 +1392,7 @@ clear_processed_state <- function(rv) {
     colors = NULL,
     dts = list(),
     raw_traces = list(),
+    background_traces = list(),
     baselines = list(),
     input_data_mode = NULL,
     baseline_method = NULL,

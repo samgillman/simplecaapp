@@ -360,14 +360,21 @@ mod_data_export_server <- function(id, rv, metrics_plot_reactive, heatmap_plot_r
     }
     write_all_processed_zip <- function(file) {
       req(rv$dts, length(rv$dts) > 0)
-      out_dir <- file.path(tempdir(), paste0("processed_all_", format(Sys.time(), "%H%M%S")))
-      dir.create(out_dir, showWarnings = FALSE, recursive = TRUE)
-      paths <- vapply(names(rv$dts), function(g) {
-        safe <- gsub("[^A-Za-z0-9._-]+", "_", g)
-        f <- file.path(out_dir, paste0(safe, "_processed.csv"))
+      out_dir <- tempfile("processed_all_")
+      dir.create(out_dir)
+      on.exit(unlink(out_dir, recursive = TRUE), add = TRUE)
+      groups <- names(rv$dts)
+      stems <- stats::setNames(make.unique(gsub("[^A-Za-z0-9._-]+", "_", groups)), groups)
+      paths <- vapply(groups, function(g) {
+        f <- file.path(out_dir, paste0(stems[[g]], "_processed.csv"))
         data.table::fwrite(rv$dts[[g]], f)
         f
       }, character(1))
+      for (g in names(rv$background_traces)) {
+        background_path <- file.path(out_dir, paste0(stems[[g]], "_background.csv"))
+        data.table::fwrite(rv$background_traces[[g]], background_path)
+        paths <- c(paths, background_path)
+      }
       if (!is.null(rv$processing_manifest)) {
         manifest_path <- file.path(out_dir, "processing_manifest.csv")
         data.table::fwrite(rv$processing_manifest, manifest_path)

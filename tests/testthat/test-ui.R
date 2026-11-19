@@ -61,6 +61,8 @@ test_that("advanced processing settings precede the Process Data action", {
   expect_match(markup, "Raw fluorescence", fixed = TRUE)
   expect_match(markup, "Already ΔF/F₀", fixed = TRUE)
   expect_match(markup, "values are preserved exactly", fixed = TRUE)
+  expect_match(markup, "My file includes a background ROI column", fixed = TRUE)
+  expect_lt(regexpr("background ROI column", markup, fixed = TRUE)[1], advanced_position)
   expect_false(grepl("pp_baseline_method", markup, fixed = TRUE))
   expect_false(grepl("Rolling Minimum", markup, fixed = TRUE))
   expect_false(grepl("Percentile", markup, fixed = TRUE))

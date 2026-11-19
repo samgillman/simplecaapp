@@ -89,7 +89,13 @@ mod_load_data_ui <- function(id) {
             ),
             conditionalPanel(
               sprintf("input['%s'] == 'raw_fluorescence'", ns("input_data_mode")),
-              div(class = "small-help", "F₀ is the mean raw fluorescence across the selected frames; traces are normalized as (F − F₀)/F₀.")
+              div(class = "small-help", "F₀ is the mean fluorescence across the selected baseline frames after any background subtraction. The normalized trace is (F − F₀)/F₀."),
+              checkboxInput(ns("has_background"), "My file includes a background ROI column", value = FALSE),
+              conditionalPanel(
+                sprintf("input['%s'] === true", ns("has_background")),
+                div(class = "small-help", "The background is subtracted from every cell at each frame before F₀ is calculated. If you choose multiple background ROIs, their mean is subtracted at each frame. Only the remaining cell traces enter the analysis."),
+                uiOutput(ns("background_ui"))
+              )
             ),
             conditionalPanel(
               sprintf("input['%s'] == 'dff0'", ns("input_data_mode")),
@@ -162,7 +168,8 @@ format_example_block <- function() {
       p(style = "margin: 0 0 6px 0;", tags$b("One recording per file (one field for Percent Responding)"), " (CSV or Excel, wide format). Switch the uploader to Multiple files to compare groups side by side."),
       p(style = "margin: 0 0 6px 0;", "Recommended: a Time column in seconds, plus one column per cell trace. If Time is absent, it is generated from the sampling rate; a Frame column or unnamed sequential ImageJ index is converted automatically."),
       p(style = "margin: 0 0 6px 0;", "Use Advanced Options to check the time source or exclude columns."),
-      p(style = "margin: 0;", "ImageJ exports with Mean1, Mean2, ... columns display as Cell 1, Cell 2, ...")
+      p(style = "margin: 0 0 6px 0;", "ImageJ exports with Mean1, Mean2, ... columns display as Cell 1, Cell 2, ..."),
+      p(style = "margin: 0;", "If the export includes a cell-free background ROI, tick the background box in step 2 so it is subtracted and not counted as a cell.")
     )
   )
 }
@@ -413,6 +420,49 @@ mod_load_data_server <- function(id, rv) {
       process_error(NULL)
     })
 
+    background_enabled <- reactive({
+      isTRUE(input$has_background) &&
+        identical(input$input_data_mode %||% "raw_fluorescence", "raw_fluorescence")
+    })
+
+    # One picker per staged file. Columns named like a background ROI are
+    # preselected; nothing is ever assigned from intensity alone.
+    output$background_ui <- renderUI({
+      files <- uploaded_files()
+      schemas <- upload_schemas()
+      if (!NROW(files)) {
+        return(p("Upload a file to choose its background column.", class = "text-muted small"))
+      }
+      lapply(seq_len(nrow(files)), function(i) {
+        key <- column_mapping_key(files$upload_id[i])
+        schema <- schemas[[key]]
+        if (is.null(schema) || !is.null(schema$error)) return(NULL)
+        input_id <- paste0("background_columns_", key)
+        detected <- schema$background_candidates %||% character()
+        current <- isolate(input[[input_id]])
+        selected <- if (is.null(current)) detected else intersect(current, schema$trace_columns)
+        hint <- if (length(detected)) {
+          sprintf("Detected by name: %s. Change the selection if this is not the background.",
+                  paste(detected, collapse = ", "))
+        } else if (!is.null(schema$dimmest_column)) {
+          sprintf("No column is named BG or Background, so none was selected. The dimmest trace is %s; select it only if it is your background ROI.",
+                  schema$dimmest_column)
+        } else {
+          "No column is named BG or Background. Select the background ROI column."
+        }
+        div(
+          class = "column-mapping-file",
+          selectizeInput(ns(input_id),
+            if (nrow(files) > 1) paste("Background column ·", upload_display_names(files$name)[i]) else "Background column",
+            choices = stats::setNames(schema$trace_columns, pretty_cell_label(schema$trace_columns)),
+            selected = selected, multiple = TRUE, width = "100%",
+            options = list(plugins = list("remove_button"), placeholder = "Select the background ROI column")
+          ),
+          p(hint, class = "small-help")
+        )
+      })
+    })
+
     output$column_mapping_ui <- renderUI({
       files <- uploaded_files()
       schemas <- upload_schemas()
@@ -471,6 +521,9 @@ mod_load_data_server <- function(id, rv) {
             c(current_excluded, active_source %||% character())
           )
           if (!identical(active_source, "Time")) active_traces <- setdiff(active_traces, "Time")
+          if (background_enabled()) {
+            active_traces <- setdiff(active_traces, input[[paste0("background_columns_", key)]] %||% character())
+          }
           mapping_status <- switch(current_mode,
             auto = detection,
             time = sprintf("Using '%s' as elapsed time in seconds.", current_column),
@@ -535,7 +588,9 @@ mod_load_data_server <- function(id, rv) {
           return(list(
             time_mode = "auto",
             time_column = NULL,
-            excluded_columns = character()
+            excluded_columns = character(),
+            subtract_background = background_enabled(),
+            background_columns = character()
           ))
         }
         mode <- input[[paste0("time_mode_", key)]] %||% "auto"
@@ -545,7 +600,13 @@ mod_load_data_server <- function(id, rv) {
         list(
           time_mode = mode,
           time_column = column,
-          excluded_columns = excluded
+          excluded_columns = excluded,
+          subtract_background = background_enabled(),
+          background_columns = if (background_enabled()) {
+            input[[paste0("background_columns_", key)]] %||% character()
+          } else {
+            character()
+          }
         )
       })
     }
@@ -568,12 +629,21 @@ mod_load_data_server <- function(id, rv) {
       files <- uploaded_files()
       mappings <- if (NROW(files)) collect_column_mappings(files)
       for (i in seq_along(mappings)) {
-        dt <- tryCatch(apply_column_mapping(safe_read(files$datapath[i]), mappings[[i]],
-          input$pp_sampling_rate %||% 1), error = function(e) NULL)
+        corrected <- tryCatch({
+          mapped <- coerce_numeric_dt(apply_column_mapping(safe_read(files$datapath[i]), mappings[[i]],
+            input$pp_sampling_rate %||% 1))
+          subtract_background(mapped, mappings[[i]]$background_columns)
+        }, error = function(e) NULL)
+        dt <- corrected$dt
         if (NCOL(dt) >= 2L) {
           y <- suppressWarnings(as.numeric(dt[[2L]]))
           y[!is.finite(y)] <- NA_real_
-          if (any(!is.na(y))) return(list(y = y, label = paste(files$name[i], names(dt)[2L], sep = " · ")))
+          if (any(!is.na(y))) return(list(
+            y = y,
+            background = corrected$background$Background_mean,
+            label = paste(c(files$name[i], names(dt)[2L],
+                            if (!is.null(corrected$background)) "background-subtracted"), collapse = " · ")
+          ))
         }
       }
       NULL
@@ -585,10 +655,16 @@ mod_load_data_server <- function(id, rv) {
       req(x)
       frames <- baseline_frames_state()
       par(mar = c(2.4, 3.4, 1.7, 0.8), mgp = c(1.3, .35, 0), tcl = -.2)
-      plot(seq_along(x$y), x$y, type = "n", xlab = "Frame", ylab = "", main = x$label, cex.main = .85)
+      plot(seq_along(x$y), x$y, type = "n", xlab = "Frame", ylab = "", main = x$label, cex.main = .85,
+           ylim = range(c(x$y, x$background), na.rm = TRUE))
       rect(frames[1] - .5, par("usr")[3], frames[2] + .5, par("usr")[4], col = "#DCEAF1", border = NA)
       lines(x$y, col = "#284B60")
-    }, alt = "Uploaded cell trace with the selected baseline frames shaded.")
+      # The background that was removed, on the same scale. It should be flat.
+      if (!is.null(x$background)) {
+        lines(x$background, col = "#8A8F98", lty = 2)
+        legend("topright", legend = "Background", col = "#8A8F98", lty = 2, bty = "n", cex = .75)
+      }
+    }, alt = "Uploaded cell trace with the selected baseline frames shaded and, when background subtraction is on, the background trace.")
 
     current_processing_settings <- function(files = uploaded_files()) {
       list(

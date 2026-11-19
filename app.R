@@ -222,6 +222,7 @@ server <- function(input, output, session) {
     metrics = NULL,
     colors = NULL,
     raw_traces = list(),
+    background_traces = list(),
     baselines = list(),
     input_data_mode = NULL,
     baseline_method = NULL,

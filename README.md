@@ -112,6 +112,7 @@ SimpleCa²⁺ requires data in **wide format** (CSV or Excel):
 Choose the input mode before processing:
 
 - **Raw fluorescence** computes F₀ over the selected baseline frames, rejects traces with undefined F₀, and applies `(F - F₀) / F₀`.
+- **Optional background ROI subtraction** is available with raw fluorescence. On Load Data, check **My file includes a background ROI column** and confirm the selection for each recording. Names such as `BG` and `Background` are preselected. With multiple ROIs, SimpleCa subtracts their frame-wise mean from each cell before estimating F₀. The baseline preview overlays that background trace. The processed-data ZIP includes the background trace for each corrected recording and a manifest with the selected columns.
 - **Already ΔF/F₀** preserves every uploaded value, calculates baseline SD directly in ΔF/F₀ units, and uses the baseline frames only for noise estimation and to define the post-baseline response region.
 
 The baseline must leave at least one finite post-baseline observation in a usable cell trace. Missing samples that interrupt the peak-to-half-maximum interval leave FWHM, Half-Width, censoring status, and lower bound unknown; a later pulse never supplies the missing crossing. Ordinary right censoring requires uninterrupted observations through the end of the recording.

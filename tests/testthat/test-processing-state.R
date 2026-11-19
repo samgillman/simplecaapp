@@ -666,3 +666,238 @@ test_that("a short field cannot shrink the shared F0 window while staging a batc
     expect_equal(current_processing_settings()$baseline_frames, c(4L, 27L))
   })
 })
+
+# ---- Background ROI subtraction ----
+
+make_background_recording <- function(offset = 40, drift = 0) {
+  dt <- make_raw_recording(with_time = TRUE, cells = 2)
+  background <- offset + drift * seq_len(nrow(dt))
+  dt[, Cell1 := Cell1 + background]
+  dt[, Cell2 := Cell2 + background]
+  dt[, BG := background]
+  dt
+}
+
+background_mapping <- function(columns = "BG", ...) {
+  list(list(time_mode = "auto", subtract_background = TRUE,
+            background_columns = columns, ...))
+}
+
+recording_file <- data.frame(name = "recording.csv", datapath = "recording",
+                             stringsAsFactors = FALSE)
+
+test_that("background columns are recognized by name only", {
+  expect_equal(
+    detect_background_columns(c("Mean1", "BG", "bg_2", "Mean(BG)", "Background 1",
+                                "Bkgd", "Blank", "BigCell", "Mean12", "Cell_bg_like")),
+    c("BG", "bg_2", "Mean(BG)", "Background 1", "Bkgd", "Blank")
+  )
+  schema <- inspect_column_mapping(make_background_recording())
+  expect_equal(schema$background_candidates, "BG")
+  expect_equal(schema$dimmest_column, "BG")
+})
+
+test_that("subtract_background removes a per-frame background and its column", {
+  dt <- make_background_recording(offset = 40, drift = 0.5)
+  out <- subtract_background(dt, "BG")
+  clean <- make_raw_recording(with_time = TRUE, cells = 2)
+
+  expect_equal(names(out$dt), c("Time", "Cell1", "Cell2"))
+  expect_equal(out$dt$Cell1, clean$Cell1)
+  expect_equal(out$dt$Cell2, clean$Cell2)
+  expect_equal(names(out$background), c("Time", "Background_mean", "BG"))
+  expect_equal(out$background$Background_mean, dt$BG)
+
+  untouched <- subtract_background(dt, character())
+  expect_identical(untouched$dt, dt)
+  expect_null(untouched$background)
+})
+
+test_that("several background columns are averaged at each frame", {
+  dt <- make_background_recording(offset = 40)
+  dt[, BG2 := BG + 10]
+  out <- subtract_background(dt, c("BG", "BG2"))
+  expect_equal(out$background$Background_mean, rep(45, nrow(dt)))
+  expect_equal(out$dt$Cell1, make_raw_recording(cells = 1)$Cell1 - 5)
+})
+
+test_that("background subtraction restores the true response before F0", {
+  settings <- c(processing_settings, list(column_mappings = background_mapping()))
+  corrected <- build_processed_state(recording_file, settings,
+    read_fun = function(path) make_background_recording(offset = 40, drift = 0.5))
+  truth <- build_processed_state(recording_file, processing_settings,
+    read_fun = function(path) make_raw_recording(with_time = TRUE, cells = 2))
+
+  expect_equal(names(corrected$dts$recording), c("Time", "Cell1", "Cell2"))
+  expect_equal(corrected$dts$recording, truth$dts$recording)
+  expect_equal(corrected$metrics$Peak_dFF0, truth$metrics$Peak_dFF0)
+  expect_equal(corrected$baselines$recording, truth$baselines$recording)
+  expect_equal(names(corrected$baselines$recording), c("Cell1", "Cell2"))
+  expect_equal(corrected$raw_traces$recording, truth$raw_traces$recording)
+  expect_equal(corrected$group_meta$n_cells, 2L)
+  expect_named(corrected$background_traces, "recording")
+  expect_match(corrected$import_audit[[1]]$note, "Background subtracted: BG", fixed = TRUE)
+
+  manifest <- stats::setNames(corrected$processing_manifest$value,
+                              corrected$processing_manifest$field)
+  expect_identical(manifest[["background_correction"]],
+                   "background_roi_mean_subtracted_per_frame_before_f0")
+  expect_identical(manifest[["background_columns"]], '{"recording":["BG"]}')
+})
+
+test_that("an uncorrected background compresses the response", {
+  uncorrected <- build_processed_state(recording_file,
+    c(processing_settings, list(column_mappings = list(list(excluded_columns = "BG")))),
+    read_fun = function(path) make_background_recording(offset = 40))
+  # Cell1 is 100 + 10 * pulse on a 40-unit background: peak 10/140, not 10/100.
+  expect_equal(uncorrected$metrics$Peak_dFF0[1], 10 / 140)
+  manifest <- stats::setNames(uncorrected$processing_manifest$value,
+                              uncorrected$processing_manifest$field)
+  expect_identical(manifest[["background_correction"]], "none")
+  expect_identical(manifest[["background_columns"]], '{"recording":[]}')
+  expect_length(uncorrected$background_traces, 0)
+})
+
+test_that("a selected column is ignored unless background subtraction is on", {
+  off <- list(list(subtract_background = FALSE, background_columns = "BG"))
+  state <- build_processed_state(recording_file,
+    c(processing_settings, list(column_mappings = off)),
+    read_fun = function(path) make_background_recording())
+  expect_equal(names(state$dts$recording), c("Time", "Cell1", "Cell2", "BG"))
+  expect_length(state$background_traces, 0)
+})
+
+test_that("contradictory or unusable background choices are rejected", {
+  run <- function(mapping, mode = "raw_fluorescence", reader = make_background_recording) {
+    build_processed_state(recording_file,
+      c(processing_settings, list(input_data_mode = mode, column_mappings = mapping)),
+      read_fun = function(path) reader())
+  }
+  expect_error(run(background_mapping(character())), "no background column is selected")
+  expect_error(run(background_mapping("BG", excluded_columns = "BG")), "cannot also be excluded")
+  expect_error(run(background_mapping(c("Cell1", "Cell2", "BG"))), "No cell traces remain")
+  expect_error(run(background_mapping("Time")), "not the Time/Frame source")
+  expect_error(run(background_mapping(), mode = "dff0"), "only to raw fluorescence")
+  expect_error(run(background_mapping(), reader = function() {
+    dt <- make_background_recording()
+    dt[5, BG := NA_real_]
+    dt
+  }), "missing or non-numeric values at 1 frame\\(s\\), starting at frame 5")
+})
+
+test_that("cells at or below background are excluded by the existing F0 rule", {
+  state <- build_processed_state(recording_file,
+    c(processing_settings, list(column_mappings = background_mapping())),
+    read_fun = function(path) {
+      dt <- make_background_recording(offset = 40)
+      dt[, Cell2 := BG]
+      dt
+    })
+  expect_equal(names(state$dts$recording), c("Time", "Cell1"))
+  expect_equal(state$dropped_cells, "recording/Cell2")
+})
+
+test_that("load module subtracts the chosen background column and flags changes", {
+  skip_if_not_installed("shiny")
+  suppressPackageStartupMessages(library(shiny))
+
+  module_env <- new.env(parent = globalenv())
+  sys.source(file.path(repo_root, "R", "mod_load_data.R"), envir = module_env)
+  module_env$theme_box <- function(...) shiny::div(...)
+  module_env$primary_button <- function(inputId, label, ...) {
+    shiny::actionButton(inputId, label)
+  }
+
+  path <- tempfile(fileext = ".csv")
+  on.exit(unlink(path), add = TRUE)
+  data.table::fwrite(make_background_recording(offset = 40), path)
+  upload <- data.frame(
+    name = "field.csv", size = unname(file.info(path)$size), type = "text/csv",
+    datapath = path, stringsAsFactors = FALSE
+  )
+  key <- module_env$column_mapping_key(ensure_upload_ids(upload)$upload_id)
+  background_id <- paste0("background_columns_", key)
+  rv <- shiny::reactiveValues(
+    files = NULL, groups = NULL, dts = list(), long = NULL,
+    summary = NULL, metrics = NULL, colors = NULL,
+    raw_traces = list(), background_traces = list(), baselines = list(),
+    baseline_method = NULL, baseline_frames = NULL
+  )
+
+  shiny::testServer(module_env$mod_load_data_server, args = list(rv = rv), {
+    session$setInputs(upload_mode = "single", pp_sampling_rate = 10,
+                      input_data_mode = "raw_fluorescence", has_background = FALSE)
+    session$setInputs(data_files = upload)
+    session$flushReact()
+
+    # Unticked: the BG column is still analyzed as a cell, as before.
+    session$setInputs(load_btn = 1)
+    session$flushReact()
+    expect_equal(names(rv$dts$field), c("Time", "Cell1", "Cell2", "BG"))
+
+    # Ticked: the picker preselects the column named BG.
+    session$setInputs(has_background = TRUE)
+    session$flushReact()
+    expect_match(paste(as.character(output$background_ui), collapse = " "),
+                 "Detected by name: BG", fixed = TRUE)
+    expect_match(paste(as.character(output$background_ui), collapse = " "),
+                 '<option value="BG" selected', fixed = TRUE)
+
+    # Ticked with nothing chosen is an explicit error, never a silent guess.
+    session$setInputs(load_btn = 2)
+    session$flushReact()
+    expect_match(paste(as.character(output$process_status), collapse = " "),
+                 "no background column is selected", fixed = TRUE)
+
+    do.call(session$setInputs, stats::setNames(list("BG"), background_id))
+    session$flushReact()
+    session$setInputs(load_btn = 3)
+    session$flushReact()
+    expect_equal(names(rv$dts$field), c("Time", "Cell1", "Cell2"))
+    expect_equal(rv$metrics$Peak_dFF0, c(0.1, 0.2))
+    expect_named(rv$background_traces, "field")
+
+    # Changing the background choice makes the committed results stale.
+    do.call(session$setInputs, stats::setNames(list("Cell2"), background_id))
+    session$flushReact()
+    expect_null(rv$metrics)
+    expect_match(paste(as.character(output$process_status), collapse = " "),
+                 "Settings changed", fixed = TRUE)
+
+    # Already-normalized input never subtracts a background.
+    session$setInputs(input_data_mode = "dff0")
+    session$flushReact()
+    session$setInputs(load_btn = 4)
+    session$flushReact()
+    expect_equal(names(rv$dts$field), c("Time", "Cell1", "Cell2", "BG"))
+    expect_length(rv$background_traces, 0)
+  })
+})
+
+test_that("processed ZIP pairs each recording with its own background trace", {
+  library(shiny)
+  source(file.path(repo_root, "R", "mod_data_export.R"), local = TRUE)
+  files <- data.frame(name = c("A B.csv", "A_B.csv"), datapath = c("1", "2"))
+  state <- build_processed_state(files,
+    c(processing_settings, list(column_mappings = rep(background_mapping(), 2L))),
+    read_fun = function(path) make_background_recording(offset = 40 * as.integer(path)))
+  rv <- do.call(reactiveValues, state[processed_state_fields])
+  testServer(mod_data_export_server, args = list(rv = rv, metrics_plot_reactive = reactive(NULL),
+    heatmap_plot_reactive = reactive(NULL), time_course_plot_reactive = reactive(NULL)), {
+    archive <- tempfile(fileext = ".zip")
+    directory <- tempfile()
+    dir.create(directory)
+    on.exit(unlink(c(archive, directory), recursive = TRUE), add = TRUE)
+    write_all_processed_zip(archive)
+    utils::unzip(archive, exdir = directory)
+    expect_setequal(list.files(directory), c("A_B_processed.csv", "A_B.1_processed.csv",
+      "A_B_background.csv", "A_B.1_background.csv", "processing_manifest.csv"))
+    for (i in seq_along(state$dts)) {
+      stem <- c("A_B", "A_B.1")[i]
+      bg <- data.table::fread(file.path(directory, paste0(stem, "_background.csv")))
+      expect_equal(bg$BG, rep(40 * i, nrow(bg)))
+      expect_equal(bg$Background_mean, bg$BG)
+      expect_equal(bg$Time, state$dts[[i]]$Time)
+    }
+  })
+})

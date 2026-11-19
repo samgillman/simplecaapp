@@ -41,6 +41,9 @@ mod_help_ui <- function(id) {
                     div(class = "alert alert-info small", style = "margin-top: 15px;",
                         icon("info-circle"), " A Time column in seconds is recommended. A Frame column or unnamed sequential ImageJ index is converted using the sampling rate; otherwise Time is generated. Advanced Options confirms the detected source and lets you exclude unwanted numeric columns before processing."
                     ),
+                    div(class = "alert alert-info small", style = "margin-top: 10px;",
+                        icon("info-circle"), " If your export includes a cell-free background ROI, tick “My file includes a background ROI column” on Load Data. Columns named BG or Background are selected automatically; otherwise choose the column yourself. The background is subtracted from every cell at each frame before F₀, is not counted as a cell, and is recorded in the processing manifest. Leave the box unticked for traces that were already background-corrected."
+                    ),
                     div(class = "alert alert-warning small", style = "margin-top: 10px;",
                         icon("exclamation-triangle"), " Select Raw fluorescence to calculate F₀ and normalize, or Already ΔF/F₀ to preserve uploaded values exactly. The baseline window always defines noise and the post-baseline response search."
                     )

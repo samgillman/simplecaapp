@@ -219,6 +219,7 @@ mod_metrics_explained_server <- function(id, rv) {
         metric = cell_metric,
         peak_time = peak_time_processed,
         input_data_mode = rv$input_data_mode %||% "raw_fluorescence",
+        background_subtracted = group_name %in% names(rv$background_traces),
         f0 = f0,
         peak_f = peak_f_raw
       )
@@ -239,6 +240,7 @@ mod_metrics_explained_server <- function(id, rv) {
       } else {
         div(class = "metric-data-box",
           tags$ul(style = "margin-bottom: 0;",
+            if (isTRUE(data$background_subtracted)) tags$li("Fluorescence values are background-subtracted"),
             tags$li(sprintf("Baseline fluorescence (F₀): %.2f", data$f0)),
             tags$li(sprintf("Peak fluorescence (F): %.2f", data$peak_f)),
             tags$li(sprintf("Time of peak: %.2f seconds", data$peak_time)),

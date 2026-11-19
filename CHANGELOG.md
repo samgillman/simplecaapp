@@ -4,7 +4,11 @@ All notable changes to SimpleCa will be documented in this file.
 
 ## Deployed updates since 1.16.0
 
-Dates below are successful production deployment dates in US Central time. The November 19 build still reports `v1.16.0` in the sidebar and processing manifest. Its [source snapshot](https://github.com/samgillman/simplecaapp/tree/a35f65b12244dd47d46b6f2004c9e6e9ff1196bb) identifies the exact code.
+Dates below are successful production deployment dates in US Central time. The November 19 recording-details build reports `v1.16.0` in the sidebar and processing manifest. Its [source snapshot](https://github.com/samgillman/simplecaapp/tree/a35f65b12244dd47d46b6f2004c9e6e9ff1196bb) identifies the exact code.
+
+### 2026-11-19 — Background ROI subtraction
+
+- Load Data can subtract a cell-free background from raw fluorescence before F₀ normalization. Choose one or more ROI columns per recording and review the background trace in the baseline preview. Selected background ROIs are excluded from cell counts. The processed-data ZIP contains each corrected recording’s background trace, and the processing manifest records which columns supplied it. This option is off by default.
 
 ### 2026-11-19 — Recording details
 
