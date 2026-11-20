@@ -56,6 +56,13 @@ test_that("portable JSON roundtrips both contracts and rejects future schemas", 
   expect_false(identical(responder_protocol_hash(changed), responder_protocol_hash(v2)))
 })
 
+test_that("unsupported direct API versions cannot fall through to legacy scoring", {
+  protocol <- protocol_test_v2()
+  protocol$Protocol_version <- 99L
+  expect_error(responder_field_results(data.frame(Time = 0:8, Cell = 0), "Cell", "F", protocol),
+               "Unsupported response protocol version")
+})
+
 test_that("per-field timing overrides preserve the shared protocol and validate each role", {
   p <- protocol_test_v2()
   original <- p

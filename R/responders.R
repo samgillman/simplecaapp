@@ -113,8 +113,11 @@ responder_window_calls <- function(dt, cells, field, window) {
 responder_field_results <- function(dt, cells, field, protocol, cell_quality = NULL, overrides = NULL) {
   # Keep historical calls byte-for-byte in their original scoring path.  Version
   # 2 is opt-in and never changes the two-sample rule or endpoint clipping of v1.
-  if ("Protocol_version" %in% names(protocol) && any(protocol$Protocol_version == 2L))
-    return(responder_field_results_v2(dt, cells, field, protocol, cell_quality, overrides))
+  if ("Protocol_version" %in% names(protocol)) {
+    version <- responder_protocol_version(protocol)
+    if (version == 2L)
+      return(responder_field_results_v2(dt, cells, field, protocol, cell_quality, overrides))
+  }
   protocol$Gap_mode <- ifelse(is.na(protocol$Max_gap_s), "Automatic", "Manual")
   intervals <- diff(dt[["Time"]])
   protocol$Max_gap_s[is.na(protocol$Max_gap_s)] <- 1.5 * stats::median(intervals[intervals > 0])
