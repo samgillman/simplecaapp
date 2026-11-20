@@ -91,7 +91,7 @@ mod_help_ui <- function(id) {
                             br(),
                             tags$dt("Time to Peak"), tags$dd("Time-axis coordinate of the post-baseline maximum. This is not stimulus latency unless Time = 0 is aligned to stimulus onset."),
                             br(),
-                            tags$dt("Rise Time (10-90%)"), tags$dd("Time taken for signal to rise from 10% to 90% of peak amplitude."),
+                            tags$dt("Rise Time (10-90%)"), tags$dd("Time between the first 10% and 90% rising crossings before the post-baseline maximum. These whole-recording crossings can fall in different responses when multiple stimuli are present. Use Percent Responding stimulus-window metrics to analyze an individual stimulus."),
                             br(),
                             tags$dt("FWHM"), tags$dd("Full Width at Half Maximum—the duration above 50% of response amplitude. If the recording ends before the falling crossing, the exact value is missing and an observed lower bound is exported."),
                             br(),

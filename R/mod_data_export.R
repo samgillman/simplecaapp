@@ -162,7 +162,7 @@ mod_data_export_server <- function(id, rv, metrics_plot_reactive, heatmap_plot_r
           language = list(search = "Search cells:")
         ),
         rownames = FALSE, filter = "top", class = "display compact stripe hover"
-      ) |> DT::formatRound(columns = which(numeric_cols), digits = 4)
+      ) |> format_display_round(columns = which(numeric_cols), digits = 4)
     })
 
     output$summary_stats_table <- DT::renderDT(server = FALSE, {
@@ -207,7 +207,7 @@ mod_data_export_server <- function(id, rv, metrics_plot_reactive, heatmap_plot_r
           )
         ),
         rownames = FALSE, class = "display compact stripe hover"
-      ) |> DT::formatRound(columns = 2:ncol(stats_wide), digits = 4)
+      ) |> format_display_round(columns = 2:ncol(stats_wide), digits = 4)
     })
 
     output$timecourse_summary_table <- DT::renderDT(server = FALSE, {
@@ -242,7 +242,7 @@ mod_data_export_server <- function(id, rv, metrics_plot_reactive, heatmap_plot_r
         # Format the numeric column to display strings: the CSV/Excel button
         # export crashes on raw numeric cells, and every other table already
         # goes through formatRound
-        DT::formatRound(columns = "Time", digits = 2)
+        format_display_round(columns = "Time", digits = 2)
     })
 
     output$raw_data_table <- DT::renderDT(server = FALSE, {
@@ -269,7 +269,7 @@ mod_data_export_server <- function(id, rv, metrics_plot_reactive, heatmap_plot_r
           )
         ),
         rownames = FALSE, class = "display compact stripe hover"
-      ) |> DT::formatRound(columns = which(numeric_cols), digits = 4)
+      ) |> format_display_round(columns = which(numeric_cols), digits = 4)
     })
 
     # Data download handlers

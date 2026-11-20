@@ -26,7 +26,7 @@ Developed by the **Wang Lab** at the University of Nebraska Medical Center (UNMC
 Automatic calculation of key calcium imaging metrics:
 - **Peak ΔF/F₀**: Maximum fluorescence response intensity (excludes baseline period)
 - **Time to Peak**: Time-axis coordinate of the post-baseline maximum (not stimulus latency unless Time = 0 marks stimulus onset)
-- **Rise Time (10-90%)**: Time for signal to rise from 10% to 90% of peak
+- **Rise Time (10-90%)**: Time for signal to rise from 10% to 90% of peak. With multiple stimuli, the first 10% and 90% crossings before the post-baseline maximum can belong to different responses. These general metrics use the whole recording; use Percent Responding stimulus-window metrics for a specific stimulus.
 - **10–90% ΔF/F₀ Rise Rate**: Average normalized-fluorescence slope between the 10% and 90% crossings (not a direct calcium-influx measurement)
 - **Time to % Peak**: Time to reach 25%, 50%, and 75% of peak
 - **FWHM & Derived Half-Width**: Exact duration at half-maximum when both crossings are observed; sustained responses are marked right-censored and exported with an observed lower bound; derived Half-Width is exact FWHM divided by two
@@ -291,3 +291,9 @@ Built with R Shiny and designed for calcium imaging researchers.
 ---
 
 **SimpleCa²⁺** - Making calcium imaging analysis simple and accessible.
+
+### Figure export fonts and import errors
+
+PDF figures use Cairo when available, including in the public browser app, so the default Arial selection can resolve to a bundled font and scientific symbols can be embedded. Native R installations without Cairo use a Helvetica mapping for Arial. Browser fonts currently cover Latin, Greek and Cyrillic; Chinese and other scripts need additional font support. Downloads report a failure if the writer errors or produces no file content.
+
+Excel parsing failures retain the original reader message in upload feedback and skipped-file reports. A rejected workbook is not treated as an empty recording. This does not establish compatibility with every workbook producer; report the specific file and reader error if an Excel file fails.

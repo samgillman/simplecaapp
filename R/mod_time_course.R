@@ -88,6 +88,7 @@ tc_plot_controls <- function(ns) {
                     div(style = "padding-top: 4px;",
                         textInput(ns("tc_x_breaks"), "X axis breaks (comma-separated)", ""),
                         textInput(ns("tc_y_breaks"), "Y axis breaks (comma-separated)", ""),
+                        uiOutput(ns("axis_break_feedback")),
                         selectInput(ns("tc_tick_format"), "Tick format",
                                     choices = c("number", "scientific", "percent"),
                                     selected = "number")
@@ -121,6 +122,19 @@ mod_time_course_server <- function(id, rv) {
     # Store the last known groups to detect actual changes
     last_groups <- reactiveVal(NULL)
     last_auto_title <- reactiveVal(NULL)
+
+    output$axis_break_feedback <- renderUI({
+      x <- parse_axis_breaks(input$tc_x_breaks)
+      y <- parse_axis_breaks(input$tc_y_breaks, positive = isTRUE(input$tc_log_y))
+      messages <- c(
+        if (length(x$invalid)) paste("X axis ignored:", paste(x$invalid, collapse = ", ")),
+        if (length(y$invalid)) paste("Y axis ignored:", paste(y$invalid, collapse = ", "))
+      )
+      if (!length(messages)) return(NULL)
+      div(class = "alert alert-warning", role = "status", paste(messages, collapse = ". "),
+          " Enter comma-separated finite numbers.",
+          if (isTRUE(input$tc_log_y)) " Log10 Y breaks must be greater than zero.")
+    })
 
     # Only auto-update title when groups actually change (new data loaded)
     observeEvent(presentation()$labels, {
@@ -437,8 +451,7 @@ mod_time_course_server <- function(id, rv) {
 
       # Custom X-axis breaks
       if (!is.null(input$tc_x_breaks) && !is.na(input$tc_x_breaks) && nzchar(input$tc_x_breaks)) {
-        xb <- suppressWarnings(as.numeric(strsplit(input$tc_x_breaks, ",")[[1]]))
-        xb <- xb[is.finite(xb)]
+        xb <- parse_axis_breaks(input$tc_x_breaks)$values
         if (length(xb) > 0) {
           p <- p + scale_x_continuous(breaks=xb)
         }
@@ -446,9 +459,7 @@ mod_time_course_server <- function(id, rv) {
 
       # Y-axis breaks: use explicit breaks if provided; otherwise auto-compute from data
       if (!is.null(input$tc_y_breaks) && !is.na(input$tc_y_breaks) && nzchar(input$tc_y_breaks)) {
-        yb <- suppressWarnings(as.numeric(strsplit(input$tc_y_breaks, ",")[[1]]))
-        yb <- yb[is.finite(yb)]
-        if (isTRUE(input$tc_log_y)) yb <- yb[yb > 0]
+        yb <- parse_axis_breaks(input$tc_y_breaks, positive = isTRUE(input$tc_log_y))$values
         if (length(yb) > 0) {
           y_breaks <- yb
           y_lab_fun <- switch(input$tc_tick_format %||% "number",
