@@ -636,6 +636,54 @@ test_that("invalid timestamps cannot silently double the recording's time scale"
   expect_match(generated$time_messages, "2 Hz as selected", fixed = TRUE)
 })
 
+test_that("single-file replacements preserve the chosen normalization window", {
+  library(shiny)
+  source(file.path(repo_root, "R", "mod_load_data.R"), local = TRUE)
+  paths <- vapply(c(5, 300), function(n) {
+    path <- tempfile(fileext = ".csv")
+    data.table::fwrite(data.frame(Time = 0:(n - 1L), Cell = 100 + seq_len(n)), path)
+    path
+  }, character(1))
+  on.exit(unlink(paths), add = TRUE)
+  files <- data.frame(name = c("short.csv", "long.csv"), size = file.size(paths), datapath = paths)
+  rv <- reactiveValues()
+  testServer(mod_load_data_server, args = list(rv = rv), {
+    session$setInputs(upload_mode = "single", pp_sampling_rate = 1)
+    session$setInputs(data_files = files[1, , drop = FALSE])
+    expect_equal(baseline_frames_state(), c(1L, 20L))
+    expect_match(output$upload_feedback$html, "baseline end frame 20.*short.csv")
+    session$setInputs(data_files = files[2, , drop = FALSE])
+    state <- build_processed_state(uploaded_files(), current_processing_settings())
+    expect_equal(state$baseline_frames, c(1L, 20L))
+    expect_equal(unname(state$baselines$long[["Cell"]]), 110.5)
+    session$setInputs(pp_baseline_frames = c(4L, 27L))
+    session$setInputs(data_files = files[1, , drop = FALSE])
+    session$setInputs(data_files = files[2, , drop = FALSE])
+    expect_equal(baseline_frames_state(), c(4L, 27L))
+    # Explicit user edits still take effect, including an immediately queued process.
+    session$setInputs(pp_baseline_frames = c(1L, 3L))
+    session$setInputs(data_files = files[1, , drop = FALSE])
+    expect_equal(current_processing_settings()$baseline_frames, c(1L, 3L))
+  })
+})
+
+test_that("generated timing remains visible with the current acquisition rate", {
+  library(shiny)
+  source(file.path(repo_root, "R", "mod_load_data.R"), local = TRUE)
+  path <- tempfile(fileext = ".csv")
+  on.exit(unlink(path), add = TRUE)
+  data.table::fwrite(data.frame(Cell = 101:140), path)
+  rv <- reactiveValues()
+  testServer(mod_load_data_server, args = list(rv = rv), {
+    session$setInputs(upload_mode = "single", pp_sampling_rate = 1)
+    session$setInputs(data_files = data.frame(name = "frames.csv", size = file.size(path), datapath = path))
+    expect_match(output$time_source_notice, "1 Hz (1 s per frame)", fixed = TRUE)
+    expect_match(output$time_source_notice, "frames.csv", fixed = TRUE)
+    session$setInputs(pp_sampling_rate = 10)
+    expect_match(output$time_source_notice, "10 Hz (0.1 s per frame)", fixed = TRUE)
+  })
+})
+
 test_that("a short field cannot shrink the shared F0 window while staging a batch", {
   library(shiny)
   source(file.path(repo_root, "R", "mod_load_data.R"), local = TRUE)

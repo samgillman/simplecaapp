@@ -2,6 +2,14 @@
 
 All notable changes to SimpleCa will be documented in this file.
 
+## Unreleased
+
+- Preserve the chosen normalization baseline when a short file replaces a longer one, including the first upload. Short files are named in a persistent warning and cannot silently shorten the baseline for other recordings.
+- Bound large Heatmap displays with time-bin means and raster rendering, keeping every cell and sorting/color limits from the full recording. Small heatmaps retain exact timestamp boundaries, including irregular sampling.
+- Bound large Time Course cell layers with per-bin extrema, retain gaps instead of connecting missing coverage, and omit hover strings from static plots. Population means and SEM remain full resolution. Figure downloads match the labeled display; metrics, response calls and CSV exports are unchanged.
+- Keep a sampling-rate warning visible whenever elapsed Time is generated from frames or a missing time column.
+- Add regressions for short-file replacement, exact small plots, large mixed-duration rasters, peak retention, and a 1,000-cell × 3,000-frame Shinylive upload with static/interactive plots and metric export verification.
+
 ## Recent updates
 
 ### 1.17.1 — Empty Load Data state

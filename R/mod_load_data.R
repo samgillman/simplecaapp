@@ -127,7 +127,7 @@ mod_load_data_ui <- function(id) {
             ),
             conditionalPanel("output.needs_rate === true", ns = ns,
               numericInput(ns("pp_sampling_rate"), "Sampling rate (Hz)", value = 1, min = 0.0001, step = 0.1),
-              p("Used only when Time is missing or generated from frames.", class = "small-help")),
+              div(class = "alert alert-warning", role = "status", textOutput(ns("time_source_notice")))),
             conditionalPanel("output.has_preview === true", ns = ns,
               plotOutput(ns("baseline_preview"), height = "115px")),
             accordion(
@@ -299,7 +299,7 @@ mod_load_data_server <- function(id, rv) {
       invisible(frames)
     }
 
-    refresh_upload_schemas <- function(files, reset_baseline = FALSE) {
+    refresh_upload_schemas <- function(files) {
       if (is.null(files) || nrow(files) == 0) {
         upload_schemas(list())
         set_baseline_controls(c(1, 20), 100)
@@ -321,18 +321,11 @@ mod_load_data_server <- function(id, rv) {
       row_counts <- vapply(schemas, function(x) x$row_count %||% NA_integer_, integer(1))
       row_counts <- row_counts[is.finite(row_counts) & row_counts >= 1]
       if (length(row_counts) > 0) {
-        # Batch staging may start with a short or unusable file. Keep the
-        # requested endpoint available even when only that file is staged.
-        max_frame <- max(row_counts)
-        if (identical(input$upload_mode, "multi")) {
-          max_frame <- max(max_frame, baseline_frames_state()[2], if (reset_baseline) 20L else 1L)
-        }
-        frames <- if (isTRUE(reset_baseline)) {
-          c(1L, min(20L, max_frame))
-        } else {
-          normalize_baseline_frames(baseline_frames_state(), max_frame)
-        }
-        set_baseline_controls(frames, max_frame)
+        # A short upload must never become a new normalization setting. Keep
+        # the chosen range available in both modes; upload_feedback names any
+        # recordings that cannot cover it. Only an explicit edit changes F0.
+        frames <- baseline_frames_state()
+        set_baseline_controls(frames, max(row_counts, frames[2]))
       }
       invisible(NULL)
     }
@@ -414,11 +407,10 @@ mod_load_data_server <- function(id, rv) {
           files <- rbind(staged, files)
         }
       }
-      first_upload <- is.null(uploaded_files()) || nrow(uploaded_files()) == 0
       stage_files(files)
       process_state("ready")
       process_error(NULL)
-      refresh_upload_schemas(files, reset_baseline = first_upload)
+      refresh_upload_schemas(files)
     })
 
     # Remove one staged file (index sent from the feedback panel) or clear all
@@ -632,18 +624,28 @@ mod_load_data_server <- function(id, rv) {
       })
     }
 
-    output$needs_rate <- reactive({
+    generated_time_files <- reactive({
       files <- uploaded_files()
       schemas <- upload_schemas()
-      if (!NROW(files)) return(FALSE)
+      if (!NROW(files)) return(character())
       mappings <- collect_column_mappings(files)
-      any(vapply(seq_along(mappings), function(i) {
+      files$name[vapply(seq_along(mappings), function(i) {
         mode <- mappings[[i]]$time_mode
         source <- schemas[[column_mapping_key(files$upload_id[i])]]$time_info$source
         mode %in% c("frame", "generated") || (mode == "auto" && length(source) && source != "time")
-      }, logical(1)))
+      }, logical(1))]
     })
+    output$needs_rate <- reactive(length(generated_time_files()) > 0L)
     outputOptions(output, "needs_rate", suspendWhenHidden = FALSE)
+    output$time_source_notice <- renderText({
+      req(length(generated_time_files()) > 0L)
+      rate <- suppressWarnings(as.numeric(input$pp_sampling_rate %||% 1))
+      if (length(rate) != 1L || !is.finite(rate) || rate <= 0) {
+        return("Enter the recording's sampling rate in Hz before processing.")
+      }
+      sprintf("Time is generated at %g Hz (%g s per frame) for: %s. Confirm this matches the acquisition rate before processing.",
+              rate, 1 / rate, paste(generated_time_files(), collapse = ", "))
+    })
 
     # Cache the first usable mapped trace independently of baseline edits.
     preview <- reactive({

@@ -154,3 +154,27 @@ test_that("heatmap tiles respect irregular timestamps in each group", {
     expect_equal(max(tiles$xmax), 12)
   })
 })
+
+test_that("large heatmap rasters render with correct bounds for mixed durations", {
+  suppressPackageStartupMessages({library(shiny); library(ggplot2)})
+  module_env <- new.env(parent = globalenv())
+  sys.source(file.path(repo_root, "R", "mod_heatmap.R"), envir = module_env)
+  make_field <- function(step) {
+    dt <- data.table::as.data.table(setNames(rep(list(sin((0:2999) / 100)), 50), paste0("Cell", 1:50)))
+    dt[, Time := (0:2999) * step]
+    data.table::setcolorder(dt, c("Time", setdiff(names(dt), "Time")))
+    dt
+  }
+  rv <- reactiveValues(dts = list(A = make_field(1), B = make_field(.5)), groups = c("A", "B"))
+  testServer(module_env$mod_heatmap_server, args = list(rv = rv), {
+    session$setInputs(hm_sort = "orig", hm_palette = "plasma", hm_scale_interval = 0, hm_font = "Helvetica")
+    plot <- session$getReturned()$plot()
+    expect_lte(nrow(plot$data), 100000L)
+    expect_true(all(vapply(plot$layers, function(x) inherits(x$geom, "GeomRaster"), logical(1))))
+    expect_match(plot$labels$caption, "time-bin means", fixed = TRUE)
+    built <- ggplot2::ggplot_build(plot)
+    expect_equal(range(c(built$data[[1]]$xmin, built$data[[1]]$xmax)), c(0, 2999))
+    expect_equal(range(c(built$data[[2]]$xmin, built$data[[2]]$xmax)), c(0, 1499.5))
+    expect_no_warning(ggplot2::ggplotGrob(plot))
+  })
+})

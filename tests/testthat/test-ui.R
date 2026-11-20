@@ -56,7 +56,7 @@ test_that("advanced processing settings precede the Process Data action", {
   expect_gt(process_position, 0)
   expect_lt(advanced_position, process_position)
   expect_match(markup, 'aria-expanded="false"', fixed = TRUE)
-  expect_match(markup, "Used only when Time is missing", fixed = TRUE)
+  expect_match(markup, 'id="load_data-time_source_notice"', fixed = TRUE)
   expect_match(markup, "Input &amp; baseline", fixed = TRUE)
   expect_match(markup, "Raw fluorescence", fixed = TRUE)
   expect_match(markup, "Already ΔF/F₀", fixed = TRUE)
