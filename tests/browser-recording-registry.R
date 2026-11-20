@@ -35,10 +35,12 @@ wait_for_batch <- function(n) {
   ), n)), paste(n, "recordings processed"))
 }
 wait_for_batch(2L)
-registry_exports <- function() {
+registry_exports <- function(apply = FALSE) {
   switch_tab("in_vitro")
-  ready <- evaluate(in_app("return d.getElementById('in_vitro-applied_status').textContent.includes('Applied analysis.');"))
-  if (!isTRUE(ready)) apply_response_protocol()
+  # The loader's completion output can arrive before response invalidation.
+  # Apply explicitly after a processing transaction instead of trusting a
+  # previous recording's still-mounted status or enabled download button.
+  if (apply) apply_response_protocol()
   switch_tab("data_export")
   invisible(evaluate(in_app("w.$('a[data-value=\"Figure Export\"]').tab('show');return true;")))
   wait_until(in_app(paste(
@@ -48,7 +50,7 @@ registry_exports <- function() {
   list(metrics = read_export("data_export-dl_metrics_csv", "metrics"),
        counts = read_export("data_export-download_counts", "in_vitro_counts"))
 }
-original <- registry_exports()
+original <- registry_exports(apply = TRUE)
 stopifnot(setequal(original$metrics$Group, c("recording", "recording_1")),
           length(unique(original$metrics$Peak_dFF0)) == 2L)
 switch_tab("load")
@@ -72,7 +74,7 @@ upload_recordings(registry_fixtures[3])
 wait_until(in_app("return d.querySelectorAll('.recording-editor').length===3;"), "third recording staged")
 invisible(evaluate(in_app("d.getElementById('load_data-load_btn').click();return true;")))
 wait_for_batch(3L)
-expanded <- registry_exports()
+expanded <- registry_exports(apply = TRUE)
 # A new run has new provenance; compare the actual scientific values.
 science_counts <- function(x) x[, setdiff(names(x), c("Analysis_run_ID", "Recording_label")), drop = FALSE]
 stopifnot(identical(original$metrics, expanded$metrics[expanded$metrics$Group != "third", ]),
