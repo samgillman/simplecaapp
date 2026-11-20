@@ -104,6 +104,15 @@ repeat {
 startup_timeout <- if (identical(browser_mode, "shinylive")) 300 else 45
 wait_until(in_app("return d.readyState === 'complete' && !!w.Shiny;"), "application load", startup_timeout)
 wait_until(in_app("return !!d.getElementById('load_data-data_files');"), "file input")
+wait_until(in_app(paste(
+  "var status=d.getElementById('load_data-process_status');",
+  "return status && status.textContent.indexOf('Waiting for files.') >= 0;"
+)), "initial processing state")
+stopifnot(isTRUE(evaluate(in_app(paste(
+  "var bar=d.getElementById('load_data-results_bar');",
+  "return bar && bar.textContent.trim() === '' && !bar.querySelector('.results-bar') &&",
+  "!d.querySelector('#shiny-tab-load .shiny-output-error:not(.shiny-output-error-validation)');"
+)))))
 
 set_viewport <- function(width, height) {
   invisible(await_cdp(browser$Emulation$setDeviceMetricsOverride(

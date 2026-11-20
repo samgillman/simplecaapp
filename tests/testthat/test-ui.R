@@ -5,7 +5,7 @@ source(file.path(repo_root, "R", "theme.R"))
 source(file.path(repo_root, "R", "components.R"))
 
 test_that("displayed app version matches the current release", {
-  expect_identical(SIMPLECA_VERSION, "1.17.0")
+  expect_identical(SIMPLECA_VERSION, "1.17.1")
 })
 
 test_that("theme includes responsive, accessible, and contrast-safe states", {

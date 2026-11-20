@@ -993,9 +993,9 @@ mod_load_data_server <- function(id, rv) {
     # plus the jump to results — replaces the old Data Overview box, whose
     # three numbers could never fill a 2/3-width panel
     output$results_bar <- renderUI({
-      req(length(rv$dts))
+      req(length(rv$dts) > 0, !is.null(rv$metrics))
       n_files <- length(rv$dts)
-      n_cells <- nrow(rv$metrics)
+      n_cells <- nrow(rv$metrics) %||% 0L
       timepoint_context <- format_timepoint_context(rv$dts)
       div(
         class = "col-sm-12",

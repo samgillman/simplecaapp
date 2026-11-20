@@ -1,7 +1,7 @@
 Package: simplecaapp
 Type: Project
 Title: SimpleCa Calcium Imaging Analysis Application
-Version: 1.17.0
+Version: 1.17.1
 Authors@R: person("Sam", "Gillman", email = "samggillman@gmail.com",
     role = c("aut", "cre"))
 Description: An interactive Shiny application for processing, visualizing,

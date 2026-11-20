@@ -2,7 +2,12 @@
 
 All notable changes to SimpleCa will be documented in this file.
 
-## Unreleased
+## Recent updates
+
+### 1.17.1 — Empty Load Data state
+
+- Keep the results bar hidden until recordings and computed metrics exist, preventing the red "argument is of length zero" error on an empty Load Data page. Processed recordings with zero usable metric rows still link to Cell Eligibility.
+- Add module regressions for empty, pending, zero-cell, populated and cleared results, plus a check of the initial empty page in the deployed Shinylive browser workflow. Analysis calculations are unchanged.
 
 ### 1.17.0 — Reproducible response protocols
 
