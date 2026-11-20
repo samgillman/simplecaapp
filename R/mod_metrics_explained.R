@@ -250,7 +250,7 @@ mod_metrics_explained_server <- function(id, rv) {
           tags$ul(style = "margin-bottom: 0;",
             if (isTRUE(data$background_subtracted)) tags$li("Fluorescence values are background-subtracted"),
             tags$li(sprintf("Baseline fluorescence (F₀): %.2f", data$f0)),
-            tags$li(sprintf("Peak fluorescence (F): %.2f", data$peak_f)),
+            tags$li(sprintf("Peak fluorescence: %.2f", data$peak_f)),
             tags$li(sprintf("Time of peak: %.2f seconds", data$peak_time)),
             tags$li(sprintf("Peak ΔF/F₀ value: %.3f", data$metric$Peak_dFF0))
           )
