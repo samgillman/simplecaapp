@@ -4,6 +4,9 @@ All notable changes to SimpleCa will be documented in this file.
 
 ## Unreleased
 
+- Fix default-font PDF exports with Cairo and a native non-Cairo font fallback; use the same export path for Metric Explanations. Report missing/empty download output and preserve original Excel read errors.
+- Remove floating-point near-zero heatmap ticks and negative-zero table display without changing data or CSV values. Flag invalid axis-break text, restrict timing-override editing to Version 2, and explain whole-recording versus stimulus-window metrics.
+
 - Preserve the chosen normalization baseline when a short file replaces a longer one, including the first upload. Short files are named in a persistent warning and cannot silently shorten the baseline for other recordings.
 - Bound large Heatmap displays with time-bin means and raster rendering, keeping every cell and sorting/color limits from the full recording. Small heatmaps retain exact timestamp boundaries, including irregular sampling.
 - Bound large Time Course cell layers with per-bin extrema, retain gaps instead of connecting missing coverage, and omit hover strings from static plots. Population means and SEM remain full resolution. Figure downloads match the labeled display; metrics, response calls and CSV exports are unchanged.

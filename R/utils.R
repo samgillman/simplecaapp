@@ -214,26 +214,28 @@ browser_download <- function(session, filename, writer) {
   ext <- tools::file_ext(filename)
   path <- tempfile(fileext = if (nzchar(ext)) paste0(".", ext) else "")
   on.exit(unlink(path), add = TRUE)
-  ok <- tryCatch(
+  tryCatch(
     {
       writer(path)
-      TRUE
+      info <- file.info(path)
+      if (!file.exists(path) || isTRUE(info$isdir) || !is.finite(info$size) || info$size <= 0) {
+        stop("No file content was produced. Please try again or choose another format.", call. = FALSE)
+      }
+      bytes <- readBin(path, "raw", n = info$size)
+      if (length(bytes) != info$size) stop("The generated file could not be read completely.", call. = FALSE)
+      session$sendCustomMessage("simpleca_save_file", list(
+        filename = filename,
+        b64 = jsonlite::base64_enc(bytes)
+      ))
     },
     error = function(e) {
       shiny::showNotification(
         paste("Download failed:", conditionMessage(e)),
         type = "error", duration = 8
       )
-      FALSE
+      invisible(NULL)
     }
   )
-  if (ok && file.exists(path)) {
-    bytes <- readBin(path, "raw", n = file.info(path)$size)
-    session$sendCustomMessage("simpleca_save_file", list(
-      filename = filename,
-      b64 = jsonlite::base64_enc(bytes)
-    ))
-  }
   invisible(NULL)
 }
 
@@ -342,6 +344,31 @@ write_zip_archive <- function(zipfile, files) {
 # Display-layer only: exported tables and data structures keep raw names.
 pretty_cell_label <- function(x) sub("^Mean([0-9]+)$", "Cell \\1", x)
 
+# Only presentation is rounded; table data, sorting and exports stay exact.
+format_display_round <- function(table, columns, digits = 4) {
+  table <- DT::formatRound(table, columns = columns, digits = digits)
+  table$x$options$columnDefs <- lapply(table$x$options$columnDefs, function(def) {
+    if (!is.null(def$render)) {
+      def$render <- DT::JS(sprintf(
+        "function(data,type,row,meta){var value=(%s)(data,type,row,meta);return type==='display' && /^-0(?:\\.0+)?$/.test(value) ? value.slice(1) : value;}",
+        as.character(def$render)
+      ))
+    }
+    def
+  })
+  table
+}
+
+parse_axis_breaks <- function(value, positive = FALSE) {
+  if (is.null(value) || !length(value) || is.na(value[1]) || !nzchar(trimws(value[1]))) {
+    return(list(values = numeric(), invalid = character()))
+  }
+  tokens <- trimws(strsplit(value[1], ",", fixed = TRUE)[[1]])
+  values <- suppressWarnings(as.numeric(tokens))
+  valid <- is.finite(values) & (!positive | values > 0)
+  list(values = values[valid], invalid = unique(ifelse(nzchar(tokens[!valid]), tokens[!valid], "(empty entry)")))
+}
+
 # Compute a "nice" Y-axis step size from data range, targeting ~5 breaks.
 compute_auto_y_step <- function(y_range) {
   span <- y_range[2] - min(0, y_range[1])
@@ -391,7 +418,7 @@ compute_heatmap_scale <- function(max_value, interval = 0, max_intervals = 100L,
 
   upper <- signif(interval_count * step, 12)
   breaks <- if (diverging) {
-    signif(seq(-upper, upper, by = step), 12)
+    signif(seq.int(-interval_count, interval_count) * step, 12)
   } else {
     signif(seq.int(0L, interval_count) * step, 12)
   }
@@ -539,13 +566,24 @@ metrics_for_export <- function(metrics) {
 #'
 #' @param compression TIFF compression: lzw, zip, or none.
 save_plot_file <- function(filename, plot, width, height, dpi = 300,
-                           format = NULL, compression = "lzw") {
+                           format = NULL, compression = "lzw", bg = NULL) {
   fmt <- tolower(as.character(format %||% tools::file_ext(filename))[1])
   if (!nzchar(fmt)) stop("A figure format is required.", call. = FALSE)
   args <- list(
     filename = filename, plot = plot, width = width, height = height,
-    dpi = dpi, device = fmt
+    dpi = dpi, device = fmt, bg = bg
   )
+  if (identical(fmt, "pdf")) {
+    # Cairo resolves system/bundled fonts and embeds glyphs (including Greek
+    # and subscripts). The built-in PDF device cannot resolve plain Arial.
+    if (isTRUE(capabilities("cairo"))) {
+      args$device <- grDevices::cairo_pdf
+    } else if (!"Arial" %in% names(grDevices::pdfFonts())) {
+      # Portable fallback for native R builds without Cairo; preserve an
+      # existing user-provided Arial mapping when there is one.
+      grDevices::pdfFonts(Arial = grDevices::pdfFonts("Helvetica")[[1]])
+    }
+  }
   if (identical(fmt, "tiff")) {
     compression <- match.arg(as.character(compression %||% "lzw"), c("lzw", "zip", "none"))
     args$compression <- compression
@@ -651,8 +689,7 @@ safe_read <- function(path) {
         return(dt)
       },
       error = function(e) {
-        warning("Excel read failed: ", e$message)
-        return(data.table::data.table())
+        stop("Excel read failed: ", conditionMessage(e), call. = FALSE)
       }
     )
   } else {

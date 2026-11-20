@@ -63,7 +63,7 @@ metric_explanation_auc_details <- function(trace) {
 
 mod_metrics_explained_ui <- function(id) {
   ns <- NS(id)
-  analysis_tab(description = "Process a recording to see how each metric is calculated on an individual trace.", tabName = "metrics_explained",
+  analysis_tab(description = "These are whole-recording metrics. With repeated stimuli, rise time can span separate responses. Use Percent Responding stimulus-window metrics for individual stimuli.", tabName = "metrics_explained",
           fluidRow(
             # No column() wrapper: the box already renders as col-sm-12, and
             # nesting it double-applies the gutter, insetting this row 8px
@@ -1036,22 +1036,9 @@ mod_metrics_explained_server <- function(id, rv) {
       },
       content = function(file) {
         req(explanation_plot_obj())
-        tryCatch({
-          plot_obj <- explanation_plot_obj()
-          if (is.null(plot_obj)) {
-            showNotification("No plot available for download", type = "error", duration = 5)
-            return()
-          }
-          
-          ggsave(file, plot = plot_obj, 
-                 device = input$dl_format %||% "png", 
-                 dpi = input$dl_dpi %||% 300,
-                 width = 8, height = 6, 
-                 bg = "white")
-          
-        }, error = function(e) {
-          showNotification(paste("Download failed:", e$message), type = "error", duration = 5)
-        })
+        save_plot_file(file, explanation_plot_obj(), width = 8, height = 6,
+                       dpi = input$dl_dpi %||% 300,
+                       format = input$dl_format %||% "png", bg = "white")
       }
     )
     
