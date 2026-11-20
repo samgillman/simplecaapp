@@ -41,9 +41,10 @@ read_pdf <- function(button) {
   wait_until(in_app("return w.__pdfFiles.length===1;"), paste("PDF download", button), timeout = 90)
   file <- evaluate(in_app("return w.__pdfFiles[0];"))
   stopifnot(identical(file$header, "%PDF-"), isTRUE(file$eof), isTRUE(file$fonts))
+  cat(browser_mode, "PDF bytes and embedded fonts verified:", button, "\n")
 }
 select_value <- function(id, value) {
-  invisible(evaluate(in_app(sprintf("var e=d.getElementById('%s');if(e.selectize)e.selectize.setValue('%s');else w.$(e).val('%s').trigger('change');return true;", id, value, value))))
+  invisible(evaluate(in_app(sprintf("var e=d.getElementById('%s'),value='%s',radios=e.querySelectorAll('input[type=radio]');if(radios.length)Array.from(radios).find(r=>r.value===value).click();else if(e.selectize)e.selectize.setValue(value);else w.$(e).val(value).trigger('change');return true;", id, value))))
   wait_until(in_app(sprintf("return w.Shiny.shinyapp.$inputValues['%s']==='%s';", id, value)), paste(id, value))
   Sys.sleep(.3)
 }
