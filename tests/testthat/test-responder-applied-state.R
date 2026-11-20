@@ -18,7 +18,7 @@ test_that("draft changes cannot alter an applied run, its traces, or its exports
   testServer(mod_in_vitro_server, args = list(rv = rv), {
     session$setInputs(protocol_name = "Evoked candidate", contract_version = "explicit",
       stimulus = "Capsaicin", onset = 5, baseline_end = 5, baseline = 2, start = 5.5, end = 10,
-      floor = .1, noise = 3, frames = 2, duration_mode = "seconds", duration_s = 1,
+      floor = .1, noise = 3, frames = 20, duration_mode = "seconds", duration_s = 1,
       auto_gap = TRUE, control = FALSE)
     expect_false(applied_ready())
     session$setInputs(apply_protocol = 1)
@@ -27,6 +27,8 @@ test_that("draft changes cannot alter an applied run, its traces, or its exports
     calls <- export_rows("calls")
     counts <- export_rows("counts")
     expect_equal(counts$Percent_responding, c(50, 0))
+    expect_match(rule_line(), "1 s elapsed sampled span", fixed = TRUE)
+    expect_false(grepl("20 samples", rule_line(), fixed = TRUE))
     expect_false(dirty())
     session$setInputs(floor = .5, baseline_end = 4.5, start = 6)
     expect_true(dirty())

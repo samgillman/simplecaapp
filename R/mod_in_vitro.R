@@ -133,7 +133,8 @@ mod_in_vitro_ui <- function(id) {
           column(4, numericInput(ns("noise"), "Baseline SD multiplier", 3, min = 0, step = .1)),
           column(4, selectInput(ns("duration_mode"), "Persistence rule",
             c("Consecutive acquired samples (existing rule)" = "samples", "Elapsed sampled duration" = "seconds"), "samples"))),
-        fluidRow(column(4, numericInput(ns("frames"), "Minimum consecutive samples", 2, min = 1, step = 1)),
+        fluidRow(column(4, conditionalPanel("input.duration_mode === 'samples'", ns = ns,
+          numericInput(ns("frames"), "Consecutive samples (sample mode)", 2, min = 1, step = 1))),
           column(4, conditionalPanel("input.duration_mode === 'seconds'", ns = ns,
             numericInput(ns("duration_s"), "Minimum sampled duration (s)", 1, min = 0, step = .1))),
           column(4, checkboxInput(ns("auto_gap"), "Automatic gap limit per field", TRUE),
@@ -597,7 +598,7 @@ mod_in_vitro_server <- function(id, rv) {
       if (!applied_ready()) return("Choose the stimulus and scoring window, then Apply")
       p <- protocol(); p <- p[p$Role == role(), , drop = FALSE]
       mode <- p$Duration_mode %||% "samples"
-      persistence <- if (mode[1] == "seconds") sprintf("%g s sampled span and at least %d samples", p$Min_duration_s, p$Consecutive_samples)
+      persistence <- if (mode[1] == "seconds") sprintf("%g s elapsed sampled span", p$Min_duration_s)
         else sprintf("%d consecutive sample%s", p$Consecutive_samples, if (p$Consecutive_samples == 1) "" else "s")
       sprintf("%s · base window %g–%g s · %g s local baseline · larger of %g%% or %g SD · %s · %s%s",
         p$Stimulus, p$Start_s, p$End_s, p$Baseline_s, 100 * p$Floor_local_fraction, p$SD_multiplier,
