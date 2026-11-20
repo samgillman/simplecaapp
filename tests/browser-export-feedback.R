@@ -84,11 +84,17 @@ wait_until(in_app(sprintf("return d.getElementById('load_data-upload_feedback').
 process_click(); wait_for_batch(1L)
 switch_tab("data_export")
 invisible(evaluate(in_app("w.$('a[data-value=\"Data Tables\"]').tab('show');return true;")))
-wait_until(in_app(paste(
-  "var e=d.querySelector('#data_export-cell_metrics_table table');if(!e || !w.$.fn.dataTable.isDataTable(e))return false;",
-  "var t=w.$(e).DataTable(),headers=t.columns().header().toArray().map(x=>x.textContent),i=headers.indexOf('AUC');",
-  "return i>=0 && t.cell(0,i).data()<0 && t.cell(0,i).render('display')==='0.0000';"
-)), "negative zero formatted without changing table data")
+# DT's scrolling table has cloned headers and a separate filter row. Use
+# its stored API and column titles rather than selecting the first <table>.
+zero_probe <- in_app(paste(
+  "var t=w.$('#data_export-cell_metrics_table').data('datatable');if(!t)return {ready:false};",
+  "var columns=t.settings()[0].aoColumns.map(c=>c.sTitle),i=columns.indexOf('AUC');",
+  "return {ready:i>=0,columns:columns,raw:i>=0?t.cell(0,i).data():null,display:i>=0?t.cell(0,i).render('display'):null};"
+))
+tryCatch(wait_until(sprintf("(function(){var x=%s;return x.ready && x.raw<0 && x.display==='0.0000';})()", zero_probe),
+  "negative zero formatted without changing table data"), error = function(e) {
+    stop(conditionMessage(e), "\nTable details: ", jsonlite::toJSON(evaluate(zero_probe), auto_unbox = TRUE))
+  })
 invisible(evaluate(in_app("w.$('a[data-value=\"Figure Export\"]').tab('show');return true;")))
 negative_metrics <- read_export("data_export-dl_metrics_csv", "metrics")
 stopifnot(negative_metrics$AUC < 0, abs(negative_metrics$AUC + 59e-16) < 1e-25)
