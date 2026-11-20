@@ -57,6 +57,7 @@ for (target in list(c("time", "time_course-timecourse_plot"), c("heatmap", "heat
     "return img && img.src!==w.__stressPreviousPlots[e.id] && img.complete && img.naturalWidth>0 && !e.classList.contains('recalculating') &&",
     "!e.classList.contains('shiny-output-error');"), target[2])),
     paste("large", target[1], "plot"), timeout = 180)
+  cat(browser_mode, "1000 x 3000", target[1], "plot rendered\n")
 }
 invisible(evaluate(in_app(paste(
   "w.$('a[href=\"#shiny-tab-time\"]').click();",
@@ -65,7 +66,12 @@ invisible(evaluate(in_app(paste(
 wait_until(in_app(paste(
   "var e=d.getElementById('time_course-timecourse_plotly');",
   "var p=e && (e.classList.contains('js-plotly-plot')?e:e.querySelector('.js-plotly-plot'));",
-  "return p && p.data && p.data.length>=1000 && !e.classList.contains('recalculating') &&",
+  # ggplotly combines same-style cell lines into one trace with NA breaks.
+  # Verify the actual cell identities, not the number of drawing objects.
+  "if(!p || !p.data)return false;var cells=new Set();p.data.forEach(function(t){",
+  "(Array.isArray(t.text)?t.text:[t.text]).forEach(function(v){",
+  "var m=String(v||'').match(/Cell: (Cell[0-9]{4})/);if(m)cells.add(m[1]);});});",
+  "return cells.size===1000 && !e.classList.contains('recalculating') &&",
   "!e.classList.contains('shiny-output-error');"
 )), "large interactive time course", timeout = 180)
 stopifnot(isTRUE(evaluate(in_app(paste(
