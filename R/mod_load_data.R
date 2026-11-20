@@ -82,10 +82,16 @@ mod_load_data_ui <- function(id) {
           div(
             class = "load-step",
             div(class = "load-step-title", span(class = "load-step-num", "2"), "Input & baseline"),
-            radioButtons(
+            selectInput(
               ns("input_data_mode"), "Uploaded trace values",
-              choices = c("Raw fluorescence" = "raw_fluorescence", "Already ΔF/F₀" = "dff0"),
-              selected = "raw_fluorescence", inline = TRUE
+              choices = c("Raw fluorescence" = "raw_fluorescence",
+                "Already background-corrected fluorescence" = "corrected_fluorescence",
+                "Already ΔF/F₀ — fraction (0.10 = 10%)" = "dff0",
+                "Already ΔF/F₀ — percent (10 = 10%)" = "dff0_percent",
+                "Fluorescence ratio (e.g. Fura-2 340/380)" = "ratio",
+                "Already ΔR/R₀ — fraction" = "drr0",
+                "Already ΔR/R₀ — percent" = "drr0_percent"),
+              selected = "raw_fluorescence"
             ),
             conditionalPanel(
               sprintf("input['%s'] == 'raw_fluorescence'", ns("input_data_mode")),
@@ -98,9 +104,21 @@ mod_load_data_ui <- function(id) {
               )
             ),
             conditionalPanel(
-              sprintf("input['%s'] == 'dff0'", ns("input_data_mode")),
-              div(class = "small-help", "Uploaded ΔF/F₀ values are preserved exactly. The selected frames define baseline noise and are excluded from response searches.")
+              sprintf("['dff0','dff0_percent','drr0','drr0_percent'].indexOf(input['%s']) >= 0", ns("input_data_mode")),
+              div(class = "small-help", "Use a fixed-reference (signal − baseline)/baseline trace. Fractions are preserved; percentages are divided by 100 once. The raw baseline is unavailable for quality checks. Moving-baseline, z-score, and F/F₀ inputs must be converted to the declared units before upload.")
             ),
+            conditionalPanel(
+              sprintf("['ratio','drr0','drr0_percent'].indexOf(input['%s']) >= 0", ns("input_data_mode")),
+              div(class = "small-help", "Ratio changes are labeled ΔR/R₀. Correct the source channels before forming the ratio; the app does not subtract a fluorescence background from ratio data. A 10% ratio change is not a calibrated 10% calcium increase.")
+            ),
+            conditionalPanel(
+              sprintf("input['%s'] == 'corrected_fluorescence'", ns("input_data_mode")),
+              div(class = "small-help", "Use unlifted fluorescence that has already been background corrected. No second background subtraction is applied.")
+            ),
+            tags$details(tags$summary("Quality reporting"),
+              checkboxInput(ns("retain_unscorable"), "Retain recordings with no evaluable cells in quality and response counts", TRUE),
+              checkboxInput(ns("flag_peak_outliers"), "Flag peaks above Q3 + 3 × IQR for review", FALSE),
+              p(class = "small-help", "Review flags never exclude cells. Invalid normalization is reported separately; valid nonresponders remain in the response denominator.")),
             baseline_controls_script(),
             div(id = ns("baseline_controls"), class = "simpleca-baseline-controls",
               sliderInput(ns("pp_baseline_frames"), "Baseline Window (frames)", min = 1, max = 100, value = c(1, 20), step = 1, width = "100%"),
@@ -362,7 +380,10 @@ mod_load_data_server <- function(id, rv) {
         frames <- baseline_frames_state()
       } else return("No recording loaded")
       name <- if (length(labels) == 1L) labels else sprintf("%d recordings", length(labels))
-      if (length(rv$dts)) name <- sprintf("%s · %d cells", name, nrow(rv$metrics))
+      if (length(rv$dts)) {
+        registered <- if (!is.null(rv$cell_quality)) nrow(rv$cell_quality) else nrow(rv$metrics)
+        name <- sprintf("%s · %d registered cells · %d with metrics", name, registered, nrow(rv$metrics))
+      }
       sprintf("%s · %s · Baseline frames %d–%d", state, name, frames[1], frames[2])
     })
 
@@ -669,6 +690,8 @@ mod_load_data_server <- function(id, rv) {
     current_processing_settings <- function(files = uploaded_files()) {
       list(
         input_data_mode = input$input_data_mode %||% "raw_fluorescence",
+        retain_unscorable_recordings = input$retain_unscorable %||% TRUE,
+        flag_peak_outliers = input$flag_peak_outliers %||% FALSE,
         baseline_method = "frame_range",
         baseline_frames = baseline_frames_state(),
         sampling_rate = input$pp_sampling_rate,
@@ -907,11 +930,11 @@ mod_load_data_server <- function(id, rv) {
           duration = 10
         )
       }
-      if (identical(processed$input_data_mode, "raw_fluorescence") && length(processed$dropped_cells) > 0) {
+      if (length(processed$dropped_cells) > 0) {
         showNotification(
           paste0(
             length(processed$dropped_cells),
-            " cell(s) excluded because their baseline F\u2080 was zero, negative, or missing (\u0394F/F\u2080 undefined): ",
+            " cell(s) have invalid normalization baselines and remain recorded in quality/exclusion counts: ",
             paste(utils::head(processed$dropped_cells, 5), collapse = ", "),
             if (length(processed$dropped_cells) > 5) " ..." else ""
           ),
@@ -928,11 +951,11 @@ mod_load_data_server <- function(id, rv) {
       }
 
       # Success feedback
-      if (!is.null(rv$metrics) && nrow(rv$metrics) > 0) {
+      if (length(rv$dts)) {
         n_cells <- nrow(rv$metrics)
         n_groups <- length(rv$groups)
         showNotification(
-          paste0("Processed ", n_cells, " cells across ", n_groups, " file(s). Explore results in Time Course, Heatmap, Metrics, or Percent Responding."),
+          paste0("Processed ", n_groups, " file(s); ", n_cells, " cells have usable general metrics. Review cell eligibility and exclusions in Percent Responding."),
           type = "message",
           duration = 6
         )
@@ -956,9 +979,9 @@ mod_load_data_server <- function(id, rv) {
           icon("exclamation-triangle"),
           " Settings changed — click Process Data to update results."
         )
-      } else if (identical(status, "success") && !is.null(rv$metrics) && nrow(rv$metrics) > 0) {
+      } else if (identical(status, "success") && length(rv$dts)) {
         div(class = "small-help", style = "margin-top: 8px; color: var(--color-success);",
-            icon("check-circle"), sprintf(" %d cells processed.", nrow(rv$metrics)))
+            icon("check-circle"), sprintf(" %d recordings processed; %d cells have usable general metrics.", length(rv$dts), nrow(rv$metrics)))
       } else if (!is.null(uploaded_files()) && nrow(uploaded_files()) > 0) {
         div(class = "small-help", style = "margin-top: 8px;", "Ready to process.")
       } else {
@@ -970,7 +993,7 @@ mod_load_data_server <- function(id, rv) {
     # plus the jump to results — replaces the old Data Overview box, whose
     # three numbers could never fill a 2/3-width panel
     output$results_bar <- renderUI({
-      req(rv$metrics, nrow(rv$metrics) > 0)
+      req(length(rv$dts))
       n_files <- length(rv$dts)
       n_cells <- nrow(rv$metrics)
       timepoint_context <- format_timepoint_context(rv$dts)
@@ -982,16 +1005,17 @@ mod_load_data_server <- function(id, rv) {
             class = "results-bar-stats",
             icon("check-circle", style = "color: var(--color-success);"),
             HTML(sprintf(
-              "<b>%d</b> file%s &nbsp;&middot;&nbsp; <b>%d</b> cells &nbsp;&middot;&nbsp; <b>%s</b> &mdash; processing complete",
+              "<b>%d</b> file%s &nbsp;&middot;&nbsp; <b>%d</b> cells with metrics &nbsp;&middot;&nbsp; <b>%s</b> &mdash; processing complete",
               n_files, if (n_files == 1) "" else "s", n_cells, timepoint_context
             ))
           ),
-          primary_button(ns("goto_results"), "View Results: Time Course", icon = icon("arrow-right"), width = "260px")
+          primary_button(ns("goto_results"), if (n_cells) "View Results: Time Course" else "View Cell Eligibility", icon = icon("arrow-right"), width = "260px")
         )
       )
     })
     observeEvent(input$goto_results, {
-      shinyjs::runjs("$('a[href=\"#shiny-tab-time\"]').click();")
+      target <- if (nrow(rv$metrics)) "time" else "in_vitro"
+      shinyjs::runjs(sprintf("$('a[href=\"#shiny-tab-%s\"]').click();", target))
     })
 
     return(rv)

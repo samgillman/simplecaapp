@@ -4,6 +4,16 @@ All notable changes to SimpleCa will be documented in this file.
 
 ## Unreleased
 
+### 1.17.0 — Reproducible response protocols
+
+- Preserve the original two-sample response contract and add a separately selected version 2 protocol with duration in seconds, independent baseline/onset/scoring windows, generic optional control and recording-specific timing overrides.
+- Add portable protocol JSON, applied-versus-draft settings, immutable analysis-run identities, complete analysis bundles and experimental-unit summaries.
+- Add local stimulus-window peak, signed AUC, onset/confirmation and latency without changing the existing general metric definitions or discarding valid nonresponders.
+- Normalize explicitly declared fractional/percentage fluorescence and ratio inputs once; report raw-quality availability and warning-only diagnostics separately from exclusions. Optionally retain recordings with no evaluable cells in quality/count outputs.
+- Keep Frame metadata out of the cell population when elapsed timestamps are supplied. Record input units, conversion, source content hashes, quality policy and processing choices.
+- Add shared scientific fixtures and regression coverage for protocol round trips, duration and coverage, local normalization, input units, denominators and applied-result/export consistency.
+
+
 ### 2026-11-19 — Responder traces by recording
 
 - Percent Responding adds individual cell traces and a combined traces/mean ± SEM view. Multiple uploads appear in labeled recording panels with common axes, per-recording counts and coverage messages, and a Focus control.

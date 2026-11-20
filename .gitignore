@@ -18,6 +18,9 @@ renv/local/
 *.xlsx
 *.xls
 
+# Synthetic response-engine reference fixtures are source-controlled test data.
+!tests/fixtures/response-protocols/*.csv
+
 # macOS files
 .DS_Store
 ._*

@@ -108,7 +108,7 @@ test_that("processing manifest records scientific provenance", {
     ))
   )
   lookup <- stats::setNames(manifest$value, manifest$field)
-  expect_identical(lookup[["export_schema_version"]], "2")
+  expect_identical(lookup[["export_schema_version"]], "3")
   expect_identical(lookup[["input_data_mode"]], "dff0")
   expect_identical(lookup[["observational_unit"]], "cell")
   expect_match(lookup[["interpretation_note"]], "not independent", fixed = TRUE)

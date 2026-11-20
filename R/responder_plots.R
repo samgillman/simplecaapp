@@ -25,7 +25,9 @@ responder_trace_limits <- function(bundles, counts, full = FALSE) {
   } else {
     end <- ifelse(is.finite(counts$Effective_end_s), counts$Effective_end_s, counts$End_s)
     pad <- .15 * (end - counts$Start_s)
-    xr <- range(c(counts$Start_s - counts$Baseline_s - pad, end + pad), finite = TRUE)
+    baseline_start <- counts$Baseline_start_s %||% (counts$Start_s - counts$Baseline_s)
+    onset <- counts$Stimulus_onset_s %||% counts$Start_s
+    xr <- range(c(baseline_start - pad, onset - pad, counts$Start_s - pad, end + pad), finite = TRUE)
   }
   ys <- unlist(lapply(bundles, function(g) c(g$local, g$summary$Mean - g$summary$SEM,
     g$summary$Mean + g$summary$SEM)), use.names = FALSE)
@@ -97,8 +99,12 @@ responder_trace_plot <- function(g, count, label, limits, mode = "individual",
   p <- plotly::layout(p, showlegend = FALSE, hovermode = "closest",
     xaxis = list(title = "Time (s)", range = limits$x, zeroline = FALSE),
     yaxis = list(title = "Fractional rise from local baseline", range = limits$y, zeroline = TRUE),
-    shapes = list(shade(count$Start_s - count$Baseline_s, count$Start_s, "#edf0f4"),
-      shade(count$Start_s, end, "#edf5f7")),
+    shapes = list(shade(count$Baseline_start_s %||% (count$Start_s - count$Baseline_s),
+      count$Baseline_end_s %||% count$Start_s, "#edf0f4"),
+      shade(count$Start_s, end, "#edf5f7"),
+      list(type = "line", x0 = count$Stimulus_onset_s %||% count$Start_s,
+        x1 = count$Stimulus_onset_s %||% count$Start_s, y0 = 0, y1 = 1, yref = "paper",
+        line = list(color = "#5F6978", dash = "dot", width = 1))),
     margin = list(l = 60, r = 12, b = 48, t = 12), dragmode = "zoom")
   p <- plotly::config(p, displaylogo = FALSE, responsive = TRUE, scrollZoom = FALSE)
   plotly::event_register(p, "plotly_click")

@@ -51,6 +51,7 @@ test_that("recording clicks select the right repeated cell and preserve scientif
     session$setInputs(stimulus = "A", start = 5, end = 8, baseline = 3, floor = .1,
       noise = 3, frames = 2, auto_gap = TRUE, control = FALSE,
       trace_status = c("Responded", "Did not respond"), trace_mode = "individual")
+    session$setInputs(apply_protocol = 1)
     expect_length(trace_fields(), 2)
     expect_type(output$calls, "character")
     before <- export_rows("calls")
@@ -77,8 +78,10 @@ test_that("recording clicks select the right repeated cell and preserve scientif
     session$setInputs(trace_status = character())
     expect_match(output$population_plot$html, "Choose a response class")
     session$setInputs(baseline = 6)
+    session$setInputs(apply_protocol = 2)
     expect_match(output$population_plot$html, "No evaluable cells")
     session$setInputs(baseline = 3, trace_status = "Responded")
+    session$setInputs(apply_protocol = 3)
     expect_match(output$population_plot$html, "plotly")
     # Replacing a batch must not send a renderUI(NULL) payload to a plotly
     # binding that remains mounted in a hidden tab until its parent refreshes.
@@ -87,6 +90,8 @@ test_that("recording clicks select the right repeated cell and preserve scientif
     commit_processed_state(rv, replacement)
     session$flushReact()
     expect_error(output[[panel_id("same_1")]], class = "shiny.silent.error")
+    expect_false(applied_ready())
+    session$setInputs(apply_protocol = 4)
     expect_match(output$population_plot$html, "new.csv", fixed = TRUE)
     expect_match(output$cards$html, ">new</button>", fixed = TRUE)
   })

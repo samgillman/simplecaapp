@@ -367,7 +367,7 @@ mod_time_course_server <- function(id, rv) {
       y_lab <- if (!is.null(input$tc_y) && !is.na(input$tc_y) && nzchar(input$tc_y) && input$tc_y != "\u0394F/F\u2080") {
         input$tc_y
       } else {
-        "\u0394F/F\u2080"
+        signal_axis_label(rv)
       }
 
       # The observer above writes the automatic dataset title into the input.
@@ -531,7 +531,7 @@ mod_time_course_server <- function(id, rv) {
       legend_pos <- input$tc_legend_pos %||% "auto"
       plotly::ggplotly(p, tooltip = "text") |>
         plotly::layout(
-          yaxis = list(title = "\u0394F/F\u2080"),
+          yaxis = list(title = signal_axis_label(rv)),
           legend = list(orientation = if (legend_pos %in% c("none", "auto")) "h" else NULL),
           dragmode = "zoom"
         )
@@ -560,7 +560,7 @@ mod_time_course_server <- function(id, rv) {
       if (length(present) == 0) return(NULL)
 
       nice_name <- function(cl){
-        switch(cl,
+        signal_display_text(switch(cl,
                Peak_dFF0 = "Peak \u0394F/F\u2080",
                Rise_Rate_10_90_dFF0_per_s = "10–90% \u0394F/F\u2080 Rise Rate",
                Time_to_Peak = "Time to Peak (s)",
@@ -573,7 +573,7 @@ mod_time_course_server <- function(id, rv) {
                Half_Width = "Derived Half-Width (exact FWHM/2, s)",
                AUC = "Signed Net AUC (\u0394F/F\u2080 × s)",
                SNR = "SNR",
-               cl)
+               cl), rv$signal_kind %||% "fluorescence")
       }
 
       # Summarize per experimental group — pooling groups into one mean
