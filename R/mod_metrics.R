@@ -205,8 +205,8 @@ mod_metrics_server <- function(id, rv) {
               plot.caption = element_text(hjust = 0, color = "gray35", size = max(8, base_size - 2)),
               plot.margin = margin(10, 25, 20, 10))
 
-      y_lab <- if (isTRUE(input$metric_auto_y)) metric_label(metric) else input$metric_y_label
-      title_txt <- if (nzchar(input$metric_title)) input$metric_title else metric_title(metric)
+      y_lab <- if (isTRUE(input$metric_auto_y)) signal_display_text(metric_label(metric), rv$signal_kind %||% "fluorescence") else input$metric_y_label
+      title_txt <- if (nzchar(input$metric_title)) input$metric_title else signal_display_text(metric_title(metric), rv$signal_kind %||% "fluorescence")
 
       summary_by_group <- df |>
         dplyr::group_by(Group) |>

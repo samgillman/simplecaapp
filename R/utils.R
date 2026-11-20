@@ -554,7 +554,7 @@ save_plot_file <- function(filename, plot, width, height, dpi = 300,
 }
 
 #' Create a machine-readable record of the processing transaction.
-build_processing_manifest <- function(files, groups, settings, background = NULL) {
+build_processing_manifest <- function(files, groups, settings, background = NULL, time_info = NULL) {
   version <- if (exists("SIMPLECA_VERSION", inherits = TRUE)) {
     get("SIMPLECA_VERSION", inherits = TRUE)
   } else {
@@ -572,12 +572,24 @@ build_processing_manifest <- function(files, groups, settings, background = NULL
   }
   values <- c(
     app_version = version,
-    export_schema_version = "2",
+    export_schema_version = "3",
     input_data_mode = settings$input_data_mode,
+    signal_kind = signal_input_spec(settings$input_data_mode)$kind,
+    normalized_signal_label = signal_input_spec(settings$input_data_mode)$label,
+    normalized_units = "fraction",
+    normalization_reference = "fixed",
+    input_percent_divisor = if (signal_input_spec(settings$input_data_mode)$percent) "100" else "1",
+    normalization_minimum_reference = "1e-6 (historical numerical validity guard; applies before normalization only)",
+    quality_policy = "review_only_v1; low reference below 3 baseline SD is a warning, not an exclusion",
+    peak_outlier_review_enabled = as.character(isTRUE(settings$flag_peak_outliers)),
+    retain_unscorable_recordings = as.character(isTRUE(settings$retain_unscorable_recordings)),
+    analysis_smoothing = "none",
     baseline_method = settings$baseline_method,
     baseline_start_frame = settings$baseline_frames[1],
     baseline_end_frame = settings$baseline_frames[2],
     sampling_rate_hz = settings$sampling_rate,
+    time_sources = as.character(jsonlite::toJSON(time_info %||% list(), auto_unbox = TRUE, na = "null")),
+    column_mappings = as.character(jsonlite::toJSON(settings$column_mappings %||% list(), auto_unbox = TRUE, na = "null")),
     peak_search_region = "frames after baseline_end_frame",
     observational_unit = "cell",
     source_filenames = source_names,
@@ -585,12 +597,21 @@ build_processing_manifest <- function(files, groups, settings, background = NULL
     group_labels = paste(groups, collapse = "|"),
     background_correction = if (any(lengths(background) > 0)) {
       "background_roi_mean_subtracted_per_frame_before_f0"
+    } else if (identical(settings$input_data_mode, "corrected_fluorescence")) {
+      "already_background_corrected_input_no_second_subtraction"
+    } else if (identical(signal_input_spec(settings$input_data_mode)$kind, "ratio")) {
+      "ratio_input_no_channel_background_correction_performed_by_app"
     } else {
       "none"
     },
     background_columns = as.character(jsonlite::toJSON(
       lapply(as.list(background), as.character), auto_unbox = FALSE
     )),
+    source_content_md5 = as.character(jsonlite::toJSON(if (!is.null(files$datapath)) {
+      stats::setNames(vapply(as.character(files$datapath), function(path) {
+        if (file.exists(path)) unname(tools::md5sum(path)) else NA_character_
+      }, character(1)), files$upload_id %||% files$name)
+    } else character(), auto_unbox = FALSE, na = "null")),
     processed_at_utc = format(Sys.time(), tz = "UTC", usetz = TRUE),
     interpretation_note = paste(
       "Descriptive cell-level summaries; cells from the same preparation",
@@ -828,6 +849,12 @@ numeric_trace_candidates <- function(dt) {
   }, logical(1))]
 }
 
+# A Frame column accompanying elapsed time is acquisition metadata, not a cell.
+frame_metadata_columns <- function(columns) {
+  normalized <- gsub("[^a-z0-9]+", "", tolower(columns))
+  columns[grepl("^frames?($|number$|index$|no$)", normalized)]
+}
+
 #' Inspect automatic Time detection for the Load Data mapping UI
 #' @param dt Uploaded data before processing.
 #' @param sampling_rate Sampling frequency in Hz.
@@ -842,7 +869,8 @@ inspect_column_mapping <- function(dt, sampling_rate = 1) {
   )
   candidates <- numeric_trace_candidates(dt)
   source_column <- info$column %||% NULL
-  trace_columns <- setdiff(candidates, source_column %||% character())
+  metadata <- if (info$source %in% c("time", "invalid_time")) frame_metadata_columns(names(dt)) else character()
+  trace_columns <- setdiff(candidates, c(source_column %||% character(), metadata))
   trace_means <- vapply(trace_columns, function(column) {
     mean(suppressWarnings(as.numeric(dt[[column]])), na.rm = TRUE)
   }, numeric(1))
@@ -971,6 +999,10 @@ apply_column_mapping <- function(dt, mapping = NULL, sampling_rate = 1) {
     auto_source
   }
   trace_columns <- setdiff(candidates, c(excluded, source_to_remove %||% character()))
+  if (identical(mode, "time") || (identical(mode, "auto") &&
+      identical(attr(auto_probe, "time_info")$source, "time"))) {
+    trace_columns <- setdiff(trace_columns, frame_metadata_columns(names(dt)))
+  }
   # A second column named Time would collide with the canonical Time output.
   if (!identical(selected_column, "Time")) {
     trace_columns <- setdiff(trace_columns, "Time")
@@ -1059,6 +1091,95 @@ coerce_numeric_dt <- function(dt) {
   dt
 }
 
+# Input modes are explicit: the analysis engine always receives fixed-reference
+# fractional changes, never percentages or an arbitrary moving-baseline signal.
+signal_input_spec <- function(mode = "raw_fluorescence") {
+  mode <- as.character(mode)[1]
+  allowed <- c("raw_fluorescence", "corrected_fluorescence", "dff0",
+    "dff0_percent", "ratio", "drr0", "drr0_percent")
+  if (length(mode) != 1L || is.na(mode) || !mode %in% allowed) {
+    stop("Unsupported input units. Choose raw_fluorescence, corrected_fluorescence, dff0, dff0_percent, ratio, drr0, or drr0_percent.")
+  }
+  ratio <- mode %in% c("ratio", "drr0", "drr0_percent")
+  list(mode = mode, normalized = mode %in% c("dff0", "dff0_percent", "drr0", "drr0_percent"),
+    percent = mode %in% c("dff0_percent", "drr0_percent"),
+    kind = if (ratio) "ratio" else "fluorescence",
+    label = if (ratio) "\u0394R/R\u2080" else "\u0394F/F\u2080")
+}
+
+# A pure normalization helper shared with Fiji. Quality warnings never remove
+# a cell. The historical 1e-6 denominator guard is retained and recorded.
+normalize_signal_trace <- function(values, baseline_frames,
+                                   input_data_mode = "raw_fluorescence") {
+  spec <- signal_input_spec(input_data_mode)
+  x <- as.numeric(values)
+  frames <- suppressWarnings(as.integer(baseline_frames))
+  if (length(frames) != 2L || anyNA(frames) || frames[1] < 1L ||
+      frames[2] < frames[1] || frames[2] > length(x)) {
+    stop("Normalization baseline must be an ordered frame range inside the recording.")
+  }
+  pre <- x[seq.int(frames[1], frames[2])]
+  finite <- is.finite(pre)
+  sd_input <- if (sum(finite) >= 2L) stats::sd(pre[finite]) else NA_real_
+  f0 <- if (spec$normalized) NA_real_ else mean(pre, na.rm = TRUE)
+  invalid <- !spec$normalized && (!is.finite(f0) || f0 <= 1e-6)
+  flags <- character()
+  if (any(!finite)) flags <- c(flags, "missing_normalization_baseline_samples")
+  if (sum(finite) < 3L) flags <- c(flags, "short_normalization_baseline")
+  if (is.finite(sd_input) && sd_input == 0) flags <- c(flags, "zero_normalization_baseline_variance")
+  if (!spec$normalized && !invalid && is.finite(sd_input) && f0 < 3 * sd_input) {
+    flags <- c(flags, "reference_below_3_baseline_sd_review")
+  }
+  trace <- if (invalid) NULL else if (spec$normalized) {
+    if (spec$percent) x / 100 else x
+  } else (x - f0) / f0
+  raw_available <- !spec$normalized && identical(spec$kind, "fluorescence")
+  quality <- data.frame(
+    F0 = if (raw_available) f0 else NA_real_,
+    Reference_value = f0,
+    Baseline_SD_raw = if (raw_available) sd_input else NA_real_,
+    Baseline_SD_input = sd_input,
+    Baseline_samples = sum(finite),
+    Status = if (invalid) "Excluded" else "Valid",
+    QC_flags = paste(flags, collapse = ";"),
+    Reason = if (invalid) paste("Invalid", if (spec$kind == "ratio") "ratio" else "raw fluorescence", "normalization baseline (nonfinite or <= 1e-6)") else "",
+    Raw_QC_available = raw_available,
+    Signal_kind = spec$kind,
+    Input_mode = spec$mode,
+    Normalized_units = "fraction",
+    Normalization_reference = "fixed",
+    Normalization_minimum_reference = if (spec$normalized) NA_real_ else 1e-6,
+    stringsAsFactors = FALSE
+  )
+  list(trace = trace, f0 = f0, quality = quality)
+}
+
+signal_axis_label <- function(rv = NULL) {
+  if (!is.null(rv$signal_label)) return(rv$signal_label)
+  signal_input_spec(rv$input_data_mode %||% "raw_fluorescence")$label
+}
+
+signal_display_text <- function(text, kind = "fluorescence") {
+  if (!identical(kind, "ratio")) return(text)
+  replacements <- c("\u0394F/F" = "\u0394R/R", "F<sub>" = "R<sub>",
+    "F\u2080" = "R\u2080", "Fluorescence" = "Ratio", "fluorescence" = "ratio")
+  for (from in names(replacements)) text <- gsub(from, replacements[[from]], text, fixed = TRUE)
+  text
+}
+
+# Change only rendered scientific text, preserving tag attributes/input IDs.
+signal_display_tags <- function(tags, kind = "fluorescence") {
+  if (!identical(kind, "ratio")) return(tags)
+  if (inherits(tags, "shiny.tag")) {
+    tags$children <- lapply(tags$children, signal_display_tags, kind = kind)
+  } else if (is.character(tags)) {
+    tags[] <- signal_display_text(tags, kind)
+  } else if (is.list(tags)) {
+    tags[] <- lapply(tags, signal_display_tags, kind = kind)
+  }
+  tags
+}
+
 #' Normalize settings used by the upload-processing transaction
 #' @param settings Named list of processing options.
 #' @return A validated settings list.
@@ -1085,16 +1206,16 @@ normalize_load_settings <- function(settings = list()) {
   }
 
   input_data_mode <- as.character(settings$input_data_mode %||% "raw_fluorescence")[1]
-  if (!(input_data_mode %in% c("raw_fluorescence", "dff0"))) {
-    stop("Input data mode must be 'raw_fluorescence' or 'dff0'.")
-  }
+  signal_input_spec(input_data_mode)
 
   list(
     input_data_mode = input_data_mode,
     baseline_method = method,
     baseline_frames = frames,
     sampling_rate = sampling_rate,
-    column_mappings = column_mappings
+    column_mappings = column_mappings,
+    retain_unscorable_recordings = isTRUE(settings$retain_unscorable_recordings),
+    flag_peak_outliers = isTRUE(settings$flag_peak_outliers)
   )
 }
 
@@ -1210,39 +1331,28 @@ build_processed_state <- function(files, settings = list(), read_fun = safe_read
         stop("Baseline must end before the final frame so a post-baseline response interval remains.")
       }
       trace_names <- names(dt)[-1]
-      if (identical(settings$input_data_mode, "raw_fluorescence")) {
-        f0 <- vapply(seq(2, ncol(dt)), function(j) {
-          mean(dt[[j]][start_frame:end_frame], na.rm = TRUE)
-        }, numeric(1))
-        f0 <- stats::setNames(f0, trace_names)
-        report_progress(0.2 / n_files, paste0("Computing \u0394F/F\u2080 for: ", basename(file_name)))
-
-        bad_f0 <- !is.finite(f0) | f0 <= 1e-6
-        for (k in which(!bad_f0)) {
-          j <- k + 1
-          dt[[j]] <- (dt[[j]] - f0[[k]]) / f0[[k]]
-        }
-        if (any(bad_f0)) dt[, (names(f0)[bad_f0]) := NULL]
-        if (ncol(dt) < 2) {
-          stop("all cell traces had a zero, negative, or missing baseline")
-        }
-      } else {
-        # Uploaded values are already in ΔF/F0 units. Preserve them exactly;
-        # the baseline window still defines noise and the excluded peak region.
-        f0 <- stats::setNames(rep(NA_real_, length(trace_names)), trace_names)
-        bad_f0 <- stats::setNames(rep(FALSE, length(trace_names)), trace_names)
-        report_progress(0.2 / n_files, paste0("Preserving uploaded \u0394F/F\u2080 values for: ", basename(file_name)))
+      normalized <- lapply(trace_names, function(cell) normalize_signal_trace(
+        dt[[cell]], c(start_frame, end_frame), settings$input_data_mode))
+      f0 <- stats::setNames(vapply(normalized, `[[`, numeric(1), "f0"), trace_names)
+      bad_f0 <- stats::setNames(vapply(normalized, function(x) is.null(x$trace), logical(1)), trace_names)
+      quality <- dplyr::bind_rows(lapply(normalized, `[[`, "quality"))
+      quality$Cell <- trace_names
+      for (k in which(!bad_f0)) dt[[trace_names[k]]] <- normalized[[k]]$trace
+      if (any(bad_f0)) dt[, (names(f0)[bad_f0]) := NULL]
+      if (ncol(dt) < 2 && !settings$retain_unscorable_recordings) {
+        stop("all cell traces had a zero, negative, or missing baseline")
       }
+      report_progress(0.2 / n_files, paste0("Converting to fixed-reference fractional units: ", basename(file_name)))
 
       # The app promises metrics after processing. Reject a file when none of
       # its surviving traces has enough valid data to produce even one row.
       metric_probe <- compute_metrics_for_dt(
         dt, "processing_probe", settings$baseline_frames
       )
-      if (nrow(metric_probe) == 0) {
+      if (nrow(metric_probe) == 0 && !settings$retain_unscorable_recordings) {
         stop("no cell trace had enough valid samples to compute metrics")
       }
-      if (!any(is.finite(metric_probe$Peak_dFF0))) {
+      if (!any(is.finite(metric_probe$Peak_dFF0)) && !settings$retain_unscorable_recordings) {
         stop("no usable post-baseline observations remain to compute response metrics")
       }
 
@@ -1250,7 +1360,7 @@ build_processed_state <- function(files, settings = list(), read_fun = safe_read
         note = paste(c("Processed", if (length(background_columns)) paste("Background subtracted:", paste(background_columns, collapse = ", ")),
           if (length(manual)) paste("Excluded by mapping:", paste(manual, collapse = ", ")),
           if (length(omitted)) paste("Omitted columns (metadata or insufficient numeric values):", paste(omitted, collapse = ", ")),
-          if (any(bad_f0)) paste("Invalid raw F0:", paste(names(f0)[bad_f0], collapse = ", "))), collapse = " · "),
+          if (any(bad_f0)) paste("Invalid normalization reference:", paste(names(f0)[bad_f0], collapse = ", "))), collapse = " · "),
         file_index = i,
         dt = dt,
         raw = raw,
@@ -1258,6 +1368,7 @@ build_processed_state <- function(files, settings = list(), read_fun = safe_read
         background_columns = background_columns,
         baselines = f0,
         dropped_cells = names(f0)[bad_f0],
+        cell_quality = quality,
         time_info = time_info
       )
     }, error = function(e) {
@@ -1297,6 +1408,11 @@ build_processed_state <- function(files, settings = list(), read_fun = safe_read
   dts <- stats::setNames(lapply(records, `[[`, "dt"), labels)
   raw_traces <- stats::setNames(lapply(records, `[[`, "raw"), labels)
   baselines <- stats::setNames(lapply(records, `[[`, "baselines"), labels)
+  cell_quality <- dplyr::bind_rows(Map(function(record, field) {
+    quality <- record$cell_quality
+    quality$Field <- field
+    quality[, c("Field", "Cell", setdiff(names(quality), c("Field", "Cell"))), drop = FALSE]
+  }, records, labels))
   background_columns <- stats::setNames(lapply(records, `[[`, "background_columns"), labels)
   background_traces <- Filter(
     Negate(is.null),
@@ -1305,8 +1421,10 @@ build_processed_state <- function(files, settings = list(), read_fun = safe_read
 
   report_progress(0.15, "Summarizing time courses...")
   long <- dplyr::bind_rows(Map(to_long, dts, labels))
+  if (!nrow(long)) long <- data.frame(Time = numeric(), Cell = character(),
+    dFF0 = numeric(), Group = character(), Cell_ID = character())
   long <- dplyr::filter(long, is.finite(Time), is.finite(dFF0))
-  if (nrow(long) == 0) {
+  if (nrow(long) == 0 && !settings$retain_unscorable_recordings) {
     stop("Processing produced no finite time-course values.")
   }
   summary <- long |>
@@ -1325,8 +1443,26 @@ build_processed_state <- function(files, settings = list(), read_fun = safe_read
     function(dt, label) compute_metrics_for_dt(dt, label, settings$baseline_frames),
     dts, labels
   ))
-  if (nrow(metrics) == 0) {
+  if (nrow(metrics) == 0 && !settings$retain_unscorable_recordings) {
     stop("Processing produced no valid cell metrics.")
+  }
+  if (!nrow(metrics)) {
+    metrics <- cbind(data.frame(Group = character(), Cell = character(),
+      Cell_ID = character(), Cell_Label = character()), empty_metrics_row()[FALSE, , drop = FALSE])
+  }
+  if (settings$flag_peak_outliers && nrow(metrics)) {
+    for (field in unique(metrics$Group)) {
+      rows <- which(metrics$Group == field & is.finite(metrics$Peak_dFF0))
+      if (length(rows) < 4L) next
+      values <- metrics$Peak_dFF0[rows]
+      q <- stats::quantile(values, c(.25, .75), names = FALSE)
+      extreme <- rows[values > q[2] + 3 * (q[2] - q[1])]
+      for (j in extreme) {
+        k <- which(cell_quality$Field == field & cell_quality$Cell == metrics$Cell[j])
+        cell_quality$QC_flags[k] <- paste(c(cell_quality$QC_flags[k][nzchar(cell_quality$QC_flags[k])],
+          "extreme_normalized_peak_review"), collapse = ";")
+      }
+    }
   }
 
   skipped_details <- if (length(skipped) > 0) {
@@ -1341,6 +1477,10 @@ build_processed_state <- function(files, settings = list(), read_fun = safe_read
   time_messages <- unlist(Map(function(record, file_name) {
     describe_time_adjustment(record$time_info, file_name, record$background_columns)
   }, records, as.character(accepted_files$name)), use.names = FALSE)
+  manifest_settings <- settings
+  if (!is.null(settings$column_mappings)) {
+    manifest_settings$column_mappings <- stats::setNames(settings$column_mappings[accepted_indices], labels)
+  }
 
   list(
     import_audit = audit,
@@ -1352,7 +1492,12 @@ build_processed_state <- function(files, settings = list(), read_fun = safe_read
     raw_traces = raw_traces,
     background_traces = background_traces,
     baselines = baselines,
+    cell_quality = cell_quality,
     input_data_mode = settings$input_data_mode,
+    signal_kind = signal_input_spec(settings$input_data_mode)$kind,
+    signal_label = signal_input_spec(settings$input_data_mode)$label,
+    normalized_units = "fraction",
+    normalization_reference = "fixed",
     baseline_method = settings$baseline_method,
     baseline_frames = settings$baseline_frames,
     sampling_rate = settings$sampling_rate,
@@ -1360,7 +1505,8 @@ build_processed_state <- function(files, settings = list(), read_fun = safe_read
     summary = summary,
     metrics = metrics,
     processing_manifest = with_recording_manifest(
-      build_processing_manifest(accepted_files, labels, settings, background_columns), meta
+      build_processing_manifest(accepted_files, labels, manifest_settings, background_columns,
+        time_info = stats::setNames(lapply(records, `[[`, "time_info"), labels)), meta
     ),
     skipped_files = skipped_details$file,
     skipped_details = skipped_details,
@@ -1372,7 +1518,8 @@ build_processed_state <- function(files, settings = list(), read_fun = safe_read
 # Fields that must always describe the same successfully processed dataset.
 processed_state_fields <- c(
   "import_audit", "files", "group_meta", "groups", "colors", "dts", "raw_traces",
-  "background_traces", "baselines",
+  "background_traces", "baselines", "cell_quality", "signal_kind", "signal_label",
+  "normalized_units", "normalization_reference",
   "input_data_mode", "baseline_method", "baseline_frames", "sampling_rate",
   "long", "summary", "metrics", "processing_manifest"
 )
@@ -1394,6 +1541,11 @@ clear_processed_state <- function(rv) {
     raw_traces = list(),
     background_traces = list(),
     baselines = list(),
+    cell_quality = NULL,
+    signal_kind = NULL,
+    signal_label = NULL,
+    normalized_units = NULL,
+    normalization_reference = NULL,
     input_data_mode = NULL,
     baseline_method = NULL,
     baseline_frames = NULL,

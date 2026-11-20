@@ -45,7 +45,7 @@ mod_help_ui <- function(id) {
                         icon("info-circle"), " If your export includes a cell-free background ROI, tick “My file includes a background ROI column” on Load Data. Columns named BG or Background are selected automatically; otherwise choose the column yourself. The background is subtracted from every cell at each frame before F₀, is not counted as a cell, and is recorded in the processing manifest. Leave the box unticked for traces that were already background-corrected."
                     ),
                     div(class = "alert alert-warning small", style = "margin-top: 10px;",
-                        icon("exclamation-triangle"), " Select Raw fluorescence to calculate F₀ and normalize, or Already ΔF/F₀ to preserve uploaded values exactly. The baseline window always defines noise and the post-baseline response search."
+                        icon("exclamation-triangle"), " Select the input type and units explicitly: raw or corrected fluorescence, ratio, or an already normalized ΔF/F₀ or ΔR/R₀ fraction/percent. Percent values are converted once to fractions. Raw-baseline brightness QC is unavailable for already normalized inputs. Loading-baseline settings and local response-baseline settings serve different purposes."
                     )
                 )
               ),
@@ -53,10 +53,14 @@ mod_help_ui <- function(id) {
               theme_box(
                 title = "Percent Responding", icon = icon("percent"), width = 12,
                 collapsible = TRUE, collapsed = TRUE,
-                p("Enter the stimulus name and confirm the scoring times against your acquisition log. The suggested start is the last loading-baseline frame. The local baseline ends immediately before the first scoring sample."),
-                p("The larger of the floor and the SD-based threshold sets the required rise. Margin is peak rise divided by that threshold. A spike can have margin above one and still fail the consecutive-sample rule. Select a distribution point to review its cell."),
-                p("Population traces shows one labeled panel per recording with shared axes. Choose Individual traces, Mean ± SEM, or Both; Focus enlarges one recording. Teal solid lines mark responders and orange dashed lines mark nonresponders. Hover identifies the recording and cell; clicking selects both for Cell review. Mean and SEM are computed separately within each recording and response class. Trace visibility does not change percentages or exports."),
-                p("Pooled percent is responders divided by all evaluable cells. Field mean and SD give each evaluable field equal weight. Use the population selector to review KCl or the primary stimulus among KCl responders.")
+                p("Name the protocol and confirm stimulus onset, baseline start/end, and scoring start/end against your acquisition log. The baseline may end before a delayed scoring interval. Use explicit per-recording overrides when delivery times differ. The overview previews the draft timing."),
+                p("The existing sample-mode preset retains a 10% local fractional rise, 3 baseline SDs, and two consecutive acquired samples. The optional one-second slow-evoked preset is provisional and may reject brief real transients. Validate the rule using controls before comparing conditions; no preset is a universal 50B11 optimum."),
+                p("The larger of the floor and the SD-based threshold sets the required rise. Both are relative to each cell’s local prestimulus fluorescence or ratio. Duration is the sampled interval from the first to last qualifying point. Missing data or excessive gaps cannot bridge a response. Three SD is a noise-based rule, not a guaranteed whole-recording false-positive probability."),
+                p("Apply analysis settings to create an immutable run. Editing settings leaves the applied results and exports unchanged and shows an unapplied-changes message. Changing processed data, preprocessing, condition, or experimental unit IDs invalidates the old run. Import/export JSON protocols to preserve the scoring contract and timing overrides."),
+                p("Margin is peak rise divided by threshold. A spike can have margin above one and still fail persistence. Select a distribution point to review its cell. Quality flags are warnings, not automatic exclusions; large peaks and flat traces are not discarded as outliers."),
+                p("Population traces shows one labeled panel per recording with shared axes. Choose Individual traces, Mean ± SEM, or Both; Focus enlarges one recording. Teal solid lines mark responders and orange dashed lines mark nonresponders. Gray shading marks the actual local baseline, the vertical dotted line marks stimulus delivery, and blue shading marks scoring. Clicking selects the cell for review. Visibility does not change percentages or exports."),
+                p("Pooled percent is responders divided by all mapped, evaluable cells, including valid nonresponders. Excluded and unscorable cells are counted separately. A whole-field claim requires including all target cells independently of response. The optional positive control defines a separately reported population, such as stimulus responders among KCl responders; it is not an automatic universal viability criterion."),
+                p("The complete analysis ZIP contains the applied protocol, calls, counts, stimulus-window peak/AUC/latency measurements, quality diagnostics, normalized traces, processing metadata, and experimental-unit summaries. The run ID and protocol hash connect these outputs. Legacy whole-recording metrics remain separate from stimulus-window measurements.")
               ),
               theme_box(
                 title = "Interpreting Sample Size",
@@ -66,7 +70,7 @@ mod_help_ui <- function(id) {
                 collapsible = TRUE,
                 collapsed = TRUE,
                 div(class = "alert alert-warning", style = "margin: 0;",
-                    "SimpleCa²⁺ summaries are descriptive and cell-level. N_Cells is not the number of independent animals or preparations. Cells from the same preparation or animal are not independent biological replicates.")
+                    "N_Cells is not the number of independent animals or preparations. For response summaries, assign experimental unit IDs in Recording details: fields are pooled within each ID, then unit percentages are weighted equally within condition. Missing IDs are reported and omitted from unit summaries. The software does not infer biological independence from a label; descriptive cell/field summaries remain available.")
               ),
               
               theme_box(

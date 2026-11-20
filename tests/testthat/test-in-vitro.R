@@ -48,7 +48,7 @@ test_that("local elevation, baseline variation and gaps affect only the relevant
   expect_error(responder_protocol("A", NA_real_, 12, 5, .1, 3, 2, 1), "start")
 })
 
-test_that("real processing retains invalid F0 names and the module refreshes with data and settings", {
+test_that("real processing retains invalid F0 names and applied results refresh explicitly", {
   library(shiny)
   source(file.path(repo_root, "R", "mod_in_vitro.R"), local = TRUE)
   time <- seq(0, 15, 0.5)
@@ -61,11 +61,13 @@ test_that("real processing retains invalid F0 names and the module refreshes wit
   testServer(mod_in_vitro_server, args = list(rv = rv), {
     session$setInputs(stimulus = "Capsaicin", start = 5, end = 8, baseline = 2, floor = .1,
       noise = 3, frames = 2, gap = .6, control = FALSE, field = "field")
+    session$setInputs(apply_protocol = 1)
     expect_equal(results()$counts$Percent_responding, c(50, 100))
     expect_equal(results()$counts$Excluded, c(1, 1))
     expect_equal(export_rows("calls")$Source_file, rep("field.csv", 6))
     library(ggplot2)
     session$setInputs(control = TRUE, control_start = 12, control_end = 15)
+    session$setInputs(apply_protocol = 2)
     # Each field has one cell in at least one response class (undefined SEM).
     expect_match(output$population_plot$html, "responder-panel")
     expect_type(output$trace$src, "character")
@@ -74,20 +76,27 @@ test_that("real processing retains invalid F0 names and the module refreshes wit
     expect_equal(windows$Start[windows$Role == "Local baseline"], c(3, 10))
     expect_equal(windows$End[windows$Role == "Local baseline"], c(5, 12))
     session$setInputs(control = FALSE)
+    session$setInputs(apply_protocol = 3)
     session$setInputs(field = "field_1", cell = "Cell2")
     expect_equal(field(), "field_1")
     clear_processed_state(rv)
     session$flushReact()
     commit_processed_state(rv, state)
     session$flushReact()
+    expect_false(applied_ready())
+    session$setInputs(apply_protocol = 4)
     expect_equal(field(), "field_1")
     expect_equal(nrow(overview_data()), length(time))
     session$setInputs(status = "Excluded")
     expect_true(all(review_rows()$Status == "Excluded"))
     session$setInputs(floor = 1)
+    expect_true(dirty())
+    expect_equal(results()$counts$Percent_responding, c(50, 100))
+    session$setInputs(apply_protocol = 5)
     expect_equal(results()$counts$Percent_responding, c(0, 0))
     session$setInputs(start = 9)
-    expect_error(results(), "start")
+    expect_match(protocol_error(), "start")
+    expect_equal(results()$counts$Percent_responding, c(0, 0))
     clear_processed_state(rv)
     session$flushReact()
     expect_null(fields())
@@ -225,6 +234,7 @@ test_that("zero evaluable cells validate all population plots and can recover", 
   testServer(mod_in_vitro_server, args = list(rv = rv), {
     session$setInputs(stimulus = "A", start = 19, end = 299, baseline = 20,
       floor = .1, noise = 3, frames = 2, auto_gap = TRUE, control = FALSE)
+    session$setInputs(apply_protocol = 1)
     expect_equal(results()$counts$Evaluable, 0)
     expect_match(output$distribution_view$html, "No evaluable cells")
     expect_false(grepl(session$ns("distribution"), output$distribution_view$html, fixed = TRUE))
@@ -236,10 +246,13 @@ test_that("zero evaluable cells validate all population plots and can recover", 
     # Manual settings changes stay visible to the scorer until corrected.
     expect_equal(input$baseline, 20)
     session$setInputs(baseline = 19)
+    expect_equal(results()$counts$Evaluable, 0)
+    session$setInputs(apply_protocol = 2)
     expect_equal(results()$counts$Responded, 1)
     expect_match(output$distribution_view$html, session$ns("distribution"), fixed = TRUE)
     expect_match(output$population_plot$html, "responder-panel")
     session$setInputs(floor = 1)
+    session$setInputs(apply_protocol = 3)
     expect_equal(results()$counts$Percent_responding, 0)
     expect_match(output$population_plot$html, "responder-panel")
   })

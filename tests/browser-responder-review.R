@@ -20,8 +20,9 @@ start <- Sys.time()
 invisible(evaluate(in_app(paste(
   "var control=d.getElementById('in_vitro-control');if(control.checked)control.click();",
   "w.$('#in_vitro-start').val(20).trigger('change');w.$('#in_vitro-end').val(40).trigger('change');",
-  "w.$('#in_vitro-baseline').val(5).trigger('change');return true;"
+  "w.$('#in_vitro-baseline').val(5).trigger('change');w.$('#in_vitro-onset').val(20).trigger('change');w.$('#in_vitro-baseline_end').val(20).trigger('change');return true;"
 ))))
+apply_response_protocol()
 wait_until(in_app(paste(
   "var el=d.getElementById('in_vitro-headline');return el.innerText.includes('91.0%') &&",
   "el.innerText.includes('191 of 210') && el.innerText.includes('clipped');"
@@ -55,6 +56,7 @@ invisible(evaluate(in_app(paste(
   "var e=d.getElementById('in_vitro-baseline');e.value=20;",
   "e.dispatchEvent(new w.Event('input',{bubbles:true}));w.$(e).trigger('change');return true;"
 ))))
+apply_response_protocol()
 for (panel in c("in_vitro-distribution_view", "in_vitro-population_plot")) {
   invisible(evaluate(in_app(sprintf("d.getElementById('%s').scrollIntoView({block:'center'});return true;", panel))))
   wait_until(in_app(sprintf("return d.getElementById('%s').textContent.includes('No evaluable cells');", panel)),
@@ -76,19 +78,21 @@ switch_tab("in_vitro")
 wait_until(in_app(paste(
   "return d.getElementById('in_vitro-start').value==='19' && d.getElementById('in_vitro-end').value==='299' &&",
   "d.getElementById('in_vitro-baseline').value==='19' &&",
-  "!d.getElementById('in_vitro-defaults_notice').hidden &&",
-  "d.getElementById('in_vitro-headline').innerText.includes('94 of 100 evaluable cells');"
+  "!d.getElementById('in_vitro-defaults_notice').hidden;"
 )), "incompatible retained baseline resets with an explicit notice")
+apply_response_protocol()
+wait_until(in_app("return d.getElementById('in_vitro-headline').innerText.includes('94 of 100 evaluable cells');"), "reapplied replacement recording")
 recovered <- read_export("in_vitro-download_counts", "in_vitro_counts")
 stopifnot(recovered$Percent_responding == 94, recovered$Start_s == 19,
   recovered$End_s == 299, recovered$Baseline_s == 19,
   all(is.na(recovered$Field_reason) | recovered$Field_reason == ""))
 # Valid edits, including an allowed clipped endpoint, survive reprocessing.
 invisible(evaluate(in_app(paste(
-  "Object.entries({start:25,end:300,baseline:20}).forEach(function(kv){",
+  "Object.entries({start:25,end:300,baseline:20,onset:25,baseline_end:25}).forEach(function(kv){",
   "var e=d.getElementById('in_vitro-'+kv[0]);e.value=kv[1];",
   "e.dispatchEvent(new w.Event('input',{bubbles:true}));w.$(e).trigger('change');});return true;"
 ))))
+apply_response_protocol()
 wait_until(in_app("return d.getElementById('in_vitro-headline').innerText.includes('clipped');"), "allowed clipped endpoint")
 switch_tab("load")
 process_click()

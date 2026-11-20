@@ -5,7 +5,7 @@ source(file.path(repo_root, "R", "theme.R"))
 source(file.path(repo_root, "R", "components.R"))
 
 test_that("displayed app version matches the current release", {
-  expect_identical(SIMPLECA_VERSION, "1.16.0")
+  expect_identical(SIMPLECA_VERSION, "1.17.0")
 })
 
 test_that("theme includes responsive, accessible, and contrast-safe states", {
@@ -60,7 +60,7 @@ test_that("advanced processing settings precede the Process Data action", {
   expect_match(markup, "Input &amp; baseline", fixed = TRUE)
   expect_match(markup, "Raw fluorescence", fixed = TRUE)
   expect_match(markup, "Already ΔF/F₀", fixed = TRUE)
-  expect_match(markup, "values are preserved exactly", fixed = TRUE)
+  expect_match(markup, "Fractions are preserved; percentages are divided by 100 once", fixed = TRUE)
   expect_match(markup, "My file includes a background ROI column", fixed = TRUE)
   expect_lt(regexpr("background ROI column", markup, fixed = TRUE)[1], advanced_position)
   expect_false(grepl("pp_baseline_method", markup, fixed = TRUE))

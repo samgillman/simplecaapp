@@ -13,7 +13,7 @@ Developed by the **Wang Lab** at the University of Nebraska Medical Center (UNMC
 ### Data Processing
 - **Multi-file support**: Load and analyze multiple experimental groups simultaneously
 - **Frame-range baseline correction**: Define a stable baseline window with synchronized slider and typed frame controls; F₀ is the per-cell mean across those frames
-- **Explicit input mode**: Choose raw fluorescence for F₀ normalization or already-processed ΔF/F₀ to preserve uploaded values exactly
+- **Explicit input units**: Raw or already-corrected fluorescence, fixed-reference ΔF/F₀ fractions/percentages, and ratio/ΔR/R₀ inputs are converted once to fractional analysis units
 - **Batch processing**: Process multiple datasets at once
 
 ### Visualization Tools
@@ -38,13 +38,19 @@ Automatic calculation of key calcium imaging metrics:
 
 For coverslips or monolayers, process one CSV or Excel file per field in **Load Data**. Include one mapped trace per identified cell, including cells with flat traces. The same recordings are available in Time Course, Heatmap and Metrics.
 
-Open **Percent Responding** under **Analyze** and enter a stimulus name. Check the suggested scoring times against your acquisition protocol. Start is the timestamp of the last loading-baseline frame, end is the last timestamp, and baseline duration is the elapsed time between the selected loading-baseline frames. Across fields, the app suggests the latest baseline endpoint, earliest recording end and shortest baseline duration. Edited times are retained while they fit the loaded recordings. Loading or reprocessing recordings that make those times unusable resets the primary window to recording defaults and shows a notice. Confirm suggested times against your protocol. You can also choose **Use recording defaults**. You can add a separate KCl window and select the primary stimulus, KCl, or stimulus among KCl responders.
+Open **Percent Responding** under **Analyze**, choose a starting preset, and confirm stimulus timing and scoring settings. **Apply analysis settings** creates a named analysis run. Editing settings then shows an unapplied-changes notice: displayed results and downloads continue to describe the applied run. Reprocessing the input invalidates stale results.
 
-A cell responds when its rise reaches the larger of the amplitude floor (default 10%) and a multiple of its baseline SD (default 3) for the required consecutive samples (default 2). Both values are fractions of that cell’s local prestimulus fluorescence. The local baseline includes its left endpoint and excludes the scoring start. Each field’s automatic gap limit is 1.5 times its median positive frame interval. An end beyond the last sample by at most that limit is clipped and reported. Longer overruns or missing coverage can make a window unscorable.
+- **Current SimpleCa sample rule** preserves the original 10% local-rise floor, 3 baseline SD multiplier, two consecutive samples, and bounded end-window clipping.
+- **Slow evoked candidate** uses explicit prestimulus baseline, stimulus onset and response windows, and a one-second sampled-duration rule. At 2 Hz, three consecutive observations span one second. The candidate is provisional and must be assessed with matched controls; it is not a universal 50B11 or GCaMP cutoff.
+- Both criteria must be met: the effective threshold is the larger of the amplitude floor and the SD-based threshold. Version 2 supports a named optional control and per-recording timing overrides. A delayed scoring window does not move the baseline into the response.
 
-The headline divides responders by evaluable cells. Multiple fields also show the equally weighted mean and sample SD of their percentages. Excluded and unscorable cells appear separately. A whole-field interpretation requires tracing every cell in the target population independently of response. Click a distribution point or field-table row to inspect individual calls. The near-threshold filter uses unrounded peak-to-threshold ratios from 0.8 to 1.2 inclusive. A brief spike can exceed the cutoff and still fail the duration rule. Population traces show cell mean ± SEM within the selected field.
+The primary percentage is responders divided by responders plus valid nonresponders. Excluded and unscorable cells remain reported separately; zero evaluable cells produce an unavailable percentage. A whole-field interpretation requires identifying every target cell independently of whether it brightens. Control-positive percentages are separate conditional populations.
 
-Download counts and cell calls from **Percent Responding** or **Data & Export**. Both CSVs retain the requested windows, effective ends and clipping reasons. Calls include both threshold candidates and the winner, peak rise and time, margin, onset and the first sustained run’s endpoints. The review trace uses the loading ΔF/F₀ scale and converts the local threshold into those units. `F0_start_frame` and `F0_end_frame` identify the selected loading frames. For uploaded ΔF/F₀, the original normalization frames may be unknown.
+Cell review shows the local baseline, actual threshold, qualifying run and reason. Plot visibility and selection do not change counts. The general Metrics tab retains its existing post-baseline peak and whole-recording signed AUC definitions. New **stimulus-window measurements** provide local peak, signed AUC, onset, confirmation and latency for the applied interval; valid nonresponders retain their continuous measurements.
+
+Protocols can be saved/imported as versioned JSON. The complete analysis ZIP contains the applied protocol, run/processing manifests, cell calls, counts, window measurements, quality diagnostics, normalized traces, and experimental-unit summaries. Condition/unit IDs are entered in Load Data; fields are pooled within explicitly identified units before computing a mean of unit percentages. Blank unit IDs never become independent biological replicates.
+
+See [Response protocols and reproducibility](docs/RESPONSE_PROTOCOLS.md) for exact definitions, compatibility and validation.
 
 ### Advanced Features (New)
 - **Precise Baseline Window Entry**: Set the start and end frames by typing values or using the synchronized range slider
@@ -128,7 +134,7 @@ as independent biological replicates for inferential statistics.
 
 On **Load Data**, expand **Recording details** beneath a filename to set its display name, condition, experimental unit ID, plot color, and display position. The multi-recording plots and Percent Responding field table use the display names and order. Colors apply to plots that distinguish recordings by color.
 
-You can edit these fields after processing. The processing manifest maps each recording to its source file and the stable group key used in the numerical exports. Condition and experimental unit ID are optional annotations for this version. Summaries continue to use the existing recording and cell definitions.
+You can edit these fields after processing. The processing manifest maps each recording to its source file and the stable group key used in the numerical exports. Condition and experimental unit ID are optional. Percent Responding provides separately labeled summaries across explicitly identified experimental units; the existing time-course and general metric summaries retain their recording/cell definitions.
 
 ### Workflow
 

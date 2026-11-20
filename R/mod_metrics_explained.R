@@ -141,9 +141,17 @@ mod_metrics_explained_ui <- function(id) {
 
 mod_metrics_explained_server <- function(id, rv) {
   moduleServer(id, function(input, output, session) {
+    render_signal_ui <- function(expr) {
+      quoted <- substitute(expr)
+      context <- parent.frame()
+      shiny::renderUI({
+        signal_display_tags(eval(quoted, envir = context), rv$signal_kind %||% "fluorescence")
+      })
+    }
+
     ns <- session$ns
     
-    output$explanation_ui <- renderUI({
+    output$explanation_ui <- render_signal_ui({
       req(input$metric_to_explain)
       get_metric_explanation_content(input$metric_to_explain, ns)
     })
@@ -171,7 +179,7 @@ mod_metrics_explained_server <- function(id, rv) {
     }
     
     # Use a single cell selector that is always visible
-    output$cell_selector_ui <- renderUI({
+    output$cell_selector_ui <- render_signal_ui({
       req(rv$metrics)
       cell_choices <- rv$metrics$Cell_ID
       # Display names only — the underlying values stay raw so lookups work
@@ -225,14 +233,14 @@ mod_metrics_explained_server <- function(id, rv) {
       )
     })
     
-    output$peak_data_points_ui <- renderUI({
+    output$peak_data_points_ui <- render_signal_ui({
       req(selected_cell_data())
       data <- selected_cell_data()
       
-      if (identical(data$input_data_mode, "dff0")) {
+      if (signal_input_spec(data$input_data_mode)$normalized) {
         div(class = "metric-data-box",
           tags$ul(style = "margin-bottom: 0;",
-            tags$li("Input mode: already processed ΔF/F₀ (values preserved)"),
+            tags$li("Input mode: fixed-reference ΔF/F₀, converted to fractional units"),
             tags$li(sprintf("Time of post-baseline peak: %.2f seconds", data$peak_time)),
             tags$li(sprintf("Peak ΔF/F₀ value: %.3f", data$metric$Peak_dFF0))
           )
@@ -250,13 +258,13 @@ mod_metrics_explained_server <- function(id, rv) {
       }
     })
 
-    output$peak_calculation_ui <- renderUI({
+    output$peak_calculation_ui <- render_signal_ui({
       req(selected_cell_data())
       data <- selected_cell_data()
       
-      if (identical(data$input_data_mode, "dff0")) {
+      if (signal_input_spec(data$input_data_mode)$normalized) {
         tagList(
-          formula_line("Peak ΔF/F<sub>0</sub> = max of uploaded ΔF/F<sub>0</sub> after the baseline window"),
+          formula_line("Peak ΔF/F<sub>0</sub> = max of fractional input ΔF/F<sub>0</sub> after the baseline window"),
           formula_line(sprintf("= %.3f", data$metric$Peak_dFF0)),
           div(class = "metric-result-box", h5("Result:"),
               p(sprintf("Peak ΔF/F₀ = %.3f", data$metric$Peak_dFF0), style = "margin: 5px 0 0 0;"))
@@ -274,7 +282,7 @@ mod_metrics_explained_server <- function(id, rv) {
       }
     })
 
-    output$snr_data_points_ui <- renderUI({
+    output$snr_data_points_ui <- render_signal_ui({
       req(selected_cell_data())
       data <- selected_cell_data()
       
@@ -288,7 +296,7 @@ mod_metrics_explained_server <- function(id, rv) {
       )
     })
 
-    output$snr_calculation_ui <- renderUI({
+    output$snr_calculation_ui <- render_signal_ui({
       req(selected_cell_data())
       data <- selected_cell_data()
       
@@ -305,7 +313,7 @@ mod_metrics_explained_server <- function(id, rv) {
       )
     })
 
-    output$response_amp_data_points_ui <- renderUI({
+    output$response_amp_data_points_ui <- render_signal_ui({
       req(selected_cell_data())
       data <- selected_cell_data()
 
@@ -318,7 +326,7 @@ mod_metrics_explained_server <- function(id, rv) {
       )
     })
 
-    output$response_amp_calculation_ui <- renderUI({
+    output$response_amp_calculation_ui <- render_signal_ui({
       req(selected_cell_data())
       data <- selected_cell_data()
 
@@ -334,7 +342,7 @@ mod_metrics_explained_server <- function(id, rv) {
       )
     })
 
-    output$baseline_sd_data_points_ui <- renderUI({
+    output$baseline_sd_data_points_ui <- render_signal_ui({
       req(selected_cell_data())
       data <- selected_cell_data()
       baseline <- metric_explanation_baseline_details(data$processed_trace, get_bl())
@@ -350,7 +358,7 @@ mod_metrics_explained_server <- function(id, rv) {
       )
     })
 
-    output$baseline_sd_calculation_ui <- renderUI({
+    output$baseline_sd_calculation_ui <- render_signal_ui({
       req(selected_cell_data())
       data <- selected_cell_data()
       baseline <- metric_explanation_baseline_details(data$processed_trace, get_bl())
@@ -370,7 +378,7 @@ mod_metrics_explained_server <- function(id, rv) {
       )
     })
 
-    output$rise_time_data_points_ui <- renderUI({
+    output$rise_time_data_points_ui <- render_signal_ui({
       req(selected_cell_data())
       data <- selected_cell_data()
       
@@ -398,7 +406,7 @@ mod_metrics_explained_server <- function(id, rv) {
       )
     })
 
-    output$rise_time_calculation_ui <- renderUI({
+    output$rise_time_calculation_ui <- render_signal_ui({
       req(selected_cell_data())
       data <- selected_cell_data()
       
@@ -425,7 +433,7 @@ mod_metrics_explained_server <- function(id, rv) {
       )
     })
 
-    output$ttp_data_points_ui <- renderUI({
+    output$ttp_data_points_ui <- render_signal_ui({
       req(selected_cell_data())
       data <- selected_cell_data()
       
@@ -444,7 +452,7 @@ mod_metrics_explained_server <- function(id, rv) {
       )
     })
 
-    output$ttp_calculation_ui <- renderUI({
+    output$ttp_calculation_ui <- render_signal_ui({
       req(selected_cell_data())
       data <- selected_cell_data()
       
@@ -470,7 +478,7 @@ mod_metrics_explained_server <- function(id, rv) {
       )
     })
 
-    output$ttpk_data_points_ui <- renderUI({
+    output$ttpk_data_points_ui <- render_signal_ui({
       req(selected_cell_data())
       data <- selected_cell_data()
       recording_start <- min(data$processed_trace$Time, na.rm = TRUE)
@@ -485,7 +493,7 @@ mod_metrics_explained_server <- function(id, rv) {
       )
     })
 
-    output$ttpk_calculation_ui <- renderUI({
+    output$ttpk_calculation_ui <- render_signal_ui({
       req(selected_cell_data())
       data <- selected_cell_data()
       
@@ -523,7 +531,7 @@ mod_metrics_explained_server <- function(id, rv) {
       details
     })
     
-    output$fwhm_data_points_ui <- renderUI({
+    output$fwhm_data_points_ui <- render_signal_ui({
       req(fwhm_times(), selected_cell_data())
       times <- fwhm_times()
       metric <- selected_cell_data()$metric
@@ -554,7 +562,7 @@ mod_metrics_explained_server <- function(id, rv) {
       )
     })
 
-    output$fwhm_calculation_ui <- renderUI({
+    output$fwhm_calculation_ui <- render_signal_ui({
       req(fwhm_times(), selected_cell_data())
       times <- fwhm_times()
       metric <- selected_cell_data()$metric
@@ -594,7 +602,7 @@ mod_metrics_explained_server <- function(id, rv) {
       }
     })
 
-    output$auc_data_points_ui <- renderUI({
+    output$auc_data_points_ui <- render_signal_ui({
       req(selected_cell_data())
       data <- selected_cell_data()
       trace <- data$processed_trace
@@ -611,7 +619,7 @@ mod_metrics_explained_server <- function(id, rv) {
       )
     })
     
-    output$auc_calculation_ui <- renderUI({
+    output$auc_calculation_ui <- render_signal_ui({
       req(selected_cell_data())
       data <- selected_cell_data()
       trace <- data$processed_trace
@@ -633,7 +641,7 @@ mod_metrics_explained_server <- function(id, rv) {
       )
     })
 
-    output$ca_data_points_ui <- renderUI({
+    output$ca_data_points_ui <- render_signal_ui({
       req(selected_cell_data())
       data <- selected_cell_data()
       
@@ -661,7 +669,7 @@ mod_metrics_explained_server <- function(id, rv) {
       )
     })
 
-    output$ca_calculation_ui <- renderUI({
+    output$ca_calculation_ui <- render_signal_ui({
       req(selected_cell_data())
       data <- selected_cell_data()
       
@@ -716,7 +724,7 @@ mod_metrics_explained_server <- function(id, rv) {
           p + geom_segment(data = metric, aes(x = Time_to_Peak, xend = Time_to_Peak, y = 0, yend = Peak_dFF0), color = expl_marker, linetype = "dashed") +
             geom_point(data = metric, aes(x = Time_to_Peak, y = Peak_dFF0), color = expl_marker, size = 4) +
             annotate("text", x = metric$Time_to_Peak, y = label_y_pos, label = round(metric$Peak_dFF0, 3), vjust = 0, color = expl_marker, size = 4.5) +
-            labs(title = cell_title(metric$Cell_Label), x = "Time (s)", y = "\u0394F/F\u2080") +
+            labs(title = cell_title(metric$Cell_Label), x = "Time (s)", y = signal_axis_label(rv)) +
             explanation_theme() + coord_cartesian(clip = "off")
         },
         "time_to_peak" = {
@@ -731,7 +739,7 @@ mod_metrics_explained_server <- function(id, rv) {
                      label = paste("Peak time coordinate =", round(metric$Time_to_Peak, 2), "s"),
                      color = expl_accent, fill = "white", label.size = 0,
                      vjust = 0, fontface = "bold", size = 4.2) +
-            labs(title = cell_title(metric$Cell_Label), x = "Time (s)", y = "\u0394F/F\u2080") +
+            labs(title = cell_title(metric$Cell_Label), x = "Time (s)", y = signal_axis_label(rv)) +
             explanation_theme() + coord_cartesian(clip = "off")
         },
         "response_amplitude" = {
@@ -754,7 +762,7 @@ mod_metrics_explained_server <- function(id, rv) {
             annotate("text", x = metric$Time_to_Peak, y = metric$Response_Amplitude / 2,
                      label = sprintf("Amplitude = %.3f", metric$Response_Amplitude),
                      hjust = -0.1, color = expl_accent, fontface = "bold", size = 4.5) +
-            labs(title = cell_title(metric$Cell_Label), x = "Time (s)", y = "\u0394F/F\u2080") +
+            labs(title = cell_title(metric$Cell_Label), x = "Time (s)", y = signal_axis_label(rv)) +
             explanation_theme() + coord_cartesian(clip = "off")
         },
         "snr" = {
@@ -779,7 +787,7 @@ mod_metrics_explained_server <- function(id, rv) {
                      fill = alpha("white", 0.7), label.size = NA) +
             annotate("point", x = metric$Time_to_Peak, y = metric$Peak_dFF0, color = expl_accent, size = 4) +
             annotate("text", x = metric$Time_to_Peak, y = metric$Peak_dFF0 + y_range * 0.1, label = "Signal", hjust = 0.5, color = expl_accent, fontface = "bold") +
-            labs(title = cell_title(metric$Cell_Label), x = "Time (s)", y = "\u0394F/F\u2080") +
+            labs(title = cell_title(metric$Cell_Label), x = "Time (s)", y = signal_axis_label(rv)) +
             explanation_theme() + coord_cartesian(clip = "off")
         },
         "baseline_sd" = {
@@ -813,7 +821,7 @@ mod_metrics_explained_server <- function(id, rv) {
                      label = sprintf("±1 SD (%.4f)", baseline_sd),
                      hjust = 1, vjust = -0.35, color = expl_marker, fontface = "bold", size = 4,
                      fill = "white", alpha = 0.85, label.size = 0) +
-            labs(title = cell_title(metric$Cell_Label), x = "Time (s)", y = "\u0394F/F\u2080") +
+            labs(title = cell_title(metric$Cell_Label), x = "Time (s)", y = signal_axis_label(rv)) +
             explanation_theme() + coord_cartesian(clip = "off")
         },
         "rise_time" = {
@@ -845,7 +853,7 @@ mod_metrics_explained_server <- function(id, rv) {
             annotate("text", x = mean(c(t10, t90)), y = label_y_pos, 
                      label = paste("Rise Time =", round(metric$Rise_Time, 2), "s"),
                      color = expl_marker, vjust = -0.8, fontface = "bold", size = 4.5) +
-            labs(title = cell_title(metric$Cell_Label), x = "Time (s)", y = "\u0394F/F\u2080") +
+            labs(title = cell_title(metric$Cell_Label), x = "Time (s)", y = signal_axis_label(rv)) +
             explanation_theme() + coord_cartesian(clip = "off")
         },
         "time_to_percent_peak" = {
@@ -867,7 +875,7 @@ mod_metrics_explained_server <- function(id, rv) {
             geom_segment(data = metric, aes(x = Time_to_75_Peak, xend = Time_to_75_Peak, y=0, yend=p75), color = expl_marker, linetype = "dashed") +
             annotate("label", x = label_x_pos, y = p75, label = "75%", color = expl_marker, fontface = "bold", hjust = 0,
                      fill = "white", alpha = 0.85, label.size = 0) +
-            labs(title = cell_title(metric$Cell_Label), x = "Time (s)", y = "\u0394F/F\u2080") +
+            labs(title = cell_title(metric$Cell_Label), x = "Time (s)", y = signal_axis_label(rv)) +
             explanation_theme() + coord_cartesian(clip = "off")
         },
         "fwhm" = {
@@ -904,7 +912,7 @@ mod_metrics_explained_server <- function(id, rv) {
             ) +
             geom_text(data = annotation_df, aes(x = x_mid, y = y_mid, label = width_label),
                       color = expl_marker, vjust = -1.2, fontface = "bold", size = 4.5) +
-            labs(title = cell_title(data$metric$Cell_Label), x = "Time (s)", y = "\u0394F/F\u2080") +
+            labs(title = cell_title(data$metric$Cell_Label), x = "Time (s)", y = signal_axis_label(rv)) +
             explanation_theme() + coord_cartesian(clip = "off")
           if (times$is_sustained) {
             p <- p + annotate(
@@ -943,7 +951,7 @@ mod_metrics_explained_server <- function(id, rv) {
           ggplot(trace, aes(x = Time, y = dFF0)) +
             geom_ribbon(aes(ymin = 0, ymax = dFF0), fill = expl_good, alpha = 0.35) +
             geom_line(color = "gray50", linewidth = 1) +
-            labs(title = cell_title(data$metric$Cell_Label), x = "Time (s)", y = "\u0394F/F\u2080",
+            labs(title = cell_title(data$metric$Cell_Label), x = "Time (s)", y = signal_axis_label(rv),
                  caption = "Signed net AUC: values below zero contribute negatively") +
             explanation_theme() + 
             coord_cartesian(clip = "off")
@@ -1000,10 +1008,10 @@ mod_metrics_explained_server <- function(id, rv) {
             # top-left label collided with the Δt arrow label)
             annotate("label", x = max(trace$Time, na.rm = TRUE),
                      y = max(trace$dFF0, na.rm = TRUE) + y_range * 0.22,
-                     label = sprintf("10–90%% ΔF/F₀ Rise Rate = %.3f ΔF/F₀/s", data$metric$Rise_Rate_10_90_dFF0_per_s),
+                     label = signal_display_text(sprintf("10–90%% ΔF/F₀ Rise Rate = %.3f ΔF/F₀/s", data$metric$Rise_Rate_10_90_dFF0_per_s), rv$signal_kind %||% "fluorescence"),
                      color = "white", fill = expl_accent, fontface = "bold", size = 3.5,
                      hjust = 1, vjust = 0.5, label.size = 0) +
-            labs(title = cell_title(metric$Cell_Label), x = "Time (s)", y = "\u0394F/F\u2080") +
+            labs(title = cell_title(metric$Cell_Label), x = "Time (s)", y = signal_axis_label(rv)) +
             explanation_theme() + 
             coord_cartesian(clip = "off", ylim = c(min(trace$dFF0, na.rm = TRUE) - y_range*0.05, 
                                                    max(trace$dFF0, na.rm = TRUE) + y_range*0.3))

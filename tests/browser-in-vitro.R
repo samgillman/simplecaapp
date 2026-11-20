@@ -1,3 +1,15 @@
+# Applying is explicit: wait for a new applied run, never merely an old headline.
+apply_response_protocol <- function() {
+  invisible(evaluate(in_app(paste(
+    "w.__previousResponseRun=d.getElementById('in_vitro-applied_status').textContent;",
+    "d.getElementById('in_vitro-apply_protocol').click();return true;"
+  ))))
+  wait_until(in_app(paste(
+    "var e=d.getElementById('in_vitro-applied_status');return e &&",
+    "e.textContent.includes('Applied analysis.') && e.textContent!==w.__previousResponseRun;"
+  )), "new applied response analysis")
+}
+
 # Reuse the two-cell, 2 Hz recording and inspect the exported responder decisions.
 invisible(evaluate(in_app(paste(
   "w.$('a[href=\"#shiny-tab-in_vitro\"]').click();",
@@ -10,10 +22,11 @@ wait_until(in_app(paste(
 )), "unscored recording with suggested 2 Hz window and blank stimulus")
 invisible(evaluate(in_app(paste(
   "w.$('#in_vitro-stimulus').val('Capsaicin').trigger('change');",
-  "Object.entries({start:10,end:13,baseline:3}).forEach(function(entry){",
+  "Object.entries({start:10,end:13,baseline:3,onset:10,baseline_end:10}).forEach(function(entry){",
   "var e=d.getElementById('in_vitro-'+entry[0]);e.value=entry[1];",
   "e.dispatchEvent(new w.Event('input',{bubbles:true}));w.$(e).trigger('change');});return true;"
 ))))
+apply_response_protocol()
 wait_until(in_app("return d.getElementById('in_vitro-headline').innerText.includes('2 of 2 evaluable cells');"),
            "in vitro responder counts")
 wait_until(in_app(paste(
@@ -55,6 +68,7 @@ invisible(evaluate(in_app(paste(
   "w.$('#in_vitro-control_start').val(16.5).trigger('change');",
   "w.$('#in_vitro-control_end').val(20).trigger('change');return true;"
 ))))
+apply_response_protocol()
 wait_until(in_app("return d.getElementById('in_vitro-headline').innerText.includes('2 of 2');"), "KCl protocol ready")
 invisible(evaluate(in_app("d.querySelector('input[name=\"in_vitro-population\"][value=restricted]').click();return true;")))
 wait_until(in_app("return d.getElementById('in_vitro-cards').innerText.includes('No KCl responders') && d.getElementById('in_vitro-headline').innerText.includes('clipped');"),

@@ -1,0 +1,4 @@
+"Field","Stimulus","Population","Registered","Responded","Nonresponders","Evaluable","Excluded","Unscorable","Percent_responding"
+"Golden field","Capsaicin","Cells in field",6,1,3,4,1,1,25
+"Golden field","Ionomycin","Cells in field",6,4,1,5,1,0,80
+"Golden field","Capsaicin","Ionomycin-positive cells",4,1,2,3,0,1,33.3333333333333

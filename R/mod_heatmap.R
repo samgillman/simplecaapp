@@ -207,13 +207,13 @@ mod_heatmap_server <- function(id, rv) {
 
       p <- if (isTRUE(scale_info$diverging)) {
         p + scale_fill_gradient2(
-          name = "\u0394F/F\u2080", low = "#3B4CC0", mid = "white", high = "#B40426",
+          name = signal_axis_label(rv), low = "#3B4CC0", mid = "white", high = "#B40426",
           midpoint = 0, limits = c(lower, upper), breaks = brks, labels = brks,
           oob = scales::squish, na.value = "gray90"
         )
       } else {
         p + scale_fill_viridis_c(
-          name = "\u0394F/F\u2080", option = input$hm_palette,
+          name = signal_axis_label(rv), option = input$hm_palette,
           limits = c(lower, upper), breaks = brks, labels = brks,
           oob = scales::squish, na.value = "gray90"
         )

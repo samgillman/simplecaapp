@@ -25,8 +25,9 @@ invisible(evaluate(in_app("d.getElementById('in_vitro-reset_windows').click();re
 wait_until(in_app("return d.getElementById('in_vitro-start').value!=='' && d.getElementById('in_vitro-end').value==='29.5';"), "recording defaults reset")
 invisible(evaluate(in_app(paste(
   "w.$('#in_vitro-stimulus').val('Comparison').trigger('change');",
-  "Object.entries({start:20,end:30,baseline:5}).forEach(kv=>w.$('#in_vitro-'+kv[0]).val(kv[1]).trigger('change'));return true;"
+  "Object.entries({start:20,end:30,baseline:5,onset:20,baseline_end:20}).forEach(kv=>w.$('#in_vitro-'+kv[0]).val(kv[1]).trigger('change'));return true;"
 ))))
+apply_response_protocol()
 wait_until(in_app(paste(
   "var p=d.querySelectorAll('#in_vitro-population_plot .responder-panel');",
   "return p.length===3 && Array.from(p).every(e=>e.innerText.includes('50.0%') && e.querySelector('.js-plotly-plot'))",

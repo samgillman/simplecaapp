@@ -36,6 +36,9 @@ wait_for_batch <- function(n) {
 }
 wait_for_batch(2L)
 registry_exports <- function() {
+  switch_tab("in_vitro")
+  ready <- evaluate(in_app("return d.getElementById('in_vitro-applied_status').textContent.includes('Applied analysis.');"))
+  if (!isTRUE(ready)) apply_response_protocol()
   switch_tab("data_export")
   invisible(evaluate(in_app("w.$('a[data-value=\"Figure Export\"]').tab('show');return true;")))
   wait_until(in_app(paste(
@@ -70,8 +73,10 @@ wait_until(in_app("return d.querySelectorAll('.recording-editor').length===3;"),
 invisible(evaluate(in_app("d.getElementById('load_data-load_btn').click();return true;")))
 wait_for_batch(3L)
 expanded <- registry_exports()
+# A new run has new provenance; compare the actual scientific values.
+science_counts <- function(x) x[, setdiff(names(x), c("Analysis_run_ID", "Recording_label")), drop = FALSE]
 stopifnot(identical(original$metrics, expanded$metrics[expanded$metrics$Group != "third", ]),
-          identical(original$counts, expanded$counts[expanded$counts$Field != "third", ]))
+          identical(science_counts(original$counts), science_counts(expanded$counts[expanded$counts$Field != "third", ])))
 switch_tab("in_vitro")
 wait_until(in_app("return d.querySelector('#in_vitro-cards tbody button').textContent==='Capsaicin_B';"),
   "metadata survives adding and processing another recording")

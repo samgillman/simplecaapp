@@ -282,10 +282,17 @@ mod_data_export_server <- function(id, rv, metrics_plot_reactive, heatmap_plot_r
           if (ready) tag else htmltools::tagAppendAttributes(tag, disabled = "disabled")
         }
         tagList(
-          if (!ready) p(if (length(rv$dts)) "Enter valid scoring windows under Analyze → Percent Responding."
+          if (!ready) p(if (length(rv$dts)) "Apply a response protocol under Analyze → Percent Responding."
                         else "Process a recording in Load Data, then enter scoring windows in Percent Responding."),
           button("download_counts", "Download field counts"),
-          button("download_calls", "Download cell calls")
+          button("download_calls", "Download cell calls"),
+          button("download_metrics", "Download stimulus-window metrics"),
+          button("download_qc", "Download response quality review"),
+          button("download_units", "Download experimental-unit counts"),
+          button("download_unit_summary", "Download unit summary"),
+          button("download_protocol", "Download applied protocol (JSON)"),
+          button("download_bundle", "Download complete applied analysis (ZIP)"),
+          p("These downloads use the applied response analysis, including its protocol hash, timing overrides, and preprocessing metadata. Unapplied edits do not change them.")
         )
       })
     }
