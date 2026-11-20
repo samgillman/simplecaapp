@@ -1,5 +1,33 @@
 # Regression tests for time-course plot controls.
 
+test_that("large time courses bound cell layers without reducing population summaries", {
+  suppressPackageStartupMessages({library(shiny); library(ggplot2)})
+  module_env <- new.env(parent = globalenv())
+  sys.source(file.path(repo_root, "R", "mod_time_course.R"), envir = module_env)
+  y <- c(rep(0, 500), 12, rep(0, 499))
+  summary <- data.frame(Time = 0:999, mean_dFF0 = y, sem_dFF0 = 0, Group = "A")
+  rv <- reactiveValues(summary = summary,
+    long = data.frame(Time = rep(0:999, 150), dFF0 = rep(y, 150),
+      Cell = rep(paste0("Cell", 1:150), each = 1000), Group = "A"),
+    groups = "A", colors = c(A = "#000000"))
+  testServer(module_env$mod_time_course_server, args = list(rv = rv), {
+    session$setInputs(tc_show_traces = TRUE, tc_show_avg_line = TRUE, tc_show_ribbon = TRUE, tc_font = "Helvetica")
+    plot <- session$getReturned()$plot()
+    expect_lte(nrow(plot$layers[[1]]$data), 100000L)
+    expect_null(plot$layers[[1]]$mapping$text)
+    expect_equal(length(unique(plot$layers[[1]]$data$Cell)), 150L)
+    expect_match(plot$labels$caption, "retaining per-bin extrema", fixed = TRUE)
+    expect_equal(tail(plot$layers, 1)[[1]]$data$mean_dFF0, y)
+    expect_equal(rv$summary, summary)
+    expect_no_warning(ggplot2::ggplotGrob(plot))
+    interactive <- suppressWarnings(plotly::ggplotly(build_timecourse_plot(interactive = TRUE), tooltip = "text"))
+    expect_true(any(grepl("Cell150", unlist(lapply(interactive$x$data, `[[`, "text")), fixed = TRUE)))
+    session$setInputs(tc_show_traces = FALSE)
+    expect_null(display_traces())
+    expect_null(session$getReturned()$plot()$labels$caption)
+  })
+})
+
 test_that("clearing the title removes it from the rendered time-course plot", {
   skip_if_not_installed("shiny")
   skip_if_not_installed("dplyr")

@@ -37,7 +37,7 @@ hm_plot_controls <- function(ns) {
                     step = 0.05,
                     width = "100%"
                   ),
-                  helpText("Use 0 for automatic spacing; enter 0.5 for ticks every 0.5 ΔF/F₀. Negative values are preserved with a zero-centered diverging scale; the palette choice applies to non-negative data. Tiles span the midpoints between timestamps and stop at the first and last recorded time.")
+                  helpText("Use 0 for automatic spacing; enter 0.5 for ticks every 0.5 ΔF/F₀. Negative values are preserved with a zero-centered diverging scale; the palette choice applies to non-negative data. Small datasets use exact timestamp tiles. Large datasets use labeled time-bin means for display and figure downloads; calculations and CSV exports retain every sample.")
                 ),
 
                 div(class = "control-col",
@@ -122,55 +122,24 @@ mod_heatmap_server <- function(id, rv) {
         "No data loaded. Go to the Load Data tab, upload your files, and click Process Data."
       ))
 
-      build_hm <- function(dt, label) {
-        time_vec <- dt$Time
-        dnum <- coerce_numeric_dt(dt)
-        mat <- as.matrix(dnum[, -1])
-        cell_names <- colnames(dnum)[-1]
-
-        na_count <- sum(is.na(mat))
-        if (na_count > 0) {
-          warning("Found ", na_count, " NA values in heatmap data for group: ", label)
-        }
-
-        valid <- apply(mat, 2, function(x) !all(is.na(x)))
-        mat <- mat[, valid, drop=FALSE]
-        cell_names <- cell_names[valid]
-        if (ncol(mat) == 0) return(NULL)
-
-        ord <- seq_len(ncol(mat))
-        peaks <- lapply(seq_len(ncol(mat)), function(j) {
-          post_baseline_peak(mat[, j], time_vec, rv$baseline_frames %||% c(1, 20))
-        })
-        if (input$hm_sort == "tpeak") {
-          tpk <- vapply(peaks, function(x) if (is.finite(x$time)) x$time else Inf, numeric(1))
-          ord <- order(tpk)
-        } else if (input$hm_sort == "amp") {
-          amp <- vapply(peaks, function(x) if (is.finite(x$value)) x$value else -Inf, numeric(1))
-          ord <- order(amp, decreasing = TRUE)
-        }
-        mat <- mat[, ord, drop=FALSE]
-
-        hm <- expand.grid(Time = time_vec, Cell = seq_len(ncol(mat)))
-        hm$Value <- as.vector(mat); hm$Group <- label
-        hm$Cell_Label <- rep(cell_names[ord], each = length(time_vec))
-        # Nearest-sample bins use actual timestamps, with interior boundaries
-        # halfway between observations and no extrapolation beyond the record.
-        bounds <- time_bin_edges(time_vec)
-        hm$Time_Min <- rep(bounds$left, times = ncol(mat))
-        hm$Time_Max <- rep(bounds$right, times = ncol(mat))
-        hm
-      }
-
-      all_hm <- purrr::imap(rv$dts, ~build_hm(.x, .y)) |> purrr::compact() |> dplyr::bind_rows()
-      shiny::validate(shiny::need(nrow(all_hm) > 0, "No valid data for heatmap. Check that your files contain numeric cell traces."))
-
-      # Dynamic legend breaks based on actual data range
-      rng <- range(all_hm$Value, na.rm = TRUE)
-
+      total_cells <- sum(vapply(rv$dts, function(dt) max(0L, ncol(dt) - 1L), integer(1)))
+      fields <- purrr::imap(rv$dts, function(dt, label) {
+        budget <- max(2L, floor(100000 * max(0L, ncol(dt) - 1L) / max(1L, total_cells)))
+        heatmap_display_field(dt, label, input$hm_sort %||% "tpeak",
+                              rv$baseline_frames %||% c(1, 20), budget)
+      }) |> purrr::compact()
+      shiny::validate(shiny::need(length(fields) > 0L,
+        "No valid data for heatmap. Check that your files contain numeric cell traces."))
+      all_hm <- dplyr::bind_rows(lapply(fields, `[[`, "data"))
+      rng <- range(unlist(lapply(fields, `[[`, "range")))
       view <- presentation()
       all_hm_viz <- dplyr::mutate(all_hm, Group = factor(Group, levels = view$levels))
-      all_hm_viz <- dplyr::arrange(all_hm_viz, Group, Time, Cell)
+      reduced <- names(fields)[vapply(fields, `[[`, logical(1), "reduced")]
+      note <- if (length(reduced)) paste0(
+        "Display uses time-bin means: ",
+        paste(vapply(reduced, function(key) sprintf("%s: %d to %d time bins",
+          view$label(key), fields[[key]]$frames, fields[[key]]$bins), character(1)), collapse = "; "),
+        ". All cells retained. Metrics and CSVs use all samples.") else NULL
 
       # Keep automatic spacing by default, or use the positive interval typed
       # by the user. The same reactive plot powers the screen and downloads.
@@ -199,11 +168,20 @@ mod_heatmap_server <- function(id, rv) {
         }
       }
 
-      p <- ggplot(all_hm_viz, aes(Time, Cell, fill = Value)) +
-        geom_rect(aes(xmin = Time_Min, xmax = Time_Max,
-                      ymin = Cell - 0.5, ymax = Cell + 0.5)) +
-        facet_wrap(~ Group, ncol = 1, scales = "free_y",
-                   labeller = ggplot2::as_labeller(view$label))
+      p <- ggplot(all_hm_viz, aes(Time, Cell, fill = Value))
+      exact <- all_hm_viz[!as.character(all_hm_viz$Group) %in% reduced, , drop = FALSE]
+      if (nrow(exact)) {
+        p <- p + geom_rect(data = exact, aes(xmin = Time_Min, xmax = Time_Max,
+                                            ymin = Cell - 0.5, ymax = Cell + 0.5))
+      }
+      # A layer per recording lets raster spacing follow that recording's
+      # time span even when other files have different sample rates/durations.
+      for (key in reduced) {
+        p <- p + geom_raster(data = all_hm_viz[as.character(all_hm_viz$Group) == key, , drop = FALSE],
+                             interpolate = FALSE)
+      }
+      p <- p + facet_wrap(~ Group, ncol = 1, scales = "free_y",
+                          labeller = ggplot2::as_labeller(view$label))
 
       p <- if (isTRUE(scale_info$diverging)) {
         p + scale_fill_gradient2(
@@ -227,7 +205,8 @@ mod_heatmap_server <- function(id, rv) {
         )) +
         scale_x_continuous(expand = c(0, 0)) +
         scale_y_continuous(expand = c(0, 0)) +
-        labs(title = title_text, x = input$hm_x_label, y = input$hm_y_label) +
+        labs(title = title_text, x = input$hm_x_label, y = input$hm_y_label,
+             caption = if (!is.null(note)) paste(strwrap(note, width = 100), collapse = "\n")) +
         theme_classic(base_size = base_size) +
         theme(
           plot.title = element_text(

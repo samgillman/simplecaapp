@@ -39,7 +39,8 @@ tc_plot_controls <- function(ns) {
                   sliderInput(ns("tc_trace_transparency"), "Trace transparency (%)",
                               0, 100, 50, 1, width = "100%"),
                   checkboxInput(ns("tc_show_avg_line"), "Show average trace", value = TRUE),
-                  checkboxInput(ns("tc_show_ribbon"), "Show SEM ribbon", value = TRUE)
+                  checkboxInput(ns("tc_show_ribbon"), "Show SEM ribbon", value = TRUE),
+                  helpText("Large cell-trace displays and figure downloads retain per-bin extrema. The plot caption reports reduction; means, SEM, metrics and CSVs use all samples.")
                 ),
 
                 div(class = "control-col",
@@ -192,8 +193,16 @@ mod_time_course_server <- function(id, rv) {
       as.integer(round(raw_val))
     }
 
-    # Build timecourse plot function
-    build_timecourse_plot <- function() {
+    # Cache the display subset independently of styling. In particular, hiding
+    # cell traces must not filter/copy the full long table at all.
+    display_traces <- reactive({
+      if (!isTRUE(input$tc_show_traces)) return(NULL)
+      timecourse_display_data(rv$long)
+    })
+
+    # Figure downloads use the same labeled display as the screen; CSVs and
+    # population summaries continue to use the original processed samples.
+    build_timecourse_plot <- function(interactive = FALSE) {
       req(rv$summary)
       view <- presentation()
       summary_line <- rv$summary |>
@@ -209,10 +218,12 @@ mod_time_course_server <- function(id, rv) {
       summary_ribbon <- summary_line |>
         dplyr::filter(is.finite(sem_dFF0))
 
-      long_df <- NULL
-      if (!is.null(rv$long) && nrow(rv$long) > 0) {
-        long_df <- rv$long |> dplyr::filter(is.finite(Time), is.finite(dFF0))
-      }
+      long_df <- display_traces()
+      display_note <- if (isTRUE(attr(long_df, "display_reduced"))) sprintf(
+        "Display: %s of %s cell samples, retaining per-bin extrema across all %d cells.\nBins with missing coverage stay gaps. Means, SEM, metrics and CSVs use all samples.",
+        format(nrow(long_df), big.mark = ","),
+        format(attr(long_df, "source_points"), big.mark = ","),
+        attr(long_df, "source_cells")) else NULL
       if (nrow(summary_line) == 0 && (is.null(long_df) || nrow(long_df) == 0)) {
         return(
           ggplot() + theme_void() +
@@ -228,11 +239,7 @@ mod_time_course_server <- function(id, rv) {
 
       # Add individual traces if requested
       if (show_traces && !is.null(long_df) && nrow(long_df) > 0) {
-        trace_df <- long_df |>
-          dplyr::group_by(Group, Cell) |>
-          dplyr::filter(dplyr::n() > 1) |>
-          dplyr::ungroup() |>
-          dplyr::mutate(Recording = view$label(Group))
+        trace_df <- dplyr::mutate(long_df, Recording = view$label(Group))
 
         # Calculate alpha
         transparency_pct <- as.numeric(input$tc_trace_transparency %||% 50)
@@ -377,7 +384,7 @@ mod_time_course_server <- function(id, rv) {
 
       p <- p + labs(title = title_lab,
                     x = input$tc_x %||% "Time (s)",
-                    y = y_lab)
+                    y = y_lab, caption = display_note)
 
       # Apply theme — derive all font sizes from base_font_size
       base_size <- input$tc_base_font_size %||% 14
@@ -506,6 +513,11 @@ mod_time_course_server <- function(id, rv) {
         p <- p + scale_y_continuous(breaks = y_breaks, labels = y_lab_fun)
       }
 
+      # Static rendering has no hover text. Avoid formatting one long string
+      # per point only for ggplot to discard it.
+      if (!interactive) {
+        for (i in seq_along(p$layers)) p$layers[[i]]$mapping$text <- NULL
+      }
       return(p)
     }
 
@@ -526,7 +538,7 @@ mod_time_course_server <- function(id, rv) {
     # Render interactive plot
     output$timecourse_plotly <- plotly::renderPlotly({
       req(rv$summary, nrow(rv$summary) > 0)
-      p <- tc_plot_reactive()
+      p <- suppressWarnings(build_timecourse_plot(interactive = TRUE))
 
       legend_pos <- input$tc_legend_pos %||% "auto"
       plotly::ggplotly(p, tooltip = "text") |>

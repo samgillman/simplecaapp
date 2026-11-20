@@ -18,7 +18,7 @@ Developed by the **Wang Lab** at the University of Nebraska Medical Center (UNMC
 
 ### Visualization Tools
 - **Time course plots**: Average traces with SEM ribbons and individual cell overlays
-- **Heatmaps**: Signed activity visualization; negative values use a zero-centered diverging scale, and sorting uses post-baseline peaks. Each sample spans midpoint boundaries between actual timestamps, clipped to the recording endpoints, including irregularly sampled recordings.
+- **Heatmaps**: Signed activity visualization; negative values use a zero-centered diverging scale, and sorting uses post-baseline peaks. Small displays use midpoint boundaries between actual timestamps, clipped to the recording endpoints, including irregular sampling. Large displays use labeled time-bin means and raster rendering; every cell is retained and sorting/color limits use the full data.
 - **Metrics plots**: Per-cell quantification with group-aware statistical summaries and faceted cell bars
 - **Publication-ready outputs**: High-resolution exports (PNG, PDF, TIFF, SVG)
 
@@ -124,6 +124,10 @@ Choose the input mode before processing:
 - **Already ΔF/F₀** preserves every uploaded value, calculates baseline SD directly in ΔF/F₀ units, and uses the baseline frames only for noise estimation and to define the post-baseline response region.
 
 The baseline must leave at least one finite post-baseline observation in a usable cell trace. Missing samples that interrupt the peak-to-half-maximum interval leave FWHM, Half-Width, censoring status, and lower bound unknown; a later pulse never supplies the missing crossing. Ordinary right censoring requires uninterrupted observations through the end of the recording.
+
+The chosen baseline is preserved when replacing files. A recording too short for that range is named in the upload warning and skipped; change the range explicitly if a different baseline is intended. Clearing files or switching upload modes resets the range to frames 1–20. When Time is generated, a persistent warning displays the sampling rate and affected recordings.
+
+Large Heatmap and Time Course cell displays target at most 100,000 plotted values across recordings (with at least two heatmap bins or four trace points per cell). Heatmaps average finite samples within equal-duration time bins, leaving empty bins missing. Time Course retains first/last/minimum/maximum points within frame bins; bins with missing coverage remain gaps. Captions report reduction. Figure downloads use this same display representation, while population means, SEM, metrics, responder calls and CSV data retain full resolution. This reduces plotting memory but does not remove the browser's overall memory limit; very large uploads may still require smaller batches.
 
 SimpleCa²⁺ reports descriptive cell-level summaries. `N_Cells` is the number of
 cells with a finite value, not the number of independent animals or
