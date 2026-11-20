@@ -643,7 +643,7 @@ mod_load_data_server <- function(id, rv) {
       if (length(rate) != 1L || !is.finite(rate) || rate <= 0) {
         return("Enter the recording's sampling rate in Hz before processing.")
       }
-      sprintf("Time is generated at %g Hz (%g s per frame) for: %s. Confirm this matches the acquisition rate before processing.",
+      sprintf("Selected sampling rate for generated Time: %g Hz (%g s per frame). Review the time source for: %s. Confirm the acquisition rate before processing; invalid elapsed timestamps are never replaced automatically.",
               rate, 1 / rate, paste(generated_time_files(), collapse = ", "))
     })
 

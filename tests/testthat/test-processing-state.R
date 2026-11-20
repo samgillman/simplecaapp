@@ -681,6 +681,7 @@ test_that("generated timing remains visible with the current acquisition rate", 
     expect_match(output$time_source_notice, "frames.csv", fixed = TRUE)
     session$setInputs(pp_sampling_rate = 10)
     expect_match(output$time_source_notice, "10 Hz (0.1 s per frame)", fixed = TRUE)
+    expect_match(output$time_source_notice, "invalid elapsed timestamps are never replaced automatically", fixed = TRUE)
   })
 })
 
