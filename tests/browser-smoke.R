@@ -77,7 +77,7 @@ wait_until <- function(js, label, timeout = 45) {
       output <- tryCatch(server$read_output_lines(), error = function(e) character())
       errors <- tryCatch(server$read_error_lines(), error = function(e) character())
       dom_state <- tryCatch(evaluate(in_app(
-        "return JSON.stringify(['in_vitro-distribution_view','in_vitro-population_plot','in_vitro-start','in_vitro-end','in_vitro-baseline','in_vitro-status','in_vitro-review_label','in_vitro-defaults_notice','in_vitro-headline','load_data-results_bar','load_data-process_status'].reduce(function(x,id){var e=d.getElementById(id);x[id]=e?String('value' in e?e.value:e.textContent).slice(0,260):'<missing>';return x;},{}));"
+        "return JSON.stringify(['in_vitro-distribution_view','in_vitro-population_plot','in_vitro-start','in_vitro-end','in_vitro-baseline','in_vitro-status','in_vitro-review_label','in_vitro-defaults_notice','in_vitro-headline','in_vitro-applied_status','in_vitro-protocol_feedback','in_vitro-settings_feedback','in_vitro-contract_version','load_data-results_bar','load_data-process_status'].reduce(function(x,id){var e=d.getElementById(id);x[id]=e?String('value' in e?e.value:e.textContent).slice(0,260):'<missing>';return x;},{}));"
       )), error = function(e) "<browser unavailable>")
       server_lines <- tail(c(output, errors), 80)
       stop(
@@ -202,7 +202,7 @@ wait_until(in_app("return !!d.getElementById('data_export-download_cell_metrics'
 wait_until(in_app(paste(
   "var ids=['data_export-download_counts','data_export-download_calls'];",
   "return ids.every(function(id){var b=d.getElementById(id);return b && b.disabled && b.offsetWidth>0;})",
-  "&& d.getElementById('data_export-responder_downloads').innerText.includes('scoring windows');"
+  "&& d.getElementById('data_export-responder_downloads').innerText.includes('Apply a response protocol');"
 )), "responder exports visible with instructions on first visit")
 invisible(evaluate(in_app("d.getElementById('data_export-download_cell_metrics').click(); return true;")))
 wait_until(in_app("return w.__simplecaDownloads.some(function(x){return /cell_metrics.*[.]csv$/.test(x);});"), "metrics CSV download")
