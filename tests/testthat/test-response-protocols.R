@@ -47,7 +47,7 @@ test_that("portable JSON roundtrips both contracts and rejects future schemas", 
   payload$engine_version <- "99.0.0"
   expect_error(responder_import_protocol(as.character(jsonlite::toJSON(payload, auto_unbox = TRUE, dataframe = "rows", na = "null", null = "null"))),
                "Unsupported responder engine")
-  payload$engine_version <- responder_engine_version()
+  payload$engine_version <- responder_protocol_engine_version(v2)
   payload$name <- "Different name from window metadata"
   expect_error(responder_import_protocol(as.character(jsonlite::toJSON(payload, auto_unbox = TRUE, dataframe = "rows", na = "null", null = "null"))),
                "metadata and window settings disagree")
@@ -372,4 +372,268 @@ test_that("empty registrations and invalid clocks are explicit rather than fabri
   invalid <- responder_field_results(data.frame(Time = c(0, 1, 1, 3), Cell = 0), "Cell", "F", p)
   expect_equal(invalid$calls$Status, "Unscorable")
   expect_match(invalid$calls$Reason, "strictly increasing")
+})
+
+larger_noise <- "larger_of_baseline_sd_and_trace_noise"
+
+test_that("the noise estimator is a named, versioned protocol setting that defaults to the baseline SD", {
+  p <- protocol_test_v2()
+  expect_equal(responder_engine_version(), "2.1.0")
+  expect_equal(p$SD_estimator, "sample_sd")
+  larger <- protocol_test_v2(sd_estimator = larger_noise)
+  expect_equal(larger$SD_estimator, larger_noise)
+  # A protocol records the earliest engine release that defines its rule.
+  expect_equal(p$Engine_version, "2.0.0")
+  expect_equal(larger$Engine_version, "2.1.0")
+  expect_equal(jsonlite::fromJSON(responder_export_protocol(larger))$engine_version, "2.1.0")
+  expect_false(identical(responder_protocol_hash(larger), responder_protocol_hash(p)))
+  imported <- responder_import_protocol(responder_export_protocol(larger))
+  expect_equal(imported[, names(larger)], larger, ignore_attr = TRUE)
+  expect_identical(responder_protocol_hash(imported), responder_protocol_hash(larger))
+  expect_error(protocol_test_v2(sd_estimator = "median_sd"), "Unsupported SD_estimator")
+  expect_error(protocol_test_v2(sd_estimator = c("sample_sd", larger_noise)), "one noise estimator")
+  expect_match(responder_noise_rule(p), "sample SD of the local prestimulus baseline", fixed = TRUE)
+  expect_match(responder_noise_rule(larger), "larger of the sample SD", fixed = TRUE)
+  # The sentence is pasted into methods sections: the statistic is named in full.
+  expect_match(responder_noise_rule(larger), paste("1.4826 x the median absolute deviation, about their median,",
+    "of the differences between consecutive samples over the whole recording, divided by sqrt(2)"), fixed = TRUE)
+  expect_false(grepl("MAD", responder_noise_rule(larger), fixed = TRUE))
+  expect_match(responder_noise_rule(responder_protocol("A", 5, 8, 3, .1, 3, 2, NULL)), "sample SD", fixed = TRUE)
+  expect_equal(responder_protocol_engine_version(p), "2.0.0")
+  expect_equal(jsonlite::fromJSON(responder_export_protocol(p))$engine_version, "2.0.0")
+  expect_equal(responder_import_protocol(responder_export_protocol(p))$Engine_version, "2.0.0")
+  # Engine 2.0.0 knew only the baseline SD.
+  larger$Engine_version <- "2.0.0"
+  expect_error(responder_validate_protocol(larger), "not defined for engine version 2.0.0")
+  # One record and one hash per rule: the baseline SD relabelled 2.1.0 is refused,
+  # in memory and as a file, rather than scored under a second hash.
+  relabelled <- p
+  relabelled$Engine_version <- "2.1.0"
+  expect_error(responder_validate_protocol(relabelled), "sample_sd is recorded with engine version 2.0.0, not 2.1.0")
+  expect_error(responder_protocol_hash(relabelled), "recorded with engine version 2.0.0, not 2.1.0")
+  t <- seq(0, 8, .5)
+  expect_error(responder_field_results(data.frame(Time = t, Cell = .2 * (t >= 5)), "Cell", "F", relabelled),
+               "recorded with engine version 2.0.0, not 2.1.0")
+  file <- gsub('"2.0.0"', '"2.1.0"', responder_export_protocol(p), fixed = TRUE)
+  expect_equal(jsonlite::fromJSON(file)$engine_version, "2.1.0")
+  expect_error(responder_import_protocol(file), "recorded with engine version 2.0.0, not 2.1.0")
+  p$Engine_version <- "2.2.0"
+  expect_error(responder_validate_protocol(p), "Unsupported responder engine version")
+  windows <- data.frame(Role = c("Stimulus", "Control"), Stimulus = c("Capsaicin", "KCl"),
+    Baseline_start_s = c(0, 9), Baseline_end_s = c(5, 12), Stimulus_onset_s = c(5, 12),
+    Start_s = c(5, 12), End_s = c(8, 15))
+  mixed <- responder_protocol_v2("Two windows", windows)
+  mixed$SD_estimator[2] <- larger_noise
+  expect_error(responder_validate_protocol(mixed), "share one SD_estimator")
+  mixed$SD_estimator <- "sample_sd"
+  mixed$Engine_version[2] <- "2.1.0"
+  expect_error(responder_validate_protocol(mixed), "Unsupported responder engine version")
+})
+
+test_that("whole-trace noise is 1.4826 x the median absolute deviation of consecutive differences / sqrt(2) in local units", {
+  t <- 0:12
+  y <- c(-.01, .01, -.01, .01, .3, -.3, .3, .3, -.3, .3, -.3, .3, -.3)
+  # Twelve differences: .02 -.02 .02 .29 -.6 .6 0 -.6 .6 -.6 .6 -.6.  Their median
+  # is .01 and the median absolute deviation from it is .59.
+  expected <- 1.4826 * .59 / sqrt(2)
+  expect_equal(responder_whole_trace_noise(t, y, 1.5, 3), list(noise = expected, samples = 12L))
+  # Eight of the twelve differences of the quiet trace are zero, so its median absolute deviation is zero.
+  quiet <- c(-.05, .05, -.05, .05, rep(.2, 9))
+  dt <- data.frame(Time = t, Noisy = y, Shifted = 1 + 2 * y, Quiet = quiet)
+  score <- function(...) responder_field_results(dt, names(dt)[-1L], "F", protocol_test_v2(start = 4, end = 12,
+    baseline_end = 4, onset = 4, duration_mode = "samples", ...))$calls
+  before <- score()
+  after <- score(sd_estimator = larger_noise)
+  expect_equal(before$Status, rep("Responded", 3))
+  expect_equal(before$Threshold_increase, c(.1, .1, 3 * sd(quiet[1:4])))
+  expect_equal(after$Status, c("Did not respond", "Did not respond", "Responded"))
+  expect_equal(after$Whole_trace_noise, c(expected, expected, 0))
+  expect_equal(after$Whole_trace_noise_samples, rep(12L, 3))
+  expect_equal(after$Noise_source, c("Whole-trace noise", "Whole-trace noise", "Baseline SD"))
+  expect_equal(after$Noise_SD_used, c(expected, expected, sd(quiet[1:4])))
+  expect_equal(after$Threshold_increase, 3 * c(expected, expected, sd(quiet[1:4])))
+  expect_equal(after$Threshold_source, rep("Baseline noise", 3))
+  expect_equal(after$Baseline_SD, before$Baseline_SD)
+  expect_equal(after$Local_F0_relative, c(1, 2, 1))
+  # The estimate is reported after the existing columns; a cell whose baseline SD
+  # is the larger keeps every earlier value.
+  expect_identical(names(after), c(names(before), "Whole_trace_noise", "Whole_trace_noise_samples", "Noise_source"))
+  kept <- setdiff(names(before), c("SD_estimator", "Engine_version", "Protocol_hash", "Applied_protocol_hash"))
+  expect_identical(after[3, kept], before[3, kept])
+  floored <- score(sd_estimator = larger_noise, noise_floor = 1)
+  expect_equal(floored$Noise_source, rep("Noise floor", 3))
+  expect_equal(floored$Noise_SD_used, rep(1, 3))
+  expect_equal(floored$Whole_trace_noise, after$Whole_trace_noise)
+})
+
+test_that("gaps and missing samples do not contribute whole-trace noise samples", {
+  time <- c(0, 1, 2, 10, 11)
+  y <- c(0, .2, 0, 5, 5.4)
+  # Within the gap limit: .2 -.2 .4 (median .2, median absolute deviation .2).
+  within <- responder_whole_trace_noise(time, y, 1.5, 3)
+  expect_equal(within, list(noise = 1.4826 * .2 / sqrt(2), samples = 3L))
+  # Without a limit the step of 5 across the pause would be a fourth difference
+  # (median .3, median absolute deviation .3).
+  expect_equal(responder_whole_trace_noise(time, y, Inf, 3), list(noise = 1.4826 * .3 / sqrt(2), samples = 4L))
+  # A missing sample removes the two differences that touch it, leaving .2 .4 -.2 .3.
+  missing <- responder_whole_trace_noise(0:6, c(0, .2, NA, .1, .5, .3, .6), 1.5, 3)
+  expect_equal(missing, list(noise = 1.4826 * .1 / sqrt(2), samples = 4L))
+  # In a scored field: acquisition pauses after the response window, and one later sample is missing.
+  dt <- data.frame(Time = c(0:8, 20:24), Cell = c(0, .02, 0, .02, 0, rep(.5, 4), 3, 3.02, NA, 3.02, 3))
+  call <- responder_field_results(dt, "Cell", "F", protocol_test_v2(duration_mode = "samples",
+    sd_estimator = larger_noise))$calls
+  expect_equal(call$Max_gap_s, 1.5)
+  expect_equal(call$Whole_trace_noise_samples, 10L)
+  expect_equal(call$Whole_trace_noise, 1.4826 * .02 / sqrt(2) / 1.008)
+  expect_equal(call$Baseline_SD, sd(c(0, .02, 0, .02, 0)) / 1.008)
+  expect_equal(call$Noise_source, "Whole-trace noise")
+  expect_equal(call$Threshold_source, "Floor")
+  expect_equal(call$Status, "Responded")
+})
+
+test_that("too few differences fall back to the baseline SD and say so", {
+  expect_equal(responder_whole_trace_noise(0:2, c(0, .1, 0), 1.5, 3), list(noise = NA_real_, samples = 2L))
+  # Three baseline samples and one response sample, separated by missing values:
+  # only two differences can be formed, fewer than the three baseline samples required.
+  dt <- data.frame(Time = 0:6, Cell = c(0, .02, -.02, NA, NA, NA, .5))
+  score <- function(...) responder_field_results(dt, "Cell", "F", protocol_test_v2(baseline_end = 3, onset = 5.5,
+    start = 5.5, end = 6, duration_mode = "samples", frames = 1, ...))$calls
+  before <- score()
+  after <- score(sd_estimator = larger_noise)
+  expect_equal(after$Status, "Responded")
+  expect_true(is.na(after$Whole_trace_noise))
+  expect_equal(after$Whole_trace_noise_samples, 2L)
+  expect_equal(after$Noise_source, "Baseline SD")
+  expect_match(after$QC_flags, "WHOLE_TRACE_NOISE_UNAVAILABLE", fixed = TRUE)
+  expect_false(grepl("WHOLE_TRACE_NOISE", before$QC_flags, fixed = TRUE))
+  kept <- setdiff(names(before), c("SD_estimator", "Engine_version", "Protocol_hash", "Applied_protocol_hash", "QC_flags"))
+  expect_identical(after[, kept], before[, kept])
+  expect_equal(after$Noise_SD_used, .02)
+})
+
+test_that("a sample_sd protocol recorded by engine 2.0.0 gives byte-identical output", {
+  path <- file.path(repo_root, "tests", "fixtures", "response-protocols")
+  sources <- file.path(path, "engine-2.0.0", c("response_protocols.R", "responders.R"))
+  # The released files, as pinned by the Fiji plugin's provenance record.
+  expect_equal(unname(tools::sha256sum(sources)), c(
+    "67d911e969622ea996fd6b7a8dc65bfddc08bbf741f3a87286360970e1851371",
+    "2a1161886def3e4879a4bad85dca4d7c5d8659296291502cc97e5df17ce6134f"))
+  released <- new.env()
+  for (file in sources) sys.source(file, envir = released)
+  expect_equal(released$responder_engine_version(), "2.0.0")
+  bytes <- function(x) {
+    file <- tempfile(fileext = ".csv")
+    on.exit(unlink(file))
+    write.csv(x, file, row.names = FALSE, na = "")
+    readBin(file, "raw", file.info(file)$size)
+  }
+  same_tables <- function(now, then) {
+    expect_identical(now, then)
+    for (name in names(then)) expect_identical(bytes(now[[name]]), bytes(then[[name]]))
+  }
+  # Realistic recordings with a stimulus, a later control and a per-recording override.
+  set <- file.path(path, "reference-recordings")
+  recordings <- reference_read(set, "recordings.csv")
+  a <- reference_recording_input(set, recordings[1, ])
+  b <- reference_recording_input(set, recordings[2, ])
+  time <- a$dt$Time
+  windows <- rbind(a$windows, data.frame(Role = "Control", Stimulus = "KCl", Baseline_start_s = time[221],
+    Baseline_end_s = time[240], Stimulus_onset_s = time[240], Start_s = time[240], End_s = time[300]))
+  windows$End_s[1] <- time[200]
+  overrides <- cbind(Field = b$field, b$windows[, c("Role", "Baseline_start_s", "Baseline_end_s",
+    "Stimulus_onset_s", "Start_s", "End_s")])
+  recorded <- released$responder_protocol_v2("Recorded by engine 2.0.0", windows, duration_mode = "samples", frames = 2L)
+  expect_equal(unique(recorded$Engine_version), "2.0.0")
+  expect_identical(responder_export_protocol(recorded, overrides = overrides),
+                   released$responder_export_protocol(recorded, overrides = overrides))
+  expect_identical(responder_protocol_hash(recorded, overrides), released$responder_protocol_hash(recorded, overrides))
+  for (input in list(a, b)) {
+    result <- responder_field_results(input$dt, input$cells, input$field, recorded, input$quality, overrides)
+    same_tables(result, released$responder_field_results(input$dt, input$cells, input$field, recorded, input$quality, overrides))
+    expect_false(any(c("Whole_trace_noise", "Noise_source") %in% names(result$calls)))
+    expect_equal(unique(result$calls$Engine_version), "2.0.0")
+  }
+  expect_true(all(c("Responded", "Did not respond", "Excluded", "Unscorable") %in%
+    responder_field_results(a$dt, a$cells, a$field, recorded, a$quality)$calls$Status))
+  grid <- data.frame(Scenario = c("Three SD", "Five SD"), SD_multiplier = c(3, 5))
+  same_tables(responder_sensitivity_results(a$dt, a$cells, a$field, recorded, grid, a$quality),
+    released$responder_sensitivity_results(a$dt, a$cells, a$field, recorded, grid, a$quality))
+  null <- data.frame(Baseline_start_s = time[101], Baseline_end_s = time[120], Stimulus_onset_s = time[120],
+    Start_s = time[120], End_s = time[200])
+  same_tables(responder_control_diagnostics(a$dt, a$cells, a$field, recorded, null, a$quality),
+    released$responder_control_diagnostics(a$dt, a$cells, a$field, recorded, null, a$quality))
+  # The shared golden fixture is itself an engine 2.0.0 protocol.
+  golden <- file.path(path, "golden-protocol.json")
+  traces <- read.csv(file.path(path, "golden-traces.csv"), check.names = FALSE)
+  quality <- data.frame(Field = "Golden field", Cell = "InvalidF0", Status = "Excluded",
+    Reason = "Invalid raw fluorescence baseline", F0 = 0, Raw_QC_available = TRUE)
+  cells <- c(names(traces)[-1L], "InvalidF0")
+  same_tables(responder_field_results(traces, cells, "Golden field", responder_import_protocol(golden), quality),
+    released$responder_field_results(traces, cells, "Golden field", released$responder_import_protocol(golden), quality))
+  # Version 1 scoring is untouched, and so is its table with the optional annotations:
+  # they are baseline-SD measurements, recorded with the release that defines them.
+  legacy <- responder_protocol("Capsaicin", 5, 8, 3, .1, 3, 2, NULL, TRUE, 12, 15)
+  short <- traces[traces$Time < 15, , drop = FALSE]
+  legacy_then <- released$responder_field_results(short, cells, "Golden field", legacy)
+  same_tables(responder_field_results(short, cells, "Golden field", legacy), legacy_then)
+  annotated <- responder_legacy_annotations(short, cells, "Golden field", legacy, quality)
+  annotated_then <- released$responder_legacy_annotations(short, cells, "Golden field", legacy, quality)
+  expect_identical(annotated, annotated_then)
+  expect_identical(bytes(annotated), bytes(annotated_then))
+  expect_equal(unique(annotated$Annotation_engine_version), "2.0.0")
+  # The same on the reference recordings, through the path the app and the Fiji runner take.
+  for (input in list(a, b)) {
+    old <- responder_protocol("Stimulus", input$windows$Start_s, input$windows$End_s,
+      input$windows$Start_s - input$windows$Baseline_start_s, .1, 3, 2, NULL)
+    scored <- responder_field_results(input$dt, input$cells, input$field, old, input$quality)
+    scored_then <- released$responder_field_results(input$dt, input$cells, input$field, old, input$quality)
+    same_tables(scored, scored_then)
+    expect_identical(
+      bytes(responder_legacy_annotations(input$dt, input$cells, input$field, old, input$quality, scored)),
+      bytes(released$responder_legacy_annotations(input$dt, input$cells, input$field, old, input$quality, scored_then)))
+  }
+  # The same rule written by this engine is the same protocol: same record, hash and tables.
+  current <- responder_protocol_v2("Recorded by engine 2.0.0", windows, duration_mode = "samples", frames = 2L)
+  expect_identical(current, recorded)
+  expect_identical(responder_protocol_hash(current), released$responder_protocol_hash(recorded))
+  same_tables(responder_field_results(a$dt, a$cells, a$field, current, a$quality),
+    released$responder_field_results(a$dt, a$cells, a$field, recorded, a$quality))
+})
+
+test_that("both noise estimators reproduce an independent calculation cell by cell", {
+  check <- reference_recordings_check(file.path(repo_root, "tests", "fixtures", "response-protocols",
+    "reference-recordings"))
+  expect_equal(nrow(check$differences), 0)
+  expect_equal(check$summary$Cells, c(26, 8, 26, 8))
+  expect_equal(check$summary$Evaluable, c(23, 8, 23, 8))
+  expect_equal(check$summary$Calls_agree, check$summary$Cells)
+  expect_equal(check$summary$Numbers_differ, rep(0, 4))
+  expect_equal(check$summary$Responded, c(9, 3, 8, 3))
+  # A baseline SD that is too small by chance: 8.8% from 19 frames, 15.2% over the trace.
+  chance <- check$cells[check$cells$Cell == "Cell_23", ]
+  expect_equal(chance$Status_sample_sd, "Responded")
+  expect_equal(chance$Status_larger, "Did not respond")
+  expect_lt(chance$Baseline_SD, chance$Whole_trace_noise)
+  expect_equal(check$cells$Status_larger[check$cells$Cell %in% c("Cell_24", "Cell_25", "Cell_26")],
+               c("Excluded", "Excluded", "Unscorable"))
+})
+
+test_that("user-facing text says what the whole-trace estimate measures and names the statistic in full", {
+  text <- function(...) paste(readLines(file.path(repo_root, ...), warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+  claims <- list(help = text("R", "mod_help.R"), readme = text("README.md"), changelog = text("CHANGELOG.md"))
+  for (name in names(claims)) {
+    # It replaces a baseline SD that is too small by chance with frame-to-frame noise;
+    # it is not a guarantee about every kind of noise in the cell.
+    expect_match(claims[[name]], "a baseline SD that is too small by chance is replaced by the cell.s frame-to-frame noise over the whole recording", info = name)
+    expect_false(grepl("real noise", claims[[name]], fixed = TRUE), info = name)
+    expect_false(grepl("cannot set a threshold", claims[[name]], fixed = TRUE), info = name)
+  }
+  described <- c(claims[c("readme", "changelog")], list(interface = text("R", "mod_in_vitro.R"),
+    documentation = text("docs", "RESPONSE_PROTOCOLS.md")))
+  for (name in names(described)) {
+    expect_match(described[[name]], "median absolute deviation", fixed = TRUE, info = name)
+    expect_false(grepl("MAD of the differences", described[[name]], fixed = TRUE), info = name)
+  }
+  expect_match(described$documentation, "MAD is the median absolute deviation", fixed = TRUE)
+  expect_match(described$documentation, "measures frame-to-frame noise only", fixed = TRUE)
 })

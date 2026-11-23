@@ -74,3 +74,32 @@ until assessed using suitable control recordings for the actual preparation.
 Protocol MD5 values are deterministic content fingerprints, not signatures.
 Import rejects unsupported schema/engine versions and inconsistent duplicated
 metadata rather than silently applying current semantics to a future protocol.
+
+## Noise estimate (engine 2.1.0)
+
+`golden-protocol.json` stays an engine 2.0.0 protocol: it uses the baseline SD,
+and a protocol records the earliest engine release that defines its rule.
+Engine 2.1.0 must score it unchanged.
+
+- `engine-2.0.0/`: `response_protocols.R` and `responders.R` exactly as released
+  at commit b92d4ce (the revision pinned by the Fiji plugin; SHA-256
+  `67d911e9…1851371` and `2a116188…7ce6134f`). The identity test runs these
+  sources and the current engine on the same protocol and traces and compares
+  the written CSV files byte for byte, for Version 2 baseline-SD protocols and
+  for Version 1 tables with their optional measurements. Do not edit them.
+- `reference-recordings/`: a synthetic reference set, laid out as described in
+  `tests/testthat/helper-reference-recordings.R`. `field-a.csv` (300 frames,
+  baseline frames 1–19) and `field-b.csv` (120 frames, baseline frames 6–25)
+  hold background-corrected fluorescence for quiet cells, dim noisy cells, slow
+  evoked responders, brief responders, a cell with a baseline at or below zero,
+  a cell with no local background and a cell with a missing response sample.
+  `Cell_23` has a baseline SD of 8.8% from 19 frames and a whole-trace noise of
+  15.2%: it is called by the baseline SD alone and not by the larger estimate.
+- `reference-recordings/expected_calls.csv`: per-cell evaluability, baseline SD,
+  whole-trace noise, both thresholds and both onset frames, calculated outside R
+  (Python with NumPy) from the fluorescence files with a 10% floor, 3 SD and
+  two consecutive samples from the frame after the baseline to the end.
+
+`Rscript tests/reference-recordings.R <directory>` runs the same cell-by-cell
+comparison on a reference set kept outside the repository, such as real
+recordings that are not published here.

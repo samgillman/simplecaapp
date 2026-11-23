@@ -57,6 +57,17 @@ responder_unit_results <- function(counts, metadata) {
     unassigned_fields = unique(rows$Field[!assigned]))
 }
 
+# Display only: what set each cell's threshold.  The engine reports "Baseline noise"
+# for every noise-limited threshold; where it also reports the estimate used
+# (Noise_source), the table and the hover text name that estimate.
+responder_threshold_set_by <- function(rows) {
+  set_by <- rows$Threshold_source
+  if (!"Noise_source" %in% names(rows)) return(set_by)
+  named <- set_by %in% "Baseline noise" & !is.na(rows$Noise_source)
+  set_by[named] <- rows$Noise_source[named]
+  set_by
+}
+
 mod_in_vitro_ui <- function(id) {
   ns <- NS(id)
   scoring_number <- function(id, label) {
@@ -143,8 +154,12 @@ mod_in_vitro_ui <- function(id) {
         tags$details(tags$summary("Baseline requirements"),
           numericInput(ns("min_baseline_samples"), "Minimum baseline samples", 3, min = 3, step = 1),
           numericInput(ns("noise_floor"), "Minimum local noise SD (fraction)", 0, min = 0, step = .001),
+          selectInput(ns("sd_estimator"), "Noise estimate", c(
+            "Baseline SD" = "sample_sd",
+            "Larger of baseline SD and whole-trace noise" = "larger_of_baseline_sd_and_trace_noise"), "sample_sd"),
           numericInput(ns("expected_interval_s"), "Expected acquisition interval (s; blank uses observed times)", NA_real_, min = 0, step = .1),
-          p("Three samples is the structural minimum, not assurance of a reliable noise estimate. A zero noise floor retains the existing mean/SD rule.")),
+          p("Three samples is the structural minimum, not assurance of a reliable noise estimate. A zero noise floor retains the existing mean/SD rule."),
+          p("Whole-trace noise is 1.4826 × the median absolute deviation of the differences between consecutive samples over the whole recording, divided by √2. It replaces the baseline SD only when it is larger, and needs the Version 2 contract.")),
         checkboxInput(ns("control"), "Include a positive control", FALSE),
         conditionalPanel("input.control", ns = ns,
           fluidRow(column(4, textInput(ns("control_name"), "Control name", "KCl")),
@@ -313,6 +328,7 @@ mod_in_vitro_server <- function(id, rv) {
         gap = if (isTRUE(input$auto_gap)) NULL else input$gap,
         min_baseline_samples = input$min_baseline_samples %||% 3L,
         noise_floor = input$noise_floor %||% 0,
+        sd_estimator = input$sd_estimator %||% "sample_sd",
         expected_interval_s = if (length(input$expected_interval_s) == 1L && is.finite(input$expected_interval_s)) input$expected_interval_s else NULL,
         validation_status = input$validation_status %||% "provisional",
         control = control, control_name = if (control) input$control_name %||% "KCl" else NULL,
@@ -339,7 +355,8 @@ mod_in_vitro_server <- function(id, rv) {
       if (v$contract_version == "legacy") {
         same <- function(a, b) isTRUE(all.equal(as.numeric(a), as.numeric(b)))
         if (v$duration_mode != "samples" || !same(v$onset, v$start) || !same(v$baseline_end, v$start) ||
-            v$min_baseline_samples != 3 || v$noise_floor != 0 || !is.null(v$expected_interval_s) ||
+            v$min_baseline_samples != 3 || v$noise_floor != 0 || v$sd_estimator != "sample_sd" ||
+            !is.null(v$expected_interval_s) ||
             (v$control && (tolower(trimws(v$control_name)) != "kcl" || !same(v$control_onset, v$control_start) ||
              !same(v$control_baseline_end, v$control_start) || !same(v$control_baseline, v$baseline))))
           stop("These settings require the Version 2 scoring contract. Legacy mode keeps the baseline immediately before scoring, uses samples, and supports the original KCl control.")
@@ -359,7 +376,8 @@ mod_in_vitro_server <- function(id, rv) {
       responder_protocol_v2(v$name, windows, floor = v$floor, noise = v$noise,
         duration_mode = v$duration_mode, duration_s = v$duration_s, frames = v$frames,
         gap = v$gap, min_baseline_samples = v$min_baseline_samples, noise_floor = v$noise_floor,
-        validation_status = v$validation_status, expected_interval_s = v$expected_interval_s)
+        validation_status = v$validation_status, expected_interval_s = v$expected_interval_s,
+        sd_estimator = v$sd_estimator)
     })
     protocol_error <- reactive({
       tryCatch({
@@ -463,6 +481,7 @@ mod_in_vitro_server <- function(id, rv) {
       updateNumericInput(session, "duration_s", value = 1)
       updateNumericInput(session, "min_baseline_samples", value = 3)
       updateNumericInput(session, "noise_floor", value = 0)
+      updateSelectInput(session, "sd_estimator", selected = "sample_sd")
       updateSelectInput(session, "duration_mode", selected = if (slow) "seconds" else "samples")
       updateSelectInput(session, "contract_version", selected = if (slow) "explicit" else "legacy")
       updateNumericInput(session, "expected_interval_s", value = NA_real_)
@@ -489,6 +508,7 @@ mod_in_vitro_server <- function(id, rv) {
           frames = primary$Consecutive_samples, duration_mode = get(primary, "Duration_mode", "samples"),
           duration_s = get(primary, "Min_duration_s", 1), gap = if (is.na(primary$Max_gap_s)) NULL else primary$Max_gap_s,
           min_baseline_samples = get(primary, "Min_baseline_samples", 3L), noise_floor = get(primary, "Noise_floor_local_fraction", 0),
+          sd_estimator = get(primary, "SD_estimator", "sample_sd"),
           expected_interval_s = if (is.finite(get(primary, "Expected_interval_s", NA_real_))) primary$Expected_interval_s else NULL,
           validation_status = get(primary, "Validation_status", "provisional"), control = nrow(control) > 0,
           control_name = NULL, control_start = NULL, control_end = NULL, control_onset = NULL,
@@ -508,6 +528,7 @@ mod_in_vitro_server <- function(id, rv) {
                       "control_start", "control_end", "control_onset", "control_baseline_end", "control_baseline", "expected_interval_s"))
           updateNumericInput(session, key, value = vals[[key]] %||% NA_real_)
         updateSelectInput(session, "duration_mode", selected = vals$duration_mode)
+        updateSelectInput(session, "sd_estimator", selected = vals$sd_estimator)
         updateSelectInput(session, "contract_version", selected = vals$contract_version)
         updateSelectInput(session, "validation_status", selected = vals$validation_status)
         updateCheckboxInput(session, "auto_gap", value = is.null(vals$gap))
@@ -603,8 +624,10 @@ mod_in_vitro_server <- function(id, rv) {
       mode <- p$Duration_mode %||% "samples"
       persistence <- if (mode[1] == "seconds") sprintf("%g s elapsed sampled span", p$Min_duration_s)
         else sprintf("%d consecutive sample%s", p$Consecutive_samples, if (p$Consecutive_samples == 1) "" else "s")
-      sprintf("%s · base window %g–%g s · %g s local baseline · larger of %g%% or %g SD · %s · %s%s",
+      whole_trace <- identical(p$SD_estimator, "larger_of_baseline_sd_and_trace_noise")
+      sprintf("%s · base window %g–%g s · %g s local baseline · larger of %g%% or %g SD%s · %s · %s%s",
         p$Stimulus, p$Start_s, p$End_s, p$Baseline_s, 100 * p$Floor_local_fraction, p$SD_multiplier,
+        if (whole_trace) " (SD: larger of baseline SD and whole-trace noise)" else "",
         persistence, if (is.na(p$Max_gap_s)) "automatic gap" else sprintf("%g s gap limit", p$Max_gap_s),
         if (nrow(applied_run()$overrides)) " · explicit recording overrides applied" else "")
     })
@@ -721,6 +744,7 @@ mod_in_vitro_server <- function(id, rv) {
       rows <- review_rows()
       cols <- c("Cell", "Status", "Peak_increase", "Threshold_increase", "Threshold_source", "Margin",
         "Onset_s", "Peak_s", "Baseline_mean", "Baseline_SD", "Reason", "Key")
+      rows$Threshold_source <- responder_threshold_set_by(rows)
       callback <- DT::JS(sprintf("
         var node=table.table().node(), target='%s';
         function publishOrder(){
@@ -789,7 +813,7 @@ mod_in_vitro_server <- function(id, rv) {
       x$y <- as.numeric(x$Status == "Responded") + ((seq_len(nrow(x)) * .61803399) %% 1 - .5) * .45
       x$tooltip <- sprintf("%s · %s<br>%s · %s<br>Peak %.4g · floor %.4g · noise %.4g<br>Margin %.3g×",
         htmltools::htmlEscape(presentation()$label(x$Field)), htmltools::htmlEscape(x$Cell),
-        x$Status, x$Threshold_source, x$Peak_increase, x$Floor_threshold, x$Noise_threshold, x$Margin)
+        x$Status, responder_threshold_set_by(x), x$Peak_increase, x$Floor_threshold, x$Noise_threshold, x$Margin)
       cutoff <- if (margin) 1 else x$Floor_threshold[1]
       shapes <- list(list(type = "line", x0 = cutoff, x1 = cutoff, y0 = 0, y1 = 1, yref = "paper",
         line = list(color = "#354864", dash = "dash")))
@@ -972,6 +996,10 @@ mod_in_vitro_server <- function(id, rv) {
         if ("Raw_QC_available" %in% names(row) && !isTRUE(row$Raw_QC_available))
           p("Raw baseline brightness/noise QC is unavailable for this input."),
         p(paste0("Baseline samples: ", row$Baseline_samples %||% "unknown", "; response samples: ", row$Response_samples %||% "unknown", ".")),
+        if ("Noise_source" %in% names(row) && !is.na(row$Noise_source))
+          p(sprintf("Noise used: %s. Baseline SD %.3g; whole-trace noise %s.", row$Noise_source, row$Baseline_SD,
+            if (is.finite(row$Whole_trace_noise)) sprintf("%.3g from %d differences", row$Whole_trace_noise, row$Whole_trace_noise_samples)
+            else sprintf("unavailable (%d differences)", row$Whole_trace_noise_samples))),
         if ("Response_latency_s" %in% names(row) && is.finite(row$Response_latency_s))
           p(sprintf("Response latency %.3g s; rule confirmed at recording time %.3g s.", row$Response_latency_s, row$Confirmation_s)))
     })
@@ -985,7 +1013,8 @@ mod_in_vitro_server <- function(id, rv) {
       subtitle <- row$Reason
       if (is.finite(row$Threshold_increase)) {
         label <- sprintf("Threshold %.3g (%s)", row$Threshold_increase,
-          if (row$Threshold_source == "Floor") "floor" else sprintf("%g SD", row$SD_multiplier))
+          if (row$Threshold_source == "Floor") "floor" else if (identical(row$Noise_source, "Whole-trace noise"))
+            sprintf("%g × whole-trace noise", row$SD_multiplier) else sprintf("%g SD", row$SD_multiplier))
         refs <- data.frame(label = c("Local baseline", label), y = row$Baseline_mean +
           (1 + row$Baseline_mean) * c(0, row$Threshold_increase))
         refs$start <- c(win$Baseline_start, win$Start)
@@ -1029,14 +1058,14 @@ mod_in_vitro_server <- function(id, rv) {
         if (nzchar(notes)) paste(field_note, notes, sep = " · ") else field_note
       }, "")
       paste(paste(processing, collapse = " "), "We scored", role_text, "using the following rule.",
-        paste0(rule_line(), "."), "For each field, the responding fraction was the number with a sustained response divided by evaluable cells.",
+        paste0(rule_line(), "."), responder_noise_rule(protocol()), "For each field, the responding fraction was the number with a sustained response divided by evaluable cells.",
         sprintf("The pooled percentage used summed counts. The mean of field percentages weighted each of the %d evaluable fields equally (%d fields processed).",
           sum(valid), nrow(x)),
         "Valid flat traces remained in the denominator. Quality warnings did not remove cells. Excluded and unscorable cells were reported separately.",
         "Experimental-unit summaries pooled fields within each explicitly assigned unit and weighted evaluable units equally; unassigned recordings were omitted from unit summaries.",
         paste(details, collapse = "; "),
         sprintf("Analysis run %s; protocol hash %s; scoring contract %s; measurement annotations %s.",
-          applied_run()$id, applied_run()$protocol_hash, if (responder_protocol_version(protocol()) == 1L) "legacy-1" else responder_engine_version(), responder_engine_version()))
+          applied_run()$id, applied_run()$protocol_hash, responder_protocol_engine_version(protocol()), responder_engine_version()))
     })
     output$methods <- renderText(methods_text())
     output$unit_summary <- renderUI({
@@ -1075,7 +1104,7 @@ mod_in_vitro_server <- function(id, rv) {
         rows <- results()$calls
         columns <- c("Field", "Cell", "Role", "Stimulus", "Status", "Reason", "QC_flags", "Raw_QC_available", "Raw_F0", "Raw_baseline_SD", "F0", "Baseline_SD_raw",
           "Baseline_samples", "Response_samples", "Baseline_mean", "Baseline_SD", "Floor_threshold", "Noise_threshold", "Threshold_source",
-          "Field_reason", "Window_warning")
+          "Field_reason", "Window_warning", "Whole_trace_noise", "Whole_trace_noise_samples", "Noise_source")
         rows <- rows[, intersect(columns, names(rows)), drop = FALSE]
       }
       if ("Field" %in% names(rows)) {
@@ -1114,7 +1143,7 @@ mod_in_vitro_server <- function(id, rv) {
       rows$F0_end_frame <- rep(snapshot$baseline_frames[2], nrow(rows))
       rows$Analysis_run_ID <- rep(run$id, nrow(rows))
       rows$Protocol_hash <- rep(run$protocol_hash, nrow(rows))
-      rows$Engine_version <- rep(if (responder_protocol_version(run$protocol) == 1L) "legacy-1" else responder_engine_version(), nrow(rows))
+      rows$Engine_version <- rep(responder_protocol_engine_version(run$protocol), nrow(rows))
       rows$App_version <- rep(responder_app_version(), nrow(rows))
       revision <- Sys.getenv("SIMPLECA_SOURCE_SHA", unset = "")
       rows$Source_revision <- rep(if (nzchar(revision)) revision else "unavailable", nrow(rows))
@@ -1133,8 +1162,10 @@ mod_in_vitro_server <- function(id, rv) {
     analysis_manifest <- function() {
       run <- applied_run(); req(!is.null(run))
       list(analysis_run_id = run$id, created_at_utc = run$created_at, protocol_hash = run$protocol_hash,
-        engine_version = if (responder_protocol_version(run$protocol) == 1L) "legacy-1" else responder_engine_version(),
+        engine_version = responder_protocol_engine_version(run$protocol),
         annotation_engine_version = responder_engine_version(), app_version = responder_app_version(),
+        noise_estimator = if (responder_protocol_version(run$protocol) == 1L) "sample_sd" else run$protocol$SD_estimator[1],
+        noise_rule = responder_noise_rule(run$protocol),
         source_revision = if (nzchar(Sys.getenv("SIMPLECA_SOURCE_SHA", unset = ""))) Sys.getenv("SIMPLECA_SOURCE_SHA") else NA_character_,
         scoring_contract_version = responder_protocol_version(run$protocol), data_fingerprint = run$data_fingerprint,
         signal_kind = run$snapshot$signal_kind, normalized_units = "fraction",

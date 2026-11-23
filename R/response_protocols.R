@@ -1,13 +1,45 @@
 # Portable, versioned response protocols.  Version 1 is the unchanged historical
 # consecutive-sample contract; version 2 makes timing and persistence explicit.
-responder_engine_version <- function() "2.0.0"
+responder_engine_version <- function() "2.1.0"
+
+# Engine releases whose version-2 protocols this engine scores, with the noise
+# estimators each release defined.
+responder_engine_estimators <- function() list(
+  "2.0.0" = "sample_sd",
+  "2.1.0" = c("sample_sd", "larger_of_baseline_sd_and_trace_noise"))
+
+# A protocol records the earliest release that defines its rule, not the release
+# that wrote it.  A rule engine 2.0.0 already knew therefore keeps its hash and
+# its results, and still reads wherever that engine is carried.  Validation
+# refuses any other release for the rule.
+responder_estimator_engine <- function(estimator) {
+  releases <- responder_engine_estimators()
+  names(releases)[vapply(releases, function(known) estimator %in% known, logical(1))][1]
+}
+
+# The engine release whose rules a protocol records.
+responder_protocol_engine_version <- function(protocol) {
+  if (responder_protocol_version(protocol) == 1L) "legacy-1" else protocol$Engine_version[1]
+}
+
+# One sentence for methods text and manifests: the noise behind the SD multiplier.
+responder_noise_rule <- function(protocol) {
+  estimator <- if (responder_protocol_version(protocol) == 1L) "sample_sd" else protocol$SD_estimator[1]
+  switch(estimator,
+    sample_sd = "Noise is the sample SD of the local prestimulus baseline.",
+    larger_of_baseline_sd_and_trace_noise = paste("Noise is the larger of the sample SD of the local prestimulus",
+      "baseline and the whole-trace noise (1.4826 x the median absolute deviation, about their median, of the",
+      "differences between consecutive samples over the whole recording, divided by sqrt(2))."),
+    stop("Unsupported SD_estimator setting."))
+}
 
 responder_protocol_v2 <- function(name, windows, floor = 0.10, noise = 3,
                                   duration_mode = "seconds", duration_s = 1,
                                   frames = 2L, gap = NULL,
                                   min_baseline_samples = 3L, noise_floor = 0,
                                   validation_status = "provisional",
-                                  expected_interval_s = NULL) {
+                                  expected_interval_s = NULL,
+                                  sd_estimator = "sample_sd") {
   if (!is.data.frame(windows)) stop("Protocol windows must be a data frame.")
   if ("Onset_s" %in% names(windows) && !"Stimulus_onset_s" %in% names(windows)) {
     names(windows)[names(windows) == "Onset_s"] <- "Stimulus_onset_s"
@@ -23,9 +55,11 @@ responder_protocol_v2 <- function(name, windows, floor = 0.10, noise = 3,
     if (!length(x) %in% c(1L, n)) stop(label, " must have one value or one value per window.")
     rep(x, length.out = n)
   }
+  if (!is.character(sd_estimator) || length(sd_estimator) != 1L) stop("Choose one noise estimator.")
+  if (!sd_estimator %in% unlist(responder_engine_estimators())) stop("Unsupported SD_estimator setting.")
   out$Protocol_version <- 2L
   out$Protocol_name <- name
-  out$Engine_version <- responder_engine_version()
+  out$Engine_version <- responder_estimator_engine(sd_estimator)
   out$Validation_status <- validation_status
   out$Signal_reference <- "fixed_reference_fractional_change"
   out$Baseline_s <- out$Baseline_end_s - out$Baseline_start_s
@@ -39,7 +73,7 @@ responder_protocol_v2 <- function(name, windows, floor = 0.10, noise = 3,
                                   "Expected sample interval")
   out$Min_baseline_samples <- value(min_baseline_samples, "Minimum baseline samples")
   out$Noise_floor_local_fraction <- value(noise_floor, "Measurement-noise floor")
-  out$SD_estimator <- "sample_sd"
+  out$SD_estimator <- sd_estimator
   out$Threshold_operator <- ">="
   out$Coverage_policy <- "complete_windows"
   out$Response_direction <- "increase"
@@ -104,9 +138,23 @@ responder_validate_protocol <- function(protocol) {
     stop("All windows must share one protocol name and validation status.")
   if (any(!protocol$Validation_status %in% c("provisional", "user_defined", "validated_by_user")))
     stop("Validation status must be provisional, user_defined or validated_by_user.")
-  if (any(protocol$Engine_version != responder_engine_version()))
+  engine <- unique(protocol$Engine_version)
+  estimators <- responder_engine_estimators()
+  if (length(engine) != 1L || !engine %in% names(estimators))
     stop("Unsupported responder engine version; use the recorded engine or explicitly migrate the protocol.")
-  supported <- list(Signal_reference = "fixed_reference_fractional_change", SD_estimator = "sample_sd",
+  estimator <- unique(protocol$SD_estimator)
+  if (length(estimator) != 1L) stop("All windows must share one SD_estimator setting.")
+  if (!estimator %in% unlist(estimators)) stop("Unsupported SD_estimator setting.")
+  recorded <- responder_estimator_engine(estimator)
+  if (!estimator %in% estimators[[engine]])
+    stop("SD_estimator ", estimator, " is not defined for engine version ", engine,
+         "; record the protocol with engine version ", recorded, ".")
+  # One record, and so one hash, per rule: a later release that still scores the
+  # rule is not a second name for it.
+  if (engine != recorded)
+    stop("SD_estimator ", estimator, " is recorded with engine version ", recorded, ", not ", engine,
+         "; a protocol names the earliest engine release that defines its rule.")
+  supported <- list(Signal_reference = "fixed_reference_fractional_change",
     Threshold_operator = ">=", Coverage_policy = "complete_windows", Response_direction = "increase",
     Smoothing = "none")
   for (column in names(supported)) {
@@ -200,7 +248,7 @@ responder_protocol_payload <- function(protocol, overrides = NULL) {
   windows <- windows[, sort(names(windows)), drop = FALSE]
   rownames(windows) <- NULL
   list(schema = "simpleca.response-protocol", schema_version = version,
-       engine_version = if (version == 2L) responder_engine_version() else "legacy-1",
+       engine_version = responder_protocol_engine_version(protocol),
        name = if (version == 2L) protocol$Protocol_name[1] else "Legacy consecutive-sample protocol",
        validation_status = if (version == 2L) protocol$Validation_status[1] else "legacy_unvalidated",
        signal_reference = if (version == 2L) "fixed_reference_fractional_change" else "fixed_reference_fractional_dff0",
@@ -231,8 +279,9 @@ responder_import_protocol <- function(json_or_file) {
       !is.numeric(payload$schema_version) || length(payload$schema_version) != 1L ||
       is.na(payload$schema_version) || !payload$schema_version %in% c(1L, 2L))
     stop("Unsupported protocol schema or schema version.")
-  expected_engine <- if (payload$schema_version == 2L) responder_engine_version() else "legacy-1"
-  if (!identical(payload$engine_version, expected_engine))
+  supported_engines <- if (payload$schema_version == 2L) names(responder_engine_estimators()) else "legacy-1"
+  if (!is.character(payload$engine_version) || length(payload$engine_version) != 1L ||
+      !payload$engine_version %in% supported_engines)
     stop("Unsupported responder engine version; use the recorded engine or explicitly migrate the protocol.")
   expected_reference <- if (payload$schema_version == 2L) "fixed_reference_fractional_change" else
     "fixed_reference_fractional_dff0"

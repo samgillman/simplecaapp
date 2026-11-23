@@ -43,6 +43,7 @@ Open **Percent Responding** under **Analyze**, choose a starting preset, and con
 - **Current SimpleCa sample rule** preserves the original 10% local-rise floor, 3 baseline SD multiplier, two consecutive samples, and bounded end-window clipping.
 - **Slow evoked candidate** uses explicit prestimulus baseline, stimulus onset and response windows, and a one-second sampled-duration rule. At 2 Hz, three consecutive observations span one second. The candidate is provisional and must be assessed with matched controls; it is not a universal 50B11 or GCaMP cutoff.
 - Both criteria must be met: the effective threshold is the larger of the amplitude floor and the SD-based threshold. Version 2 supports a named optional control and per-recording timing overrides. A delayed scoring window does not move the baseline into the response.
+- The SD is the baseline SD by default. A Version 2 protocol can instead use the larger of the baseline SD and the whole-trace noise (1.4826 × the median absolute deviation of the differences between consecutive samples, divided by √2), so a baseline SD that is too small by chance is replaced by the cell's frame-to-frame noise over the whole recording.
 
 The primary percentage is responders divided by responders plus valid nonresponders. Excluded and unscorable cells remain reported separately; zero evaluable cells produce an unavailable percentage. A whole-field interpretation requires identifying every target cell independently of whether it brightens. Control-positive percentages are separate conditional populations.
 

@@ -20,6 +20,7 @@ renv/local/
 
 # Synthetic response-engine reference fixtures are source-controlled test data.
 !tests/fixtures/response-protocols/*.csv
+!tests/fixtures/response-protocols/reference-recordings/*.csv
 
 # macOS files
 .DS_Store

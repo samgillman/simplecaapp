@@ -1,0 +1,3 @@
+"Recording","Fluorescence_file","Registry_file","Sampling_hz","Baseline_first_frame","Baseline_last_frame"
+"Field A","field-a.csv","field-a-registry.csv","1.0001040209243603",1,19
+"Field B","field-b.csv","","0.9999899865199485",6,25

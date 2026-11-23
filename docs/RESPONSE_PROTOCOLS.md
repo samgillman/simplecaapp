@@ -43,6 +43,61 @@ the scorer. Three SD is a detection heuristic, not a p-value or a guaranteed
 whole-window false-positive rate. Baseline SD includes biological fluctuation
 and drift as well as measurement noise.
 
+## Noise estimate
+
+A Version 2 protocol names its noise estimate in `SD_estimator`.
+
+`sample_sd` is the default and the only estimate in engine 2.0.0: the sample SD
+of the local baseline, as above. A short baseline can give an SD that is too
+small by chance. The cell is then tested against a threshold below its real
+noise at every sample of a much longer response window.
+
+`larger_of_baseline_sd_and_trace_noise` (engine 2.1.0) uses the larger of two
+estimates:
+
+```
+baseline_sd = sample_SD(y in local baseline) / (1 + b)
+trace_noise = 1.4826 * MAD(differences between consecutive samples of y) / sqrt(2) / (1 + b)
+noise       = max(baseline_sd, trace_noise)
+T           = max(amplitude_floor, SD_multiplier * max(noise, noise_floor))
+```
+
+MAD is the median absolute deviation: the median distance of the differences
+from their own median. The differences are taken over the whole recording. A
+difference is a noise sample only when both of its samples are finite and no
+further apart than the field's gap limit. An estimate needs at least
+`Min_baseline_samples` differences; with fewer, the baseline SD is used alone
+and the cell carries the flag `WHOLE_TRACE_NOISE_UNAVAILABLE`. The amplitude
+floor, SD multiplier, noise floor, persistence rule and windows are unchanged,
+so the whole-trace estimate can raise a threshold but never lower it.
+
+The whole-trace value measures frame-to-frame noise only. It replaces a baseline
+SD that is too small by chance; slower fluctuations, brief bumps and noise that
+is correlated between frames are not in it, and when it is the smaller of the
+two the baseline SD is used unchanged. Calls by chance become less likely, not
+impossible.
+
+With this estimate the calls table gains three columns after the existing ones:
+`Whole_trace_noise` (same units as `Baseline_SD`), `Whole_trace_noise_samples`
+(differences used) and `Noise_source` (`Baseline SD`, `Whole-trace noise`, or
+`Noise floor` when the protocol's noise floor exceeds both). `Baseline_SD`,
+`Noise_SD_used` and `Threshold_source` keep their meaning: `Threshold_source`
+still says whether the floor or the noise criterion set the threshold.
+
+A protocol's `Engine_version` is the earliest engine release that defines its
+rule, not the release that wrote or scored it: 2.0.0 for `sample_sd`, 2.1.0 for
+the larger-of estimate. Any other pairing is refused on validation and import,
+so one rule has one record and one hash; software that writes protocols must
+write 2.0.0 for `sample_sd`, not its own engine version. A baseline-SD protocol
+therefore keeps the hash it had under engine 2.0.0, gives tables with the same
+columns and bytes, and still imports into software that carries engine 2.0.0.
+
+The optional measurements added to a Version 1 calls table follow the same
+convention. They use the baseline SD, so `Annotation_engine_version` in that
+table stays 2.0.0 and the table keeps its bytes. The engine that ran is recorded
+separately, in the analysis manifest (`annotation_engine_version`) and the
+methods text.
+
 Raw and already-corrected fluorescence use the selected initial frame mean.
 Already-normalized fixed-reference fractions are preserved; percentages are
 divided by 100 once. Raw baseline quality is unavailable for normalized uploads.
@@ -136,12 +191,20 @@ software/scorer versions, processing manifest, cell calls, population counts,
 window measurements, quality diagnostics, normalized traces and unit summaries.
 Requested/effective timing and original input units remain explicit. Schema
 versions with unsupported semantics are rejected instead of silently receiving
-the current defaults.
+the current defaults. The manifest and methods text state the noise estimate
+used, and report the engine version recorded in the protocol (`engine_version`,
+"scoring contract") beside the version of the engine that ran
+(`annotation_engine_version`, "measurement annotations"). The calls table's
+`Annotation_engine_version` column is not the engine that ran; see Noise
+estimate above.
 
 Both SimpleCa and the Fiji plugin use the same response engine. The Fiji release
 pins an upstream revision and verifies its embedded source hashes. Golden
 fixtures in tests/fixtures/response-protocols provide independent expected
 thresholds, calls, counts and window measurements for cross-application checks.
+The same folder holds a synthetic reference set scored cell by cell against an
+independent calculation, and the released engine 2.0.0 sources used to prove
+that existing protocols give byte-identical tables.
 
 ## Validation before experimental comparisons
 

@@ -185,3 +185,122 @@ test_that("per-window imports remain exact and cannot silently lose hidden contr
     expect_identical(applied_run()$protocol_hash, responder_protocol_hash(original))
   })
 })
+
+test_that("the noise estimate is an explicit Version 2 choice that defaults to the baseline SD", {
+  library(shiny)
+  larger <- "larger_of_baseline_sd_and_trace_noise"
+  state <- applied_state_fixture()
+  # A quiet baseline before a noisy recording: the whole-trace estimate is the larger one.
+  state$dts$first$Flat <- rep(c(0, .001, 0, -.001, .3, -.3, .3, .3, -.3), length.out = nrow(state$dts$first))
+  rv <- do.call(reactiveValues, state[processed_state_fields])
+  recorded <- tempfile(fileext = ".json")
+  on.exit(unlink(recorded), add = TRUE)
+  testServer(mod_in_vitro_server, args = list(rv = rv), {
+    session$setInputs(protocol_name = "Noise estimate", contract_version = "explicit",
+      validation_status = "provisional", stimulus = "Capsaicin", onset = 2, baseline_end = 2, baseline = 2,
+      start = 2, end = 10, floor = .1, noise = 3, frames = 2, duration_mode = "samples", duration_s = 1,
+      min_baseline_samples = 3, noise_floor = 0, expected_interval_s = NA_real_, auto_gap = TRUE, control = FALSE)
+    session$setInputs(apply_protocol = 1)
+    expect_true(applied_ready(), info = analysis_message())
+    before <- export_rows("calls")
+    expect_equal(unique(before$SD_estimator), "sample_sd")
+    expect_false(any(c("Whole_trace_noise", "Noise_source") %in% names(before)))
+    expect_equal(before$Status[before$Field == "first" & before$Cell == "Flat"], "Responded")
+    expect_false(grepl("whole-trace", rule_line(), fixed = TRUE))
+    expect_match(methods_text(), "Noise is the sample SD of the local prestimulus baseline.", fixed = TRUE)
+    expect_equal(analysis_manifest()$noise_estimator, "sample_sd")
+    # The baseline SD rule is the one engine 2.0.0 defined, and is recorded as such.
+    expect_equal(unique(before$Engine_version), "2.0.0")
+    expect_equal(analysis_manifest()$engine_version, "2.0.0")
+    expect_equal(analysis_manifest()$annotation_engine_version, "2.1.0")
+    expect_match(methods_text(), "scoring contract 2.0.0; measurement annotations 2.1.0", fixed = TRUE)
+    session$setInputs(sd_estimator = larger)
+    expect_true(dirty())
+    expect_identical(export_rows("calls"), before)
+    session$setInputs(apply_protocol = 2)
+    expect_false(dirty())
+    after <- export_rows("calls")
+    expect_equal(unique(after$SD_estimator), larger)
+    expect_identical(tail(names(results()$calls), 3), c("Whole_trace_noise", "Whole_trace_noise_samples", "Noise_source"))
+    flat <- after[after$Field == "first" & after$Cell == "Flat", ]
+    expect_equal(flat$Status, "Did not respond")
+    expect_equal(flat$Noise_source, "Whole-trace noise")
+    expect_gt(flat$Whole_trace_noise, flat$Baseline_SD)
+    # The engine still says the noise criterion set this threshold; the table ("Set by")
+    # and the hover text of the threshold plot both name the estimate behind it.
+    expect_equal(flat$Threshold_source, "Baseline noise")
+    shown <- jsonlite::fromJSON(output$calls, simplifyVector = FALSE)$x$data
+    expect_equal(unlist(shown[[5]])[unlist(shown[[1]]) == "Flat"], "Whole-trace noise")
+    hover <- unlist(jsonlite::fromJSON(output$distribution, simplifyVector = FALSE)$x$data[[1]]$text)
+    expect_length(hover, 4)
+    expect_match(hover[grepl("first \u00b7 Flat<br>", hover, fixed = TRUE)],
+      "<br>Did not respond \u00b7 Whole-trace noise<br>", fixed = TRUE)
+    expect_false(any(grepl("Baseline noise", hover, fixed = TRUE)))
+    expect_equal(after$Status[after$Cell == "Response"], before$Status[before$Cell == "Response"])
+    expect_match(rule_line(), "larger of baseline SD and whole-trace noise", fixed = TRUE)
+    expect_match(methods_text(), "1.4826 x the median absolute deviation, about their median, of the differences", fixed = TRUE)
+    expect_false(grepl("MAD", methods_text(), fixed = TRUE))
+    expect_false(grepl("MAD", analysis_manifest()$noise_rule, fixed = TRUE))
+    manifest <- analysis_manifest()
+    expect_equal(manifest$noise_estimator, larger)
+    expect_match(manifest$noise_rule, "whole-trace noise", fixed = TRUE)
+    expect_equal(manifest$engine_version, "2.1.0")
+    expect_equal(unique(after$Engine_version), "2.1.0")
+    expect_true(all(c("Whole_trace_noise", "Whole_trace_noise_samples", "Noise_source") %in% names(export_rows("qc"))))
+    responder_export_protocol(applied_run()$protocol, recorded)
+    # The choice belongs to Version 2; the legacy contract keeps its baseline SD.
+    session$setInputs(contract_version = "legacy")
+    expect_match(protocol_error(), "Version 2 scoring contract", fixed = TRUE)
+    session$setInputs(sd_estimator = "sample_sd")
+    expect_null(protocol_error())
+    # An imported protocol keeps its estimator while the displayed controls match it.
+    session$setInputs(contract_version = "explicit", sd_estimator = larger,
+      import_protocol = list(datapath = recorded, name = "noise.json"))
+    expect_null(protocol_error())
+    expect_identical(responder_protocol_hash(draft_protocol()), applied_run()$protocol_hash)
+    expect_equal(imported_controls()$sd_estimator, larger)
+    # The baseline SD relabelled engine 2.1.0 would be the same rule under a second hash:
+    # the import is refused with the reason, and the draft and the applied run stay as they were.
+    kept <- imported_protocol()
+    windows <- data.frame(Role = "Stimulus", Stimulus = "Capsaicin", Baseline_start_s = 0, Baseline_end_s = 2,
+      Stimulus_onset_s = 2, Start_s = 2, End_s = 10)
+    writeLines(gsub('"2.0.0"', '"2.1.0"', responder_export_protocol(responder_protocol_v2("Relabelled", windows)),
+      fixed = TRUE), recorded)
+    session$setInputs(import_protocol = list(datapath = recorded, name = "relabelled.json"))
+    expect_match(analysis_message(),
+      "Protocol import: SD_estimator sample_sd is recorded with engine version 2.0.0, not 2.1.0", fixed = TRUE)
+    expect_identical(imported_protocol(), kept)
+    expect_equal(unique(export_rows("calls")$Engine_version), "2.1.0")
+  })
+})
+
+test_that("a noise-limited threshold is displayed by the estimate behind it", {
+  rows <- data.frame(Threshold_source = c("Floor", "Baseline noise", "Baseline noise", "Baseline noise", NA),
+    Noise_source = c("Whole-trace noise", "Whole-trace noise", "Baseline SD", NA, NA))
+  expect_identical(responder_threshold_set_by(rows), c("Floor", "Whole-trace noise", "Baseline SD", "Baseline noise", NA))
+  # A baseline-SD protocol reports no Noise_source and keeps the engine's wording.
+  expect_identical(responder_threshold_set_by(rows["Threshold_source"]), rows$Threshold_source)
+  expect_identical(responder_threshold_set_by(rows[0, ]), character())
+})
+
+test_that("the opening legacy contract keeps its calls table under engine 2.1.0", {
+  library(shiny)
+  rv <- do.call(reactiveValues, applied_state_fixture()[processed_state_fields])
+  testServer(mod_in_vitro_server, args = list(rv = rv), {
+    session$setInputs(stimulus = "Capsaicin", start = 5, end = 10, baseline = 2, floor = .1,
+      noise = 3, frames = 2, auto_gap = TRUE, control = FALSE)
+    session$setInputs(apply_protocol = 1)
+    expect_true(applied_ready(), info = analysis_message())
+    expect_equal(responder_protocol_version(applied_run()$protocol), 1L)
+    calls <- export_rows("calls")
+    expect_equal(unique(calls$Engine_version), "legacy-1")
+    # The optional measurements are baseline-SD measurements, recorded as engine 2.0.0
+    # defined them; nothing in the table names the engine that ran.
+    expect_equal(unique(calls$Annotation_engine_version), "2.0.0")
+    expect_false(any(vapply(calls, function(column) any(column %in% responder_engine_version()), logical(1))))
+    expect_false(any(c("Whole_trace_noise", "Noise_source") %in% names(calls)))
+    expect_equal(analysis_manifest()$engine_version, "legacy-1")
+    expect_equal(analysis_manifest()$annotation_engine_version, responder_engine_version())
+    expect_equal(analysis_manifest()$noise_estimator, "sample_sd")
+  })
+})

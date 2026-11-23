@@ -4,6 +4,10 @@ All notable changes to SimpleCa will be documented in this file.
 
 ## Unreleased
 
+- Response engine 2.1.0 adds an optional noise estimate for Version 2 protocols, `larger_of_baseline_sd_and_trace_noise`: the larger of the baseline SD and the whole-trace noise (1.4826 × the median absolute deviation of the differences between consecutive samples over the whole recording, divided by √2), so a baseline SD that is too small by chance is replaced by the cell's frame-to-frame noise over the whole recording. Calls made with it report `Whole_trace_noise`, `Whole_trace_noise_samples` and `Noise_source` after the existing columns; the methods text and analysis manifest state the estimate used.
+- The default stays the baseline SD (`sample_sd`), and existing results do not change. A protocol records the earliest engine release that defines its rule, and a record that names any other release for that rule is refused. Baseline-SD protocols therefore stay engine 2.0.0 protocols with the same hash and byte-identical tables, and Version 1 tables keep their bytes too (`Annotation_engine_version` stays 2.0.0, the release that defines those measurements); the released 2.0.0 sources are kept as a test fixture to prove it. The engine that ran is named in the analysis manifest and methods text. Percent Responding offers the estimate under Baseline requirements for the Version 2 contract.
+- Add a synthetic reference set scored cell by cell against an independent calculation, and `tests/reference-recordings.R` to run the same comparison on recordings kept outside the repository.
+
 - Fix default-font PDF exports with Cairo and a native non-Cairo font fallback; use the same export path for Metric Explanations. Report missing/empty download output and preserve original Excel read errors.
 - Remove floating-point near-zero heatmap ticks and negative-zero table display without changing data or CSV values. Flag invalid axis-break text, restrict timing-override editing to Version 2, and explain whole-recording versus stimulus-window metrics.
 

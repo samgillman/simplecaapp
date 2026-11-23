@@ -235,6 +235,19 @@ responder_qualifying_run <- function(time, rise, threshold, duration_mode, durat
   empty
 }
 
+# Whole-trace noise in the units of the trace: 1.4826 x the median absolute
+# deviation, about their median, of the differences between consecutive samples,
+# divided by sqrt(2).  It measures frame-to-frame noise only.  As for
+# runs, a difference counts only when both samples are finite and no further
+# apart than the gap limit.  Fewer differences than `min_samples` give no estimate.
+responder_whole_trace_noise <- function(time, y, max_gap_s, min_samples) {
+  tol <- 8 * .Machine$double.eps * max(1, abs(time))
+  step <- diff(y)
+  step <- step[is.finite(step) & diff(time) <= max_gap_s + tol]
+  list(noise = if (length(step) >= min_samples) stats::mad(step) / sqrt(2) else NA_real_,
+       samples = length(step))
+}
+
 responder_qc_flags <- function(...) {
   values <- unlist(list(...), use.names = FALSE)
   values <- values[!is.na(values) & nzchar(values)]
@@ -305,6 +318,14 @@ responder_window_calls_v2 <- function(dt, cells, field, window, cell_quality = N
     Signal_kind = "unspecified", Input_mode = "fixed_reference_fraction",
     Normalized_units = "fraction", Normalization_reference = "fixed",
     row.names = NULL, check.names = FALSE, stringsAsFactors = FALSE)
+  # A sample_sd protocol keeps the engine 2.0.0 table.  The whole-trace estimate
+  # is reported in columns appended after the existing ones.
+  trace_noise_rule <- window$SD_estimator == "larger_of_baseline_sd_and_trace_noise"
+  if (trace_noise_rule) {
+    out$Whole_trace_noise <- NA_real_
+    out$Whole_trace_noise_samples <- NA_integer_
+    out$Noise_source <- NA_character_
+  }
   # data.frame recycles scalar columns only for nonempty registrations.
   if (!length(cells)) out <- out[FALSE, , drop = FALSE]
   quality <- if (is.null(cell_quality)) NULL else as.data.frame(cell_quality, stringsAsFactors = FALSE)
@@ -372,8 +393,21 @@ responder_window_calls_v2 <- function(dt, cells, field, window, cell_quality = N
     if (noise == 0) flags <- c(flags, "ZERO_BASELINE_SD")
     if (noise >= 1/3) flags <- c(flags, "BASELINE_SD_AT_LEAST_ONE_THIRD_LOCAL_F0")
     if (local_f0 <= sqrt(.Machine$double.eps)) flags <- c(flags, "VERY_SMALL_LOCAL_F0")
+    estimate <- noise
+    if (trace_noise_rule) {
+      whole <- responder_whole_trace_noise(time, y, max_gap, window$Min_baseline_samples)
+      trace_noise <- whole$noise / local_f0
+      out$Whole_trace_noise[i] <- trace_noise
+      out$Whole_trace_noise_samples[i] <- whole$samples
+      # Too few differences: the baseline SD stands alone, and the cell says so.
+      if (!is.finite(trace_noise)) flags <- c(flags, "WHOLE_TRACE_NOISE_UNAVAILABLE")
+      larger <- is.finite(trace_noise) && trace_noise > noise
+      if (larger) estimate <- trace_noise
+      out$Noise_source[i] <- if (window$Noise_floor_local_fraction > estimate) "Noise floor" else
+        if (larger) "Whole-trace noise" else "Baseline SD"
+    }
     out$QC_flags[i] <- responder_qc_flags(flags)
-    noise_used <- max(noise, window$Noise_floor_local_fraction)
+    noise_used <- max(estimate, window$Noise_floor_local_fraction)
     noise_threshold <- window$SD_multiplier * noise_used
     threshold <- max(window$Floor_local_fraction, noise_threshold)
     rise <- (y[during] - base) / local_f0
@@ -439,7 +473,6 @@ responder_field_results_v2 <- function(dt, cells, field, protocol, cell_quality 
   applied_hash <- responder_protocol_hash(protocol)
   protocol$Protocol_hash <- original_hash
   protocol$Applied_protocol_hash <- applied_hash
-  protocol$Engine_version <- responder_engine_version()
   intervals <- if (is.numeric(dt[["Time"]])) diff(dt[["Time"]]) else numeric()
   nominal <- if (length(intervals) && all(is.finite(intervals)) && all(intervals > 0)) stats::median(intervals) else NA_real_
   protocol$Resolved_interval_s <- ifelse(is.na(protocol$Expected_interval_s), nominal, protocol$Expected_interval_s)
@@ -568,6 +601,7 @@ responder_legacy_annotations <- function(dt, cells, field, protocol, cell_qualit
       floor = protocol$Floor_local_fraction[i], noise = protocol$SD_multiplier[i], duration_mode = "samples",
       frames = protocol$Consecutive_samples[i], gap = if (is.na(protocol$Max_gap_s[i])) NULL else protocol$Max_gap_s[i],
       validation_status = "user_defined")
+    annotation_engine <- responder_protocol_engine_version(candidate)
     measured <- responder_field_results_v2(dt, cells, field, candidate, cell_quality)$calls
     measured$Role <- protocol$Role[i]
     annotated[[i]] <- measured[, c("Role", "Cell", columns), drop = FALSE]
@@ -590,7 +624,9 @@ responder_legacy_annotations <- function(dt, cells, field, protocol, cell_qualit
     if (length(observed) >= original$Consecutive_samples[i])
       out$Confirmation_s[i] <- observed[original$Consecutive_samples[i]]
   }
-  out$Annotation_engine_version <- responder_engine_version()
+  # The measurements follow a Version 2 rule and carry its record: the earliest
+  # engine release that defines it, so an unchanged rule gives an unchanged table.
+  out$Annotation_engine_version <- annotation_engine
   out$Legacy_classification_unchanged <- TRUE
   out$Annotation_note <- "Window measurements use the recorded effective endpoint; historical classifications are unchanged"
   rownames(out) <- NULL
